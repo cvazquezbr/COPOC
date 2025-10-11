@@ -1,0 +1,100 @@
+.modalOverlay { /* Similar ao ModalRegistro.module.css */
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modalContent { /* Similar ao ModalRegistro.module.css */
+    background: white;
+    padding: 25px;
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    width: 90%;
+    max-width: 400px;
+    position: relative;
+    text-align: center;
+    color: #333; /* Cor de texto padrão para modo claro */
+}
+.modalOverlay.darkMode .modalContent {
+    background: #2c2c2c; /* Fundo escuro para o modal */
+    color: #e0e0e0; /* Texto claro para o modal */
+    box-shadow: 0 5px 15px rgba(0,0,0,0.7);
+}
+
+
+.closeButton { /* Similar ao ModalRegistro.module.css */
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #888; /* Cor padrão do botão de fechar */
+}
+.modalOverlay.darkMode .closeButton {
+    color: #bbb;
+}
+.closeButton:hover {
+    color: #555;
+}
+.modalOverlay.darkMode .closeButton:hover {
+    color: #fff;
+}
+
+
+.actions {
+    margin-top: 20px;
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+}
+
+.btn { /* Estilos de botão */
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Botões modo claro */
+.btnConfirm {
+    background-color: #e74c3c; /* Vermelho para perigo/confirmação de exclusão */
+    color: white;
+}
+.btnConfirm:hover {
+    background-color: #c0392b;
+}
+
+.btnCancel {
+    background-color: #bdc3c7; /* Cinza */
+    color: #333;
+}
+.btnCancel:hover {
+    background-color: #95a5a6;
+}
+
+/* Botões modo escuro */
+.modalOverlay.darkMode .btnConfirm {
+    background-color: #c0392b; /* Um pouco mais escuro que o hover do claro */
+    color: #e0e0e0;
+}
+.modalOverlay.darkMode .btnConfirm:hover {
+    background-color: #a52a1a;
+}
+
+.modalOverlay.darkMode .btnCancel {
+    background-color: #545b62; /* Cinza escuro */
+    color: #e0e0e0;
+}
+.modalOverlay.darkMode .btnCancel:hover {
+    background-color: #434a50;
+}
