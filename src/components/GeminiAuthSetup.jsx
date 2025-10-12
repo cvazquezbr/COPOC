@@ -116,9 +116,9 @@ const GeminiAuthSetup = () => {
                 label="Modelo Gemini"
                 onChange={handleModelChange}
             >
-                <MenuItem value="gemini-1.5-pro">Gemini 1.5 Pro</MenuItem>
-                <MenuItem value="gemini-1.5-flash">Gemini 1.5 Flash</MenuItem>
-                <MenuItem value="gemini-1.0-pro">Gemini 1.0 Pro</MenuItem>
+                <MenuItem value="gemini-1.5-pro-latest">Gemini 1.5 Pro</MenuItem>
+                <MenuItem value="gemini-1.5-flash-latest">Gemini 1.5 Flash</MenuItem>
+                <MenuItem value="gemini-pro">Gemini 1.0 Pro</MenuItem>
             </Select>
         </FormControl>
 

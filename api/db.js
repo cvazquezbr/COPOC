@@ -1,5 +1,7 @@
-// This is a placeholder file to resolve the import issue in tests.
-// The actual database connection is handled by the Vercel environment.
-export const query = () => {
-  throw new Error('This is a mock implementation and should not be called directly.');
-};
+import { Pool } from 'pg';
+
+const pool = new Pool({
+  connectionString: process.env.POSTGRES_URL,
+});
+
+export const query = (text, params) => pool.query(text, params);
