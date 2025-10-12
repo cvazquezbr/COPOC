@@ -9,7 +9,7 @@ import BriefingPage from './pages/BriefingPage';
 import BriefingTemplatePage from './pages/BriefingTemplatePage';
 
 // Context
-import { useUserAuth } from './context/UserAuthContext';
+import { useUserAuth, UserAuthContextProvider } from './context/UserAuthContext';
 import { LayoutProvider } from './context/LayoutContext';
 
 const ProtectedRoute = ({ children }) => {

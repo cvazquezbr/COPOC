@@ -7,7 +7,6 @@ import { TemplateProvider } from './context/TemplateContext.jsx';
 
 // New Auth Provider for Application Users
 import { UserAuthContextProvider } from './context/UserAuthContext.jsx';
-import { SettingsProvider } from './context/SettingsContext.jsx';
 
 import './index.css';
 import App from './App.jsx';
@@ -16,11 +15,7 @@ createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
       <UserAuthContextProvider>
-        <SettingsProvider>
-          <TemplateProvider>
-            <App />
-          </TemplateProvider>
-        </SettingsProvider>
+          <App />
       </UserAuthContextProvider>
     </BrowserRouter>
   </StrictMode>
