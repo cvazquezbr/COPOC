@@ -33,12 +33,24 @@ const LoginPage = () => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    const success = await sendOtp(email);
-    if (success) {
+    const result = await sendOtp(email);
+    if (result.success) {
       setOtpSent(true);
       setError('');
     } else {
-      setError('Falha ao enviar OTP. Verifique seu email.');
+      if (result.error === 'User not found') {
+        setError(
+          <>
+            Usuário não encontrado. Por favor,{' '}
+            <Link component={RouterLink} to="/signup">
+              cadastre-se
+            </Link>
+            .
+          </>
+        );
+      } else {
+        setError('Falha ao enviar OTP. Verifique seu email.');
+      }
     }
     setLoading(false);
   };
