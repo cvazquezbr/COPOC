@@ -9,9 +9,8 @@ import BriefingPage from './pages/BriefingPage';
 import BriefingTemplatePage from './pages/BriefingTemplatePage';
 
 // Context
-import { useUserAuth } from './context/UserAuthContext';
+import { useUserAuth, UserAuthContextProvider } from './context/UserAuthContext';
 import { LayoutProvider } from './context/LayoutContext';
-import { SettingsProvider } from './context/SettingsContext';
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useUserAuth();
@@ -24,11 +23,7 @@ const ProtectedRoute = ({ children }) => {
     return <Navigate to="/login" replace />;
   }
 
-  return (
-    <SettingsProvider>
-      <LayoutProvider>{children}</LayoutProvider>
-    </SettingsProvider>
-  );
+  return <LayoutProvider>{children}</LayoutProvider>;
 };
 
 function App() {
