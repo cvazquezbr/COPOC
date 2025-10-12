@@ -16,11 +16,18 @@ export const UserAuthContextProvider = ({ children }) => {
   const [loading, setLoading] = useState(true); // True initially to check for session
 
   const fetchUser = useCallback(async () => {
+    setLoading(true);
     try {
       const res = await fetch('/api/auth/me');
       if (res.ok) {
         const userData = await res.json();
-        setUser(userData);
+        const settingsRes = await fetch('/api/user/settings');
+        if (settingsRes.ok) {
+          const settingsData = await settingsRes.json();
+          setUser({ ...userData, ...settingsData });
+        } else {
+          setUser(userData);
+        }
       } else {
         setUser(null);
       }
@@ -146,6 +153,56 @@ export const UserAuthContextProvider = ({ children }) => {
     }
   };
 
+  const updateUserSettings = async (newSettings) => {
+    try {
+      const res = await fetch('/api/user/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newSettings),
+      });
+      if (res.ok) {
+        toast.success('Configurações salvas com sucesso!');
+        // Optimistically update the user state
+        setUser(currentUser => ({...currentUser, ...newSettings}));
+        return true;
+      } else {
+        const errorData = await res.json();
+        toast.error(errorData.message || 'Falha ao salvar as configurações.');
+        return false;
+      }
+    } catch (error) {
+      console.error("updateUserSettings network error:", error);
+      toast.error('Ocorreu um erro de rede ao salvar as configurações.');
+      return false;
+    }
+  };
+
+  const updateSetting = (key, value) => {
+    setUser((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const saveSettings = async (settingsToSave) => {
+    try {
+      const response = await fetch('/api/user/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settingsToSave),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to save settings');
+      }
+
+      toast.success('Settings saved successfully!');
+      fetchUser(); // Refresh user data
+    } catch (error) {
+      console.error(error);
+      toast.error(`Error saving settings: ${error.message}`);
+      throw error;
+    }
+  };
+
   const value = {
     user,
     loading,
@@ -154,6 +211,8 @@ export const UserAuthContextProvider = ({ children }) => {
     signup,
     logout,
     fetchUser,
+    updateSetting,
+    saveSettings
   };
 
   return (

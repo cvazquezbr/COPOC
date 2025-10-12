@@ -11,6 +11,7 @@ import BriefingTemplatePage from './pages/BriefingTemplatePage';
 // Context
 import { useUserAuth } from './context/UserAuthContext';
 import { LayoutProvider } from './context/LayoutContext';
+import { SettingsProvider } from './context/SettingsContext';
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useUserAuth();
@@ -23,7 +24,11 @@ const ProtectedRoute = ({ children }) => {
     return <Navigate to="/login" replace />;
   }
 
-  return <LayoutProvider>{children}</LayoutProvider>;
+  return (
+    <SettingsProvider>
+      <LayoutProvider>{children}</LayoutProvider>
+    </SettingsProvider>
+  );
 };
 
 function App() {

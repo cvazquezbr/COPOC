@@ -1,11 +1,12 @@
-import { getGeminiModel, getGeminiImageModel } from './geminiCredentials';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const GEMINI_API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 class GeminiAPI {
   constructor() {
-    this.apiKey = null;
+    this.googleAI = null;
     this.isInitialized = false;
+    this.apiKey = null;
   }
 
   initialize(apiKey) {
@@ -18,7 +19,7 @@ class GeminiAPI {
     this.isInitialized = true;
   }
 
-  async generateContent(promptString, purpose = 'Chamada Genérica') {
+  async generateContent(promptString, model, purpose = 'Chamada Genérica') {
     if (!this.isInitialized) {
       throw new Error('GeminiAPI não foi inicializada. Chame initialize() primeiro.');
     }
@@ -26,7 +27,6 @@ class GeminiAPI {
       throw new Error('O prompt não pode ser vazio.');
     }
 
-    const model = getGeminiModel() || 'gemini-1.5-pro';
     console.log(`[${purpose}] Iniciando chamada à API Gemini com o modelo ${model}.`);
     console.log(`[${purpose}] Prompt:`, promptString);
 
@@ -74,11 +74,18 @@ class GeminiAPI {
     }
   }
 
-  async generateImage(promptString, purpose = 'Geração de Imagem') {
-    // Implementation omitted for brevity
+  async generateImage(promptString, imageModel, purpose = 'Geração de Imagem') {
+    if (!this.isInitialized) {
+      throw new Error('GeminiAPI não foi inicializada. Chame initialize() primeiro.');
+    }
+    // Placeholder for image generation logic
+    console.log(`[${purpose}] Gerando imagem com o modelo ${imageModel} e prompt: ${promptString}`);
+    // In a real implementation, you would call the image generation API here.
+    // For now, we'll return a placeholder image URL.
+    return Promise.resolve('https://via.placeholder.com/1024x1024.png?text=Imagem+Gerada');
   }
 
-  async reviseBriefing(baseText, template) {
+  async reviseBriefing(baseText, template, model) {
     const purpose = 'Revisão de Briefing';
     console.log(`[${purpose}] Iniciando revisão de briefing com modelo estruturado.`);
 
@@ -126,7 +133,7 @@ class GeminiAPI {
       \`\`\`
     `;
 
-    const responseText = await this.generateContent(prompt, purpose);
+    const responseText = await this.generateContent(prompt, model, purpose);
 
     const match = responseText.match(/```json\n([\s\S]*?)\n```|```([\s\S]*?)```/);
     let jsonString = responseText;
@@ -150,8 +157,21 @@ class GeminiAPI {
     }
   }
 
-  async generateBlockSuggestion(title, context) {
-    // Implementation omitted for brevity
+  async generateBlockSuggestion(title, context, model) {
+    const purpose = `Sugestão para Bloco: ${title}`;
+    const prompt = `Você é um especialista em marketing e comunicação. Sua tarefa é gerar o conteúdo para uma seção específica de um briefing de campanha.
+
+    **Seção a ser Gerada:** "${title}"
+
+    **Contexto Adicional (outras seções do briefing):**
+    ${context}
+
+    **Instruções:**
+    - Gere um conteúdo conciso e impactante para a seção "${title}".
+    - O conteúdo deve ser relevante ao contexto fornecido.
+    - O formato da resposta deve ser apenas o texto da seção, sem títulos ou formatações adicionais.`;
+
+    return this.generateContent(prompt, model, purpose);
   }
 }
 
