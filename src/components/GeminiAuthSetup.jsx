@@ -15,12 +15,12 @@ const GeminiAuthSetup = () => {
   const [testResult, setTestResult] = useState(null);
 
   const [apiKey, setApiKey] = useState('');
-  const [selectedModel, setSelectedModel] = useState('gemini-1.5-pro');
+  const [selectedModel, setSelectedModel] = useState('gemini-pro');
 
   useEffect(() => {
     if (user) {
       setApiKey(user.gemini_api_key || '');
-      setSelectedModel(user.gemini_model || 'gemini-1.5-pro');
+      setSelectedModel(user.gemini_model || 'gemini-pro');
     }
   }, [user]);
 
