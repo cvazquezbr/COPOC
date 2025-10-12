@@ -45,17 +45,25 @@ export const UserAuthContextProvider = ({ children }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       });
+
+      // Handle user not found specifically
+      if (res.status === 404) {
+        return { success: false, error: 'User not found' };
+      }
+
       const data = await res.json();
       if (res.ok) {
-        toast.success(data.message);
-        return true;
+        toast.success(data.message || 'OTP sent successfully!');
+        return { success: true };
       } else {
-        toast.error(data.error || 'Falha ao enviar OTP.');
-        return false;
+        // Handle other errors
+        toast.error(data.message || 'Falha ao enviar OTP.');
+        return { success: false, error: data.message || 'Falha ao enviar OTP.' };
       }
     } catch (error) {
-      toast.error('Ocorreu um erro ao enviar o OTP.');
-      return false;
+      console.error("sendOtp network error:", error);
+      toast.error('Ocorreu um erro de rede ao enviar o OTP.');
+      return { success: false, error: 'Network error' };
     } finally {
       setLoading(false);
     }
@@ -64,22 +72,26 @@ export const UserAuthContextProvider = ({ children }) => {
   const verifyOtp = async (email, otp) => {
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/verify-otp', {
+      // Corrected endpoint from /verify-otp to /login
+      const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, otp }),
       });
       const data = await res.json();
       if (res.ok) {
-        setUser(data.user);
+        // The API returns the user object directly
+        setUser(data);
         toast.success('Login bem-sucedido!');
         return true;
       } else {
-        toast.error(data.error || 'Falha ao verificar OTP.');
+        // API returns { message: '...' } on error
+        toast.error(data.message || 'Falha ao verificar OTP.');
         return false;
       }
     } catch (error) {
-      toast.error('Ocorreu um erro ao verificar o OTP.');
+      console.error("verifyOtp network error:", error);
+      toast.error('Ocorreu um erro de rede ao verificar o OTP.');
       return false;
     } finally {
       setLoading(false);
@@ -99,10 +111,12 @@ export const UserAuthContextProvider = ({ children }) => {
         toast.success('Cadastro bem-sucedido! Prossiga para o login com OTP.');
         return true;
       } else {
-        toast.error(data.error || 'Falha no cadastro.');
+        // API returns { message: '...' } on error
+        toast.error(data.message || 'Falha no cadastro.');
         return false;
       }
     } catch (error) {
+      console.error("signup network error:", error);
       toast.error('Ocorreu um erro durante o cadastro.');
       return false;
     } finally {
@@ -113,15 +127,20 @@ export const UserAuthContextProvider = ({ children }) => {
   const logout = async () => {
     setLoading(true);
     try {
+      // This endpoint doesn't exist yet, but we'll leave the call here
+      // for future implementation.
       const res = await fetch('/api/auth/logout', { method: 'POST' });
       if (res.ok) {
         setUser(null);
         toast.info('Você foi desconectado.');
       } else {
-        toast.error('Falha ao desconectar.');
+        // For now, we log out on the client even if the server fails
+        setUser(null);
+        toast.error('Falha ao desconectar do servidor, mas a sessão local foi limpa.');
       }
     } catch (error) {
-      toast.error('Ocorreu um erro durante o logout.');
+      setUser(null);
+      toast.error('Ocorreu um erro de rede durante o logout.');
     } finally {
       setLoading(false);
     }
@@ -143,4 +162,3 @@ export const UserAuthContextProvider = ({ children }) => {
     </UserAuthContext.Provider>
   );
 };
-

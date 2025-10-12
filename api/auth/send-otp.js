@@ -41,10 +41,8 @@ export default async function handler(req, res) {
     client.release();
 
     if (result.rowCount === 0) {
-      // To prevent user enumeration, we don't reveal if the user exists.
-      // We'll send a success response, but log the issue.
-      console.warn(`Attempt to send OTP to non-existent user: ${email}`);
-      return res.status(200).json({ message: 'If an account with this email exists, an OTP has been sent.' });
+      // The user does not exist. Return a 404 error.
+      return res.status(404).json({ message: 'User not found' });
     }
 
     // Send the OTP via email
