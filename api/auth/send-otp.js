@@ -1,9 +1,20 @@
 import { Pool } from 'pg';
+import nodemailer from 'nodemailer';
 
 const pool = new Pool({
   connectionString: process.env.POSTGRES_URL,
   ssl: {
     rejectUnauthorized: false,
+  },
+});
+
+const transporter = nodemailer.createTransport({
+  host: process.env.EMAIL_HOST,
+  port: parseInt(process.env.EMAIL_PORT, 10),
+  secure: process.env.EMAIL_SECURE === 'true', // true for 465, false for other ports
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
   },
 });
 
@@ -30,16 +41,24 @@ export default async function handler(req, res) {
     client.release();
 
     if (result.rowCount === 0) {
-      return res.status(404).json({ message: 'User not found' });
+      // To prevent user enumeration, we don't reveal if the user exists.
+      // We'll send a success response, but log the issue.
+      console.warn(`Attempt to send OTP to non-existent user: ${email}`);
+      return res.status(200).json({ message: 'If an account with this email exists, an OTP has been sent.' });
     }
 
-    // In a real application, you would send the OTP via email here.
-    // For now, we are just logging it to the console.
-    console.log(`OTP for ${email}: ${otp}`);
+    // Send the OTP via email
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM,
+      to: email,
+      subject: 'Your One-Time Password (OTP)',
+      text: `Your OTP is: ${otp}`,
+      html: `<p>Your One-Time Password (OTP) is: <strong>${otp}</strong></p><p>It will expire in 10 minutes.</p>`,
+    });
 
     res.status(200).json({ message: 'OTP sent successfully' });
   } catch (error) {
-    console.error(error);
+    console.error('Send OTP Error:', error);
     res.status(500).json({ message: 'Internal Server Error' });
   }
 }
