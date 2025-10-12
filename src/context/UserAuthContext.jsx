@@ -24,7 +24,7 @@ export const UserAuthContextProvider = ({ children }) => {
         const settingsRes = await fetch('/api/user/settings');
         if (settingsRes.ok) {
           const settingsData = await settingsRes.json();
-          setUser({ ...userData, ...settingsData });
+          setUser({ ...userData, ...settingsData, gemini_model: settingsData.gemini_model || 'gemini-pro' });
         } else {
           setUser(userData);
         }
