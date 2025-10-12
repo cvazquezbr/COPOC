@@ -4,11 +4,13 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 // Pages
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
+import MainLayout from './components/MainLayout';
 import BriefingPage from './pages/BriefingPage';
 import BriefingTemplatePage from './pages/BriefingTemplatePage';
 
 // Context
 import { useUserAuth } from './context/UserAuthContext';
+import { LayoutProvider } from './context/LayoutContext';
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useUserAuth();
@@ -21,7 +23,7 @@ const ProtectedRoute = ({ children }) => {
     return <Navigate to="/login" replace />;
   }
 
-  return children;
+  return <LayoutProvider>{children}</LayoutProvider>;
 };
 
 function App() {
@@ -36,18 +38,13 @@ function App() {
         path="/"
         element={
           <ProtectedRoute>
-            <BriefingPage />
+            <MainLayout />
           </ProtectedRoute>
         }
-      />
-      <Route
-        path="/briefing-template"
-        element={
-          <ProtectedRoute>
-            <BriefingTemplatePage />
-          </ProtectedRoute>
-        }
-      />
+      >
+        <Route index element={<BriefingPage />} />
+        <Route path="briefing-template" element={<BriefingTemplatePage />} />
+      </Route>
 
       {/* Fallback for non-matching routes */}
       <Route path="*" element={<Navigate to="/" replace />} />

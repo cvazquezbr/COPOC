@@ -13,6 +13,7 @@ import BriefingWizard, { emptyBriefingWizardData } from '../components/BriefingW
 import TextBriefingWizard from '../components/TextBriefingWizard';
 import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
 import { defaultBriefingTemplate } from '../utils/defaultBriefingTemplate';
+import { useLayout } from '../context/LayoutContext';
 
 const emptyTextBriefingData = {
   name: '',
@@ -23,9 +24,10 @@ const emptyTextBriefingData = {
   sections: {},
   finalText: '',
 };
-const BriefingPage = ({ briefingDrawerOpen, setBriefingDrawerOpen, onNoBriefingSelected, onUpdate, startInCreateMode, onBriefingCreated, onCreationCancelled }) => {
+const BriefingPage = ({ onNoBriefingSelected, onUpdate, startInCreateMode, onBriefingCreated, onCreationCancelled }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const { briefingDrawerOpen, setBriefingDrawerOpen } = useLayout();
 
   const [briefingList, setBriefingList] = useState([]);
   const [selectedBriefing, setSelectedBriefing] = useState(null);
