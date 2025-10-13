@@ -9,7 +9,8 @@ import {
   Tabs,
   Tab,
   IconButton,
-  CircularProgress,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -21,57 +22,73 @@ function TabPanel(props) {
   const { children, value, index, ...other } = props;
 
   return (
-    <div
+    <Box
       role="tabpanel"
       hidden={value !== index}
-      id={`vertical-tabpanel-${index}`}
-      aria-labelledby={`vertical-tab-${index}`}
-      style={{ width: '100%', height: '100%', overflowY: 'auto' }}
+      id={`tabpanel-${index}`}
+      aria-labelledby={`tab-${index}`}
+      sx={{
+        p: 3,
+        flexGrow: 1,
+        width: '100%',
+        overflow: 'auto',
+      }}
       {...other}
     >
-      {value === index && (
-        <Box sx={{ p: 3, width: '100%', height: '100%' }}>
-          {children}
-        </Box>
-      )}
-    </div>
+      {value === index && children}
+    </Box>
   );
 }
 
 const SetupModal = ({ open, onClose, initialTab = 0 }) => {
   const [value, setValue] = useState(initialTab);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const handleChange = (event, newValue) => {
     setValue(newValue);
   };
 
-  const a11yProps = (index) => {
-    return {
-      id: `vertical-tab-${index}`,
-      'aria-controls': `vertical-tabpanel-${index}`,
-    };
-  };
+  const a11yProps = (index) => ({
+    id: `tab-${index}`,
+    'aria-controls': `tabpanel-${index}`,
+  });
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="md" fullScreen={isMobile}>
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         Configurações
         <IconButton onClick={onClose}><CloseIcon /></IconButton>
       </DialogTitle>
-      <DialogContent sx={{ display: 'flex', p: 0, minHeight: '500px' }}>
+      <DialogContent
+        sx={{
+          display: 'flex',
+          flexDirection: isMobile ? 'column' : 'row',
+          p: 0,
+          overflow: 'hidden', // Prevent double scrollbars
+        }}
+      >
         <Tabs
-          orientation="vertical"
+          orientation={isMobile ? 'horizontal' : 'vertical'}
           variant="scrollable"
           value={value}
           onChange={handleChange}
           aria-label="Configuration tabs"
           sx={{
-            borderRight: 1,
+            borderRight: isMobile ? 0 : 1,
+            borderBottom: isMobile ? 1 : 0,
             borderColor: 'divider',
-            minWidth: 200,
+            minWidth: isMobile ? 'auto' : 200,
+            flexShrink: 0,
           }}
         >
-          <Tab icon={<AutoAwesome />} iconPosition="start" label="Gemini" sx={{ justifyContent: 'flex-start', textAlign: 'left' }} {...a11yProps(0)} />
+          <Tab
+            icon={<AutoAwesome />}
+            iconPosition="start"
+            label="Gemini"
+            sx={{ justifyContent: isMobile ? 'center' : 'flex-start' }}
+            {...a11yProps(0)}
+          />
         </Tabs>
         <TabPanel value={value} index={0}>
           <GeminiAuthSetup />

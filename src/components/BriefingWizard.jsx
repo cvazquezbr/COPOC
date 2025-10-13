@@ -149,13 +149,13 @@ const htmlToSections = (html) => {
 };
 
 const extractBlockOrder = (rules, defaultOrder) => {
-    const pattern = /EXATAMENTE nesta ordem:((?:\n[ \t]*\S+.*)+)/i;
+    const pattern = /EXATAMENTE nesta ordem:((?:\n(?:-|\*|\d+\.)?[ \t]*[^\n]+)+)/i;
     const match = rules.match(pattern);
 
     if (match && match[1]) {
         const blockList = match[1]
             .split('\n')
-            .map(item => item.trim())
+            .map(item => item.trim().replace(/^(-|\*|\d+\.)[ \t]*/, ''))
             .filter(item => item && !item.startsWith('//')); // Filter out empty lines and comments
         if (blockList.length > 0) {
             console.log('Ordem dos blocos extraída das regras:', blockList);
@@ -168,6 +168,15 @@ const extractBlockOrder = (rules, defaultOrder) => {
 };
 
 const steps = ['Edição', 'Revisão', 'Completar Blocos', 'Finalização'];
+
+const isEditorEmpty = (htmlString) => {
+    if (!htmlString) return true;
+    // Creates a temporary div to parse the HTML string.
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = htmlString;
+    // Returns true if there's no text content and no images.
+    return tempDiv.textContent.trim() === '' && !tempDiv.querySelector('img');
+};
 
 const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDataChange }) => {
     const theme = useTheme();
@@ -225,7 +234,7 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
 
     const handleNext = async () => {
         if (activeStep === 0) {
-            if (!briefingData.baseText || !briefingData.template) {
+            if (isEditorEmpty(briefingData.baseText) || !briefingData.template) {
                 toast.error('O texto base e o modelo de referência são obrigatórios.');
                 return;
             }

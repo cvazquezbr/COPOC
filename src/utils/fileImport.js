@@ -1,8 +1,9 @@
 import mammoth from 'mammoth';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf';
 
-// Set up the worker source for pdf.js to use the local file
-pdfjsLib.GlobalWorkerOptions.workerSrc = `/pdf.worker.mjs`;
+// Set up the worker source for pdf.js from a CDN
+const PDFJS_VERSION = '5.4.296'; // Use the version from package.json
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${PDFJS_VERSION}/build/pdf.worker.mjs`;
 
 export const parseWordDocument = (file) => {
   return new Promise((resolve, reject) => {
