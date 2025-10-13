@@ -1,7 +1,7 @@
 {
   "rewrites": [
     {
-      "source": "/:path((?!api/|assets/|pdf.worker.mjs).*)",
+      "source": "/:path((?!api/|assets/).*)",
       "destination": "/index.html"
     }
   ]
