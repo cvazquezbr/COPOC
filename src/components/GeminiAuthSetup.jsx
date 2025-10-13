@@ -126,18 +126,20 @@ const GeminiAuthSetup = () => {
           <Alert severity="error">{error}</Alert>
         )}
 
-        <Box sx={{ pt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Button onClick={handleTestConnection} disabled={isTesting} variant="outlined">
-            {isTesting ? 'Testando...' : 'Testar Conexão'}
-          </Button>
-          <Box>
+        <Grid container spacing={2} sx={{ pt: 2 }} alignItems="center">
+          <Grid item xs={12} sm>
+            <Button onClick={handleTestConnection} disabled={isTesting} variant="outlined" fullWidth>
+              {isTesting ? 'Testando...' : 'Testar Conexão'}
+            </Button>
+          </Grid>
+          <Grid item xs={12} sm="auto">
             {apiKey && (
-              <Button onClick={handleRemove} color="error">
+              <Button onClick={handleRemove} color="error" fullWidth>
                 Remover
               </Button>
             )}
-          </Box>
-        </Box>
+          </Grid>
+        </Grid>
 
         {testResult && (
             <Alert severity={testResult.severity} sx={{ mt: 2 }}>
