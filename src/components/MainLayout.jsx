@@ -1,19 +1,35 @@
 import React, { useState } from 'react';
 import { Outlet, useLocation, Link as RouterLink } from 'react-router-dom';
 import {
-  Box, AppBar, Toolbar, IconButton, Typography, Button,
+  Box, AppBar, Toolbar, IconButton, Typography, Button, Menu, MenuItem,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import AccountCircle from '@mui/icons-material/AccountCircle';
 import SettingsIcon from '@mui/icons-material/Settings';
 
 import { useLayout } from '../context/LayoutContext';
+import { useUserAuth } from '../context/UserAuthContext';
 import SetupModal from './SetupModal';
 
 const MainLayout = () => {
   const { setBriefingDrawerOpen } = useLayout();
+  const { logout } = useUserAuth();
   const location = useLocation();
   const [setupModalOpen, setSetupModalOpen] = useState(false);
+  const [anchorEl, setAnchorEl] = useState(null);
+
+  const handleMenu = (event) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleLogout = () => {
+    handleClose();
+    logout();
+  };
 
   const handleDrawerToggle = () => {
     setBriefingDrawerOpen((prev) => !prev);
@@ -53,15 +69,35 @@ const MainLayout = () => {
             >
               <SettingsIcon />
             </IconButton>
-            <IconButton
-              size="large"
-              aria-label="account of current user"
-              aria-controls="menu-appbar"
-              aria-haspopup="true"
-              color="inherit"
-            >
-              <AccountCircle />
-            </IconButton>
+            <div>
+              <IconButton
+                size="large"
+                aria-label="account of current user"
+                aria-controls="menu-appbar"
+                aria-haspopup="true"
+                onClick={handleMenu}
+                color="inherit"
+              >
+                <AccountCircle />
+              </IconButton>
+              <Menu
+                id="menu-appbar"
+                anchorEl={anchorEl}
+                anchorOrigin={{
+                  vertical: 'top',
+                  horizontal: 'right',
+                }}
+                keepMounted
+                transformOrigin={{
+                  vertical: 'top',
+                  horizontal: 'right',
+                }}
+                open={Boolean(anchorEl)}
+                onClose={handleClose}
+              >
+                <MenuItem onClick={handleLogout}>Logout</MenuItem>
+              </Menu>
+            </div>
           </Toolbar>
         </AppBar>
         <Box
