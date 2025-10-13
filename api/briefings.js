@@ -20,8 +20,16 @@ export default async function handler(req, res) {
     const decoded = jwt.verify(token, JWT_SECRET);
     const userId = decoded.userId;
 
-    // Assuming a 'briefings' table exists with a 'user_id' column
-    const { rows } = await query('SELECT * FROM briefings WHERE user_id = $1', [userId]);
+    // First, get the user's UUID from the users table.
+    const userResult = await query('SELECT uuid FROM users WHERE id = $1', [userId]);
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    const userUuid = userResult.rows[0].uuid;
+
+    // Now, fetch the briefings using the user's UUID.
+    const { rows } = await query('SELECT * FROM briefings WHERE user_id = $1', [userUuid]);
 
     res.status(200).json(rows);
 
