@@ -5,7 +5,7 @@ export const getBriefings = async () => {
   const res = await fetchWithAuth('/api/briefings');
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || 'Failed to fetch briefings.');
+    throw new Error(err.error || `Falha ao recuperar briefings: ${res.statusText}`);
   }
   return res.json();
 };

@@ -27,7 +27,7 @@ class GeminiAPI {
       throw new Error('O prompt não pode ser vazio.');
     }
 
-    model = model || 'gemini-pro';
+    model = model || 'gemini-1.5-pro-latest';
 
     console.log(`[${purpose}] Iniciando chamada à API Gemini com o modelo ${model}.`);
     console.log(`[${purpose}] Prompt:`, promptString);
