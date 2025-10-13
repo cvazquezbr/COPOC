@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const GEMINI_API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
+const GEMINI_API_BASE_URL = 'https://generativelanguage.googleapis.com/v1/models';
 
 class GeminiAPI {
   constructor() {
@@ -27,7 +27,10 @@ class GeminiAPI {
       throw new Error('O prompt não pode ser vazio.');
     }
 
-    model = model || 'gemini-1.5-pro-latest';
+    if (!model) {
+      console.warn('Nenhum modelo Gemini foi especificado, usando "gemini-1.5-pro-latest" como padrão.');
+      model = 'gemini-1.5-pro-latest';
+    }
 
     console.log(`[${purpose}] Iniciando chamada à API Gemini com o modelo ${model}.`);
     console.log(`[${purpose}] Prompt:`, promptString);
@@ -85,6 +88,34 @@ class GeminiAPI {
     // In a real implementation, you would call the image generation API here.
     // For now, we'll return a placeholder image URL.
     return Promise.resolve('https://via.placeholder.com/1024x1024.png?text=Imagem+Gerada');
+  }
+
+  async listModels() {
+    if (!this.isInitialized) {
+      throw new Error('GeminiAPI não foi inicializada. Chame initialize() primeiro.');
+    }
+
+    const apiUrl = `${GEMINI_API_BASE_URL}?key=${this.apiKey}`;
+
+    try {
+      const response = await fetch(apiUrl);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: { message: response.statusText } }));
+        const errorMessage = errorData.error?.message || `Erro ${response.status}`;
+        console.error('Erro da API Gemini ao listar modelos:', errorData);
+        throw new Error(`Erro da API Gemini ao listar modelos: ${errorMessage}`);
+      }
+
+      const responseData = await response.json();
+      return responseData.models;
+    } catch (error) {
+      console.error('Erro ao chamar a API Gemini para listar modelos:', error);
+      if (error instanceof Error && error.message.startsWith('Erro da API Gemini')) {
+        throw error;
+      }
+      throw new Error(`Falha na comunicação com a API Gemini: ${error.message}`);
+    }
   }
 
   async reviseBriefing(baseText, template, model) {
