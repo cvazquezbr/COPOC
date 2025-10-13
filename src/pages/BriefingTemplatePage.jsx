@@ -30,19 +30,19 @@ const defaultBlockOrder = [
 const highlightOrderRule = (text) => {
     if (!text) return null;
 
-    const pattern = /(EXATAMENTE nesta ordem:)((\n- [^\n]+)+)/i;
+    const pattern = /(EXATAMENTE nesta ordem:)([\s\S]*?)(?=R\d+\.|\s*$)/i;
     const match = text.match(pattern);
 
     if (match && match[1] && match[2]) {
-        const remainingText = text.substring(match.index + match[0].length);
         const beforeText = text.substring(0, match.index);
+        const afterText = text.substring(match.index + match[0].length);
 
         return (
             <>
                 {beforeText}
-                <span style={{ backgroundColor: 'yellow' }}>{match[1]}</span>
+                <span style={{ backgroundColor: 'yellow', fontWeight: 'bold' }}>{match[1]}</span>
                 <span style={{ backgroundColor: 'lightgreen' }}>{match[2]}</span>
-                {remainingText}
+                {afterText}
             </>
         );
     }
