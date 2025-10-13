@@ -169,6 +169,15 @@ const extractBlockOrder = (rules, defaultOrder) => {
 
 const steps = ['Edição', 'Revisão', 'Completar Blocos', 'Finalização'];
 
+const isEditorEmpty = (htmlString) => {
+    if (!htmlString) return true;
+    // Creates a temporary div to parse the HTML string.
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = htmlString;
+    // Returns true if there's no text content and no images.
+    return tempDiv.textContent.trim() === '' && !tempDiv.querySelector('img');
+};
+
 const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDataChange }) => {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -187,8 +196,6 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
     // Fetch user's saved template on component mount
     useEffect(() => {
         const fetchTemplate = async () => {
-            // Set default template immediately to avoid race conditions
-            onBriefingDataChange(prev => ({ ...prev, template: defaultBriefingTemplate }));
             try {
                 const response = await fetch('/api/briefing-template');
                 if (response.ok) {
@@ -196,12 +203,16 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
                     onBriefingDataChange(prev => ({ ...prev, template: savedTemplate }));
                     toast.info('Seu modelo de briefing foi carregado.');
                 } else if (response.status === 404) {
+                    // No saved template, use the default.
+                    onBriefingDataChange(prev => ({ ...prev, template: defaultBriefingTemplate }));
                     console.log('Nenhum modelo salvo encontrado, usando o padrão.');
                 } else {
                     throw new Error(`Falha ao buscar o modelo: ${response.statusText}`);
                 }
             } catch (error) {
                 toast.error(`Erro ao carregar seu modelo de briefing: ${error.message}`);
+                // Fallback to default template on error
+                onBriefingDataChange(prev => ({ ...prev, template: defaultBriefingTemplate }));
             }
         };
         if (open) { // Only fetch when the dialog is opened
@@ -223,7 +234,7 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
 
     const handleNext = async () => {
         if (activeStep === 0) {
-            if (!briefingData.baseText || !briefingData.template) {
+            if (isEditorEmpty(briefingData.baseText) || !briefingData.template) {
                 toast.error('O texto base e o modelo de referência são obrigatórios.');
                 return;
             }
