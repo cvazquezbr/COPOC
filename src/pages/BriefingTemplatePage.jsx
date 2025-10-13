@@ -37,13 +37,28 @@ const highlightOrderRule = (text) => {
         return (
             <>
                 {parts[0]}
-                <span style={{ backgroundColor: 'yellow' }}>{match[0]}</span>
+                <span style={{ backgroundColor: 'lightgreen' }}>{match[0]}</span>
                 {parts.slice(1).join(match[0])}
             </>
         );
     }
 
     return text;
+};
+
+const parseBlockOrderFromRules = (rules) => {
+  if (!rules) return defaultBlockOrder;
+
+  const match = rules.match(/EXATAMENTE nesta ordem:([\s\S]*?)(?=\n\n|\n*$)/i);
+  if (!match || !match[1]) return defaultBlockOrder;
+
+  const blockListText = match[1];
+  const blockTitles = blockListText
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line && /^[a-zA-Z"']/.test(line)); // Filter for lines that start with a letter, quote, or apostrophe
+
+  return blockTitles.length > 0 ? blockTitles : defaultBlockOrder;
 };
 
 const BriefingTemplatePage = () => {
@@ -224,11 +239,13 @@ const BriefingTemplatePage = () => {
     return <Typography color="error">Erro ao carregar o modelo: {error}</Typography>;
   }
 
-  const sortedBlocks = [...template.blocks].sort((a, b) => {
-    const indexA = defaultBlockOrder.indexOf(a.title);
-    const indexB = defaultBlockOrder.indexOf(b.title);
+  const dynamicBlockOrder = parseBlockOrderFromRules(template.generalRules);
 
-    // Handle cases where a title might not be in the default order list
+  const sortedBlocks = [...template.blocks].sort((a, b) => {
+    const indexA = dynamicBlockOrder.indexOf(a.title);
+    const indexB = dynamicBlockOrder.indexOf(b.title);
+
+    // Handle cases where a title might not be in the dynamic order list
     if (indexA === -1) return 1;
     if (indexB === -1) return -1;
 
