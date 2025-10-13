@@ -190,8 +190,10 @@ export const UserAuthContextProvider = ({ children }) => {
         throw new Error(errorData.message || 'Failed to save settings');
       }
 
-      toast.success('Configurações salvas com sucesso!');
-      await fetchUser(); // Refresh user data to get the latest settings
+      const data = await response.json();
+      setUser(currentUser => ({...currentUser, ...data.settings}));
+
+      toast.success(data.message || 'Configurações salvas com sucesso!');
     } catch (error) {
       console.error(error);
       toast.error(`Erro ao salvar configurações: ${error.message}`);

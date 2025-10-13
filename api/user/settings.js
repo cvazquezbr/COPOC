@@ -56,7 +56,17 @@ const settingsHandler = async (req, res) => {
       const sql = `UPDATE users SET ${updateFields.join(', ')} WHERE uuid = $${queryIndex}`;
 
       await query(sql, values);
-      res.status(200).json({ message: 'Settings updated successfully' });
+
+      // After updating, fetch the updated settings to return to the client
+      const { rows } = await query('SELECT gemini_api_key, gemini_model FROM users WHERE uuid = $1', [userId]);
+
+      res.status(200).json({
+        message: 'Settings updated successfully',
+        settings: {
+          gemini_api_key: rows[0].gemini_api_key || '',
+          gemini_model: rows[0].gemini_model || 'gemini-pro',
+        }
+      });
     } catch (error) {
       console.error('Error updating user settings:', error);
       res.status(500).json({ error: 'Internal Server Error' });
