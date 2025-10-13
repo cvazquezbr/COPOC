@@ -115,7 +115,8 @@ const BriefingTemplatePage = () => {
 
         // If we get a successful response, check if it contains a valid template
         if (result && result.length > 0 && result[0].template_data) {
-          templateData = result[0].template_data;
+          // The `template_data` from the DB is a JSON string, so we need to parse it.
+          templateData = JSON.parse(result[0].template_data);
           loadedFromDB = true;
         } else {
           // Successful response, but no template found for the user
