@@ -1,10 +1,5 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-const GEMINI_API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
-
 class GeminiAPI {
   constructor() {
-    this.googleAI = null;
     this.isInitialized = false;
     this.apiKey = null;
   }
@@ -16,7 +11,6 @@ class GeminiAPI {
       return;
     }
     this.apiKey = apiKey;
-    this.googleAI = new GoogleGenerativeAI(apiKey);
     this.isInitialized = true;
   }
 
@@ -24,17 +18,19 @@ class GeminiAPI {
     if (!this.isInitialized) {
       throw new Error('GeminiAPI não foi inicializada. Chame initialize() primeiro.');
     }
-    console.log('Fetching available Gemini models...');
-    const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${this.apiKey}`;
+    console.log('Fetching available Gemini models via proxy...');
     try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: { message: response.statusText } }));
-        const errorMessage = errorData.error?.message || `Erro ${response.status}`;
-        throw new Error(`Erro da API Gemini: ${errorMessage}`);
-      }
+      const response = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'listModels', apiKey: this.apiKey }),
+      });
+
       const data = await response.json();
-      // Filtra para incluir apenas modelos que suportam 'generateContent'
+      if (!response.ok) {
+        throw new Error(data.error || `Erro ${response.status}`);
+      }
+
       const supportedModels = data.models.filter(model =>
         model.supportedGenerationMethods.includes('generateContent')
       );
@@ -42,7 +38,7 @@ class GeminiAPI {
       return supportedModels;
     } catch (error) {
       console.error('Erro ao buscar a lista de modelos Gemini:', error);
-      throw new Error(`Falha na comunicação com a API Gemini: ${error.message}`);
+      throw new Error(`Falha na comunicação com o proxy da API Gemini: ${error.message}`);
     }
   }
 
@@ -56,34 +52,27 @@ class GeminiAPI {
 
     model = model || 'gemini-pro';
 
-    console.log(`[${purpose}] Iniciando chamada à API Gemini com o modelo ${model}.`);
+    console.log(`[${purpose}] Iniciando chamada à API Gemini via proxy com o modelo ${model}.`);
     console.log(`[${purpose}] Prompt:`, promptString);
 
-    const apiUrl = `${GEMINI_API_BASE_URL}/${model}:generateContent?key=${this.apiKey}`;
-
     try {
-      const response = await fetch(apiUrl, {
+      const response = await fetch('/api/gemini', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: promptString
-            }]
-          }],
+          action: 'generateContent',
+          apiKey: this.apiKey,
+          prompt: promptString,
+          model: model,
         }),
       });
 
+      const responseData = await response.json();
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: { message: response.statusText } }));
-        const errorMessage = errorData.error?.message || `Erro ${response.status}`;
-        console.error('Erro da API Gemini:', errorData);
-        throw new Error(`Erro da API Gemini: ${errorMessage}`);
+        console.error('Erro do proxy da API Gemini:', responseData);
+        throw new Error(responseData.error || `Erro ${response.status}`);
       }
 
-      const responseData = await response.json();
       console.log(`[${purpose}] Resposta da API Gemini (bruta):`, responseData);
 
       if (responseData.candidates?.[0]?.content?.parts?.[0]?.text) {
@@ -95,11 +84,11 @@ class GeminiAPI {
         throw new Error('Formato de resposta inesperado da API Gemini.');
       }
     } catch (error) {
-      console.error('Erro ao chamar a API Gemini:', error);
-      if (error instanceof Error && error.message.startsWith('Erro da API Gemini:')) {
+      console.error('Erro ao chamar o proxy da API Gemini:', error);
+      if (error instanceof Error && error.message.startsWith('Erro do proxy da API Gemini:')) {
         throw error;
       }
-      throw new Error(`Falha na comunicação com a API Gemini: ${error.message}`);
+      throw new Error(`Falha na comunicação com o proxy da API Gemini: ${error.message}`);
     }
   }
 
