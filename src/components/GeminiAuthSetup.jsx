@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useUserAuth } from '../context/UserAuthContext';
 import geminiAPI from '../utils/geminiAPI';
-import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button, Typography, Box, IconButton, Alert, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button, Typography, Box, IconButton, Alert, FormControl, InputLabel, Select, MenuItem, CircularProgress } from '@mui/material';
 import { Visibility, VisibilityOff, InfoOutlined as InfoIcon, Close as CloseIcon } from '@mui/icons-material';
 import { toast } from 'sonner';
 import GeminiInfobox from './GeminiInfobox';
 
 const GeminiAuthSetup = () => {
-  const { user, updateSetting } = useUserAuth();
+  const { user, loading, updateSetting } = useUserAuth();
   const [showKey, setShowKey] = useState(false);
   const [error, setError] = useState('');
   const [showInfobox, setShowInfobox] = useState(false);
@@ -20,7 +20,7 @@ const GeminiAuthSetup = () => {
   useEffect(() => {
     if (user) {
       setApiKey(user.gemini_api_key || '');
-      setSelectedModel(user.gemini_model || 'gemini-pro');
+      setSelectedModel(user.gemini_model || 'gemini-1.5-pro-latest');
     }
   }, [user]);
 
@@ -68,6 +68,14 @@ const GeminiAuthSetup = () => {
   const getMaskedKey = (key) => {
     if (!key || key.length < 8) return 'Chave muito curta para mascarar';
     return `...${key.substring(key.length - 6)}`;
+  }
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+        <CircularProgress />
+      </Box>
+    );
   }
 
   return (
