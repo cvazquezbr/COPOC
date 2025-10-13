@@ -149,13 +149,13 @@ const htmlToSections = (html) => {
 };
 
 const extractBlockOrder = (rules, defaultOrder) => {
-    const pattern = /EXATAMENTE nesta ordem:((?:\n[ \t]*\S+.*)+)/i;
+    const pattern = /EXATAMENTE nesta ordem:((?:\n(?:-|\*|\d+\.)?[ \t]*[^\n]+)+)/i;
     const match = rules.match(pattern);
 
     if (match && match[1]) {
         const blockList = match[1]
             .split('\n')
-            .map(item => item.trim())
+            .map(item => item.trim().replace(/^(-|\*|\d+\.)[ \t]*/, ''))
             .filter(item => item && !item.startsWith('//')); // Filter out empty lines and comments
         if (blockList.length > 0) {
             console.log('Ordem dos blocos extraída das regras:', blockList);

@@ -29,15 +29,16 @@ const defaultBlockOrder = [
 
 const highlightOrderRule = (text) => {
     if (!text) return null;
-    const pattern = /(EXATAMENTE nesta ordem:[\s\S]*?)(?=\n\n|\n*$)/i;
+    const pattern = /(EXATAMENTE nesta ordem:)([\s\S]*?)(?=\n\n|\n*$)/i;
     const match = text.match(pattern);
 
-    if (match && match[0]) {
+    if (match && match[1] && match[2]) {
         const parts = text.split(match[0]);
         return (
             <>
                 {parts[0]}
-                <span style={{ backgroundColor: 'yellow' }}>{match[0]}</span>
+                <span style={{ backgroundColor: 'yellow' }}>{match[1]}</span>
+                <span style={{ backgroundColor: 'lightgreen' }}>{match[2]}</span>
                 {parts.slice(1).join(match[0])}
             </>
         );
