@@ -50,7 +50,7 @@ describe('Settings API', () => {
     await settingsHandler(req, res);
 
     expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledWith({ gemini_api_key: null, gemini_model: 'gemini-1.5-pro-latest' });
+    expect(res.json).toHaveBeenCalledWith({ gemini_api_key: null, gemini_model: 'gemini-1.5-pro' });
   });
 
   it('should save and then retrieve settings for a user', async () => {
@@ -99,7 +99,7 @@ describe('Settings API', () => {
     }));
 
     const { default: settingsHandler } = await import('../settings.js?v=3');
-    const initialSettings = { gemini_api_key: 'initial-key', gemini_model: 'gemini-1.5-pro-latest' };
+    const initialSettings = { gemini_api_key: 'initial-key', gemini_model: 'gemini-1.5-pro' };
     const updatedSettings = { gemini_api_key: 'updated-key', gemini_model: 'gemini-pro' };
 
     // Insert initial settings
