@@ -31,7 +31,7 @@ export default async function handler(req, res) {
       if (!prompt || !model) {
         return res.status(400).json({ error: 'Prompt and model are required for generateContent' });
       }
-      url = `${GEMINI_API_BASE_URL}/models/${model}:generateContent?key=${apiKey}`;
+      url = `${GEMINI_API_BASE_URL}/${model}:generateContent?key=${apiKey}`;
       options.method = 'POST';
       options.body = JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
