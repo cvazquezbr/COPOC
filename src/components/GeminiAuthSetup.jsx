@@ -92,27 +92,27 @@ const GeminiAuthSetup = () => {
 
   return (
     <>
-      <Box sx={{ p: 1 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Typography variant="h6">API Gemini</Typography>
-            <IconButton onClick={() => setShowInfobox(true)}>
-                <InfoIcon />
+      <Box sx={{ p: { xs: 1, sm: 2 } }}>
+        <Grid container spacing={2} alignItems="center" justifyContent="space-between">
+          <Grid item>
+            <Typography variant="h6" component="div">
+              API Gemini
+            </Typography>
+          </Grid>
+          <Grid item>
+            <IconButton onClick={() => setShowInfobox(true)} aria-label="show info">
+              <InfoIcon />
             </IconButton>
-        </Box>
-        <Typography variant="body2" gutterBottom sx={{mt: 2}}>
-          Insira sua chave da API Gemini (Google AI Studio). Esta chave será armazenada de forma segura.
+          </Grid>
+        </Grid>
+
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 2 }}>
+          Insira sua chave da API do Google AI Studio para ativar os recursos de IA.
         </Typography>
 
-        {apiKey && (
-          <Typography variant="caption" color="textSecondary" gutterBottom>
-            Chave atual configurada: {getMaskedKey(apiKey)}
-          </Typography>
-        )}
-
-        <Box sx={{ display: 'flex', alignItems: 'center', mt: apiKey ? 1 : 2, mb: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
           <TextField
             autoFocus
-            margin="dense"
             id="gemini-api-key"
             label="Chave da API Gemini"
             type={showKey ? 'text' : 'password'}
@@ -120,78 +120,86 @@ const GeminiAuthSetup = () => {
             variant="outlined"
             value={apiKey}
             onChange={handleApiKeyChange}
-            placeholder="Sua chave da API Gemini..."
+            placeholder="Cole sua chave da API aqui"
+            size="small"
           />
-          <IconButton onClick={toggleShowKey} edge="end" sx={{ ml: 1 }}>
+          <IconButton onClick={toggleShowKey} edge="end" sx={{ ml: 1 }} aria-label="toggle key visibility">
             {showKey ? <VisibilityOff /> : <Visibility />}
           </IconButton>
         </Box>
 
-        <FormControl fullWidth sx={{ mt: 2 }}>
-            <InputLabel id="gemini-model-select-label">Modelo Gemini</InputLabel>
-            <Select
-                labelId="gemini-model-select-label"
-                id="gemini-model-select"
-                value={selectedModel}
-                label="Modelo Gemini"
-                onChange={handleModelChange}
-                disabled={!apiKey || models.length === 0}
-            >
-                {models.length > 0 ? (
-                    models.map((model) => (
-                        <MenuItem key={model.name} value={model.name}>
-                            {model.displayName} ({model.name.replace('models/', '')})
-                        </MenuItem>
-                    ))
-                ) : (
-                    <MenuItem disabled>
-                        {apiKey ? 'Buscando modelos...' : 'Insira a chave de API para ver os modelos'}
-                    </MenuItem>
-                )}
-            </Select>
+        {apiKey && (
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2, wordBreak: 'break-all' }}>
+            Chave atual: {getMaskedKey(apiKey)}
+          </Typography>
+        )}
+
+        <FormControl fullWidth size="small">
+          <InputLabel id="gemini-model-select-label">Modelo Gemini</InputLabel>
+          <Select
+            labelId="gemini-model-select-label"
+            id="gemini-model-select"
+            value={selectedModel}
+            label="Modelo Gemini"
+            onChange={handleModelChange}
+            disabled={!apiKey || models.length === 0}
+          >
+            {models.length > 0 ? (
+              models.map((model) => (
+                <MenuItem key={model.name} value={model.name}>
+                  <Typography variant="body2" component="span">{model.displayName}</Typography>
+                  <Typography variant="caption" sx={{ ml: 1, color: 'text.secondary' }}>
+                    ({model.name.replace('models/', '')})
+                  </Typography>
+                </MenuItem>
+              ))
+            ) : (
+              <MenuItem disabled>
+                {apiKey ? 'Buscando modelos...' : 'Insira a chave para listar os modelos'}
+              </MenuItem>
+            )}
+          </Select>
         </FormControl>
 
         {error && (
-          <Alert severity="error">{error}</Alert>
+          <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>
         )}
 
-        <Grid container spacing={2} sx={{ pt: 2 }} alignItems="center">
-            <Grid item xs={12} sm="auto">
-                <Button
-                    onClick={handleTestConnection}
-                    disabled={isTesting || !apiKey}
-                    variant="outlined"
-                    fullWidth
-                >
-                    {isTesting ? 'Testando...' : 'Testar Conexão'}
-                </Button>
-            </Grid>
-            <Grid item xs={12} sm="auto">
-                {apiKey && (
-                    <Button onClick={handleRemove} color="error" fullWidth>
-                        Remover Chave
-                    </Button>
-                )}
-            </Grid>
+        <Grid container spacing={1} sx={{ mt: 2 }}>
+          <Grid item xs={12} sm={6}>
+            <Button
+              onClick={handleTestConnection}
+              disabled={isTesting || !apiKey}
+              variant="outlined"
+              fullWidth
+            >
+              {isTesting ? 'Testando...' : 'Testar Conexão'}
+            </Button>
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            {apiKey && (
+              <Button onClick={handleRemove} color="error" variant="outlined" fullWidth>
+                Remover
+              </Button>
+            )}
+          </Grid>
         </Grid>
 
         {testResult && (
-            <Alert severity={testResult.severity} sx={{ mt: 2 }}>
-                {testResult.message}
-            </Alert>
+          <Alert severity={testResult.severity} sx={{ mt: 2 }}>
+            {testResult.message}
+          </Alert>
         )}
       </Box>
 
-      <Dialog open={showInfobox} onClose={() => setShowInfobox(false)} fullWidth maxWidth="lg">
-        <DialogTitle>
-           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            Instruções de Configuração
-            <IconButton onClick={() => setShowInfobox(false)}>
-                <CloseIcon />
-            </IconButton>
-           </Box>
+      <Dialog open={showInfobox} onClose={() => setShowInfobox(false)} fullWidth maxWidth="md">
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          Instruções de Configuração
+          <IconButton onClick={() => setShowInfobox(false)} aria-label="close">
+            <CloseIcon />
+          </IconButton>
         </DialogTitle>
-        <DialogContent>
+        <DialogContent dividers>
           <GeminiInfobox />
         </DialogContent>
         <DialogActions>
