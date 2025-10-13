@@ -92,7 +92,7 @@ const GeminiAuthSetup = () => {
 
   return (
     <>
-      <Box sx={{ p: { xs: 1, sm: 2 } }}>
+      <Box>
         <Grid container spacing={2} alignItems="center" justifyContent="space-between">
           <Grid item>
             <Typography variant="h6" component="div">

@@ -31,7 +31,7 @@ export default async function handler(req, res) {
       if (!prompt || !model) {
         return res.status(400).json({ error: 'Prompt and model are required for generateContent' });
       }
-      url = `${GEMINI_API_BASE_URL}/${model}:generateContent?key=${apiKey}`;
+      url = `${GEMINI_API_BASE_URL}/models/${model}:generateContent?key=${apiKey}`;
       options.method = 'POST';
       options.body = JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
@@ -44,15 +44,7 @@ export default async function handler(req, res) {
 
   try {
     const apiResponse = await fetch(url, options);
-    const responseText = await apiResponse.text();
-    let data;
-
-    try {
-      data = JSON.parse(responseText);
-    } catch (e) {
-      console.error('Gemini API returned non-JSON response:', responseText);
-      return res.status(500).json({ error: 'Failed to parse Gemini API response', details: responseText });
-    }
+    const data = await apiResponse.json();
 
     if (!apiResponse.ok) {
         console.error('Gemini API Error:', data);
