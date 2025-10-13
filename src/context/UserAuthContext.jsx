@@ -177,10 +177,6 @@ export const UserAuthContextProvider = ({ children }) => {
     }
   };
 
-  const updateSetting = (key, value) => {
-    setUser((prev) => ({ ...prev, [key]: value }));
-  };
-
   const saveSettings = async (settingsToSave) => {
     try {
       const response = await fetch('/api/user/settings', {
@@ -194,12 +190,12 @@ export const UserAuthContextProvider = ({ children }) => {
         throw new Error(errorData.message || 'Failed to save settings');
       }
 
-      toast.success('Settings saved successfully!');
-      fetchUser(); // Refresh user data
+      toast.success('Configurações salvas com sucesso!');
+      await fetchUser(); // Refresh user data to get the latest settings
     } catch (error) {
       console.error(error);
-      toast.error(`Error saving settings: ${error.message}`);
-      throw error;
+      toast.error(`Erro ao salvar configurações: ${error.message}`);
+      throw error; // Re-throw to be caught in the component
     }
   };
 
@@ -211,7 +207,6 @@ export const UserAuthContextProvider = ({ children }) => {
     signup,
     logout,
     fetchUser,
-    updateSetting,
     saveSettings
   };
 
