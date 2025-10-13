@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import cookie from 'cookie';
-import { query } from './db';
+import { query } from './db.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'a-secure-default-secret-for-development';
 
