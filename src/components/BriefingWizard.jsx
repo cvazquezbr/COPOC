@@ -169,7 +169,7 @@ const extractBlockOrder = (rules, defaultOrder) => {
 
 const steps = ['Edição', 'Revisão', 'Completar Blocos', 'Finalização'];
 
-const BriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDataChange }) => {
+const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDataChange }) => {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
@@ -587,4 +587,4 @@ const BriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDataCha
     );
 }
 
-export default BriefingWizard;
+export default TextBriefingWizard;

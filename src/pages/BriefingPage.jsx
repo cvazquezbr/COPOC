@@ -2,18 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import {
-  Typography, Box, Button, Alert, IconButton, Toolbar, Divider, Drawer, List, ListItem, ListItemButton, ListItemText, CircularProgress,
+  Paper, Typography, Box, Button, Alert, IconButton, Toolbar, Divider, Drawer, List, ListItem, ListItemButton, ListItemText, CircularProgress,
 } from '@mui/material';
 import { Add, Delete as DeleteIcon } from '@mui/icons-material';
 import { toast } from 'sonner';
+import isEqual from 'lodash.isequal';
 
 import { getBriefings, saveBriefing, updateBriefing, deleteBriefing } from '../utils/briefingState';
 import BriefingWizard from '../components/BriefingWizard';
+import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
 import { defaultBriefingTemplate } from '../utils/defaultBriefingTemplate';
 import { useLayout } from '../context/LayoutContext';
 
 const emptyBriefingData = {
-  id: null, // To distinguish between new and existing
   name: '',
   baseText: '',
   template: defaultBriefingTemplate,
@@ -21,7 +22,7 @@ const emptyBriefingData = {
   revisionNotes: '',
   sections: {},
   finalText: '',
-  type: 'text', // Explicitly mark the type
+  type: 'text',
 };
 
 const BriefingPage = ({ onNoBriefingSelected, onUpdate, startInCreateMode, onBriefingCreated, onCreationCancelled }) => {
@@ -30,25 +31,43 @@ const BriefingPage = ({ onNoBriefingSelected, onUpdate, startInCreateMode, onBri
   const { briefingDrawerOpen, setBriefingDrawerOpen } = useLayout();
 
   const [briefingList, setBriefingList] = useState([]);
+  const [selectedBriefing, setSelectedBriefing] = useState(null);
   const [briefingsLoading, setBriefingsLoading] = useState(true);
   const [briefingsError, setBriefingsError] = useState(null);
 
+  const [briefingFormData, setBriefingFormData] = useState(null);
   const [isWizardOpen, setWizardOpen] = useState(false);
-  const [currentBriefingData, setCurrentBriefingData] = useState(null);
+  const [isBriefingDirty, setIsBriefingDirty] = useState(false);
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+  const [navigationTarget, setNavigationTarget] = useState(null);
+
+  useEffect(() => {
+    if (selectedBriefing && briefingFormData) {
+      const isDirty = !isEqual(selectedBriefing.briefing_data, briefingFormData);
+      setIsBriefingDirty(isDirty);
+    } else {
+      setIsBriefingDirty(false);
+    }
+  }, [briefingFormData, selectedBriefing]);
 
   useEffect(() => {
     fetchBriefings();
   }, []);
 
   useEffect(() => {
-    if (startInCreateMode && !isWizardOpen) {
+    if (!selectedBriefing && onNoBriefingSelected) {
+      onNoBriefingSelected();
+    }
+  }, [selectedBriefing, onNoBriefingSelected]);
+
+  useEffect(() => {
+    if (startInCreateMode) {
       handleNewBriefing();
     }
-  }, [startInCreateMode, isWizardOpen]);
+  }, [startInCreateMode]);
 
   const fetchBriefings = async () => {
     setBriefingsLoading(true);
-    setBriefingsError(null);
     try {
       const data = await getBriefings();
       setBriefingList(data);
@@ -60,66 +79,104 @@ const BriefingPage = ({ onNoBriefingSelected, onUpdate, startInCreateMode, onBri
   };
 
   const handleSelectBriefing = (briefing) => {
-    // The data stored in the DB is what we need for the wizard
-    setCurrentBriefingData(briefing.briefing_data);
+    if (briefing.briefing_data?.type !== 'text') {
+      toast.error(`O briefing "${briefing.name}" foi criado com um formato antigo e não pode ser aberto. Por favor, crie um novo briefing.`);
+      return;
+    }
+    setSelectedBriefing(briefing);
+    setBriefingFormData(briefing.briefing_data);
     setWizardOpen(true);
     if (isMobile) setBriefingDrawerOpen(false);
   };
 
   const handleNewBriefing = () => {
-    setCurrentBriefingData({ ...emptyBriefingData, id: null }); // Ensure it's a new one
+    setSelectedBriefing(null); // Deselect any existing briefing
+    setBriefingFormData({ ...emptyBriefingData });
     setWizardOpen(true);
     if (isMobile) setBriefingDrawerOpen(false);
   };
 
-  const handleSaveBriefing = async (dataToSave) => {
-    if (!dataToSave) {
+  const handleSaveBriefing = async () => {
+    if (!briefingFormData) {
       toast.error('Não há dados de briefing para salvar.');
-      return;
+      return false;
     }
-    if (!dataToSave.name) {
+    if (!briefingFormData.name) {
       toast.error('O nome do briefing é obrigatório.');
-      return;
+      return false;
     }
 
     try {
-      const isNew = !dataToSave.id;
-      const savedBriefing = isNew
-        ? await saveBriefing(dataToSave.name, dataToSave)
-        : await updateBriefing(dataToSave.id, dataToSave.name, dataToSave);
+      const isNew = !selectedBriefing || !selectedBriefing.id;
+      const briefingToSave = {
+        name: briefingFormData.name,
+        briefing_data: briefingFormData,
+      };
 
-      toast.success(`Briefing "${savedBriefing.name}" salvo com sucesso!`);
+      const saved = isNew
+        ? await saveBriefing(briefingToSave.name, briefingToSave.briefing_data)
+        : await updateBriefing(selectedBriefing.id, briefingToSave.name, briefingToSave.briefing_data);
+
+      toast.success(`Briefing ${isNew ? 'salvo' : 'atualizado'} com sucesso!`);
 
       if (isNew && onBriefingCreated) {
-        onBriefingCreated(savedBriefing);
+        onBriefingCreated(saved);
       }
 
-      await fetchBriefings(); // Refresh the list
+      await fetchBriefings();
       if (onUpdate) onUpdate();
 
       setWizardOpen(false);
-      setCurrentBriefingData(null);
+      setBriefingFormData(null);
+      setSelectedBriefing(null);
+      return true;
     } catch (err) {
       toast.error(`Falha ao salvar briefing: ${err.message}`);
+      return false;
     }
   };
 
-  const handleCloseWizard = () => {
-    setWizardOpen(false);
-    setCurrentBriefingData(null);
-    if (startInCreateMode && onCreationCancelled) {
-        onCreationCancelled();
+  const handleNavigation = (targetAction) => {
+    if (isBriefingDirty) {
+      setNavigationTarget(() => targetAction);
+      setShowUnsavedDialog(true);
+    } else {
+      targetAction();
     }
-  }
+  };
+
+  const handleDialogClose = () => {
+    setShowUnsavedDialog(false);
+    setNavigationTarget(null);
+  };
+
+  const handleDialogDiscard = () => {
+    setShowUnsavedDialog(false);
+    setIsBriefingDirty(false);
+    if (navigationTarget) {
+      navigationTarget();
+    }
+    setNavigationTarget(null);
+  };
+
+  const handleDialogSaveAndNavigate = async () => {
+    const success = await handleSaveBriefing();
+    setShowUnsavedDialog(false);
+    if (success && navigationTarget) {
+      navigationTarget();
+    }
+    setNavigationTarget(null);
+  };
 
   const handleConfirmDelete = async (briefingId) => {
     try {
       await deleteBriefing(briefingId);
       toast.success('Briefing excluído com sucesso!');
-      await fetchBriefings(); // Refresh list
+      fetchBriefings(); // Refresh list
       if (onUpdate) onUpdate();
+      setSelectedBriefing(null); // Deselect if the deleted one was selected
     } catch (error) {
-      toast.error(`Falha ao excluir briefing: ${error.message}`);
+      console.error(error);
     }
   };
 
@@ -139,7 +196,7 @@ const BriefingPage = ({ onNoBriefingSelected, onUpdate, startInCreateMode, onBri
       </Box>
       <Divider sx={{ my: 2 }} />
       {briefingsLoading && <CircularProgress />}
-      {briefingsError && <Alert severity="error">{briefingsError}</Alert>}
+      {briefingsError && <Alert severity="error">Falha ao carregar briefings: {briefingsError}</Alert>}
       {!briefingsLoading && !briefingsError && (
         <List>
           {briefingList.map((p) => (
@@ -153,7 +210,8 @@ const BriefingPage = ({ onNoBriefingSelected, onUpdate, startInCreateMode, onBri
               }
             >
               <ListItemButton
-                onClick={() => handleSelectBriefing(p)}
+                selected={selectedBriefing?.id === p.id && isWizardOpen}
+                onClick={() => handleNavigation(() => handleSelectBriefing(p))}
               >
                 <ListItemText primary={p.name} />
               </ListItemButton>
@@ -171,7 +229,7 @@ const BriefingPage = ({ onNoBriefingSelected, onUpdate, startInCreateMode, onBri
           variant={isMobile ? 'temporary' : 'persistent'}
           anchor="left"
           open={briefingDrawerOpen}
-          onClose={() => setBriefingDrawerOpen(false)}
+          onClose={() => handleNavigation(() => setBriefingDrawerOpen(false))}
           sx={{
             width: 320,
             flexShrink: 0,
@@ -202,6 +260,7 @@ const BriefingPage = ({ onNoBriefingSelected, onUpdate, startInCreateMode, onBri
               }),
               marginLeft: 0,
             }),
+            position: 'relative',
           }}
         >
           {!isWizardOpen && (
@@ -214,15 +273,25 @@ const BriefingPage = ({ onNoBriefingSelected, onUpdate, startInCreateMode, onBri
         </Box>
       </Box>
 
-      {isWizardOpen && (
+      {isWizardOpen && briefingFormData && (
         <BriefingWizard
           open={isWizardOpen}
-          onClose={handleCloseWizard}
+          onClose={() => handleNavigation(() => {
+            setWizardOpen(false);
+            if (startInCreateMode && onCreationCancelled) onCreationCancelled();
+          })}
           onSave={handleSaveBriefing}
-          briefingData={currentBriefingData}
-          onBriefingDataChange={setCurrentBriefingData}
+          briefingData={briefingFormData}
+          onBriefingDataChange={setBriefingFormData}
         />
       )}
+
+      <UnsavedChangesDialog
+        open={showUnsavedDialog}
+        onClose={handleDialogClose}
+        onConfirmDiscard={handleDialogDiscard}
+        onConfirmSave={handleDialogSaveAndNavigate}
+      />
     </>
   );
 };
