@@ -93,27 +93,33 @@ const BriefingTemplatePage = () => {
   useEffect(() => {
     const fetchTemplate = async () => {
       setIsLoading(true);
+      setError(null);
       try {
         const response = await fetch('/api/briefing-template');
-        let templateData;
 
-        if (response.ok) {
-            const result = await response.json();
-            // API returns an array of rows. If it's not empty, use the first row.
-            if (result && result.length > 0 && result[0].template_data) {
-                templateData = result[0].template_data;
-            } else {
-                // If no template is found in DB, use the default one
-                templateData = defaultBriefingTemplate;
-                console.log('Nenhum modelo salvo encontrado, usando o padrão.');
-            }
+        // If the request fails for any reason (e.g., network error, 500),
+        // or if no template is found (404), we fall back to the default.
+        if (!response.ok) {
+          if (response.status !== 404) {
+            console.error(`Failed to fetch template: ${response.statusText}`);
+            toast.error(`Erro ao carregar o modelo: ${response.statusText}`);
+          }
+          setTemplate(defaultBriefingTemplate);
+          toast.info('Nenhum modelo salvo encontrado, usando o padrão.');
+          return; // Exit early
+        }
+
+        const result = await response.json();
+        let templateData;
+        let loadedFromDB = false;
+
+        // If we get a successful response, check if it contains a valid template
+        if (result && result.length > 0 && result[0].template_data) {
+          templateData = result[0].template_data;
+          loadedFromDB = true;
         } else {
-            // Handle non-OK responses that are not 404
-            if (response.status !== 404) {
-                 throw new Error(`Falha ao buscar o modelo: ${response.statusText}`);
-            }
-            templateData = defaultBriefingTemplate;
-            console.log('Nenhum modelo salvo encontrado (404), usando o padrão.');
+          // Successful response, but no template found for the user
+          templateData = defaultBriefingTemplate;
         }
 
         // Ensure all default blocks exist, adding any that are missing.
@@ -132,14 +138,17 @@ const BriefingTemplatePage = () => {
         });
 
         setTemplate({ ...templateData, blocks: updatedBlocks });
-        if (response.ok && templateData !== defaultBriefingTemplate) {
-            toast.info('Seu modelo de briefing foi carregado.');
+
+        if (loadedFromDB) {
+          toast.info('Seu modelo de briefing foi carregado.');
+        } else {
+          toast.info('Usando modelo de briefing padrão.');
         }
 
       } catch (error) {
         toast.error(`Erro ao carregar seu modelo de briefing: ${error.message}`);
         setError(error.message);
-        setTemplate(defaultBriefingTemplate); // Fallback on error
+        setTemplate(defaultBriefingTemplate); // Fallback on any exception
       } finally {
         setIsLoading(false);
       }
