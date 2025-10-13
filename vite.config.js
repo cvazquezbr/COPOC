@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { copy } from 'vite-plugin-copy'
+import apiMiddleware from './vite.api.js'
 
 export default defineConfig({
   plugins: [
@@ -18,7 +19,7 @@ export default defineConfig({
   ],
   
   server: {
-
+    middlewares: [apiMiddleware],
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
       'Cross-Origin-Embedder-Policy': 'require-corp',
