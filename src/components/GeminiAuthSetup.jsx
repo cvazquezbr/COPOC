@@ -11,15 +11,13 @@ import { toast } from 'sonner';
 import GeminiInfobox from './GeminiInfobox';
 
 const GeminiAuthSetup = () => {
-  const { user, saveSettings, fetchUser } = useUserAuth();
+  const { user, saveSettings } = useUserAuth();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const [apiKey, setApiKey] = useState('');
   const [selectedModel, setSelectedModel] = useState('');
   const [showKey, setShowKey] = useState(false);
-  const [error, setError] = useState('');
-  const [showInfobox, setShowInfobox] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [testResult, setTestResult] = useState(null);
@@ -58,7 +56,6 @@ const GeminiAuthSetup = () => {
         gemini_api_key: apiKey,
         gemini_model: selectedModel,
       });
-      // No need to call fetchUser, saveSettings does it.
     } catch (err) {
       // Error toast is handled in saveSettings
     } finally {
@@ -71,8 +68,10 @@ const GeminiAuthSetup = () => {
     try {
       await saveSettings({
         gemini_api_key: '',
+        gemini_model: 'gemini-pro',
       });
       setApiKey('');
+      setSelectedModel('gemini-pro');
     } finally {
       setIsSaving(false);
     }
@@ -99,8 +98,8 @@ const GeminiAuthSetup = () => {
   };
 
   return (
-    <>
-      <Box>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <Box sx={{ flexGrow: 1, overflowY: 'auto', p: isMobile ? 2 : 3 }}>
         <Typography variant="h6" component="div" sx={{ mb: 1 }}>
           API Gemini
         </Typography>
@@ -121,6 +120,7 @@ const GeminiAuthSetup = () => {
             onChange={(e) => setApiKey(e.target.value)}
             placeholder="Cole sua chave da API aqui"
             size="small"
+            sx={{ minWidth: 0 }} // Force wrapping
           />
           <IconButton onClick={() => setShowKey(!showKey)} edge="end" sx={{ ml: 1 }} aria-label="toggle key visibility">
             {showKey ? <VisibilityOff /> : <Visibility />}
@@ -136,6 +136,13 @@ const GeminiAuthSetup = () => {
             label="Modelo Gemini"
             onChange={(e) => setSelectedModel(e.target.value)}
             disabled={!apiKey}
+            MenuProps={{
+              sx: {
+                '& .MuiPaper-root': {
+                  maxWidth: '90vw',
+                },
+              },
+            }}
           >
             {models.length > 0 ? (
               models.map((model) => (
@@ -156,11 +163,15 @@ const GeminiAuthSetup = () => {
           </Select>
         </FormControl>
 
-        {error && (
-          <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>
+        {testResult && (
+          <Alert severity={testResult.severity} sx={{ mt: 2, wordBreak: 'break-word' }}>
+            {testResult.message}
+          </Alert>
         )}
+      </Box>
 
-        <Grid container spacing={2} sx={{ mt: 0 }} direction={isMobile ? 'column' : 'row'}>
+      <Box sx={{ p: isMobile ? 2 : 3, pt: 1, borderTop: 1, borderColor: 'divider' }}>
+        <Grid container spacing={2} direction={isMobile ? 'column' : 'row'}>
           <Grid item xs={12} sm>
             <Button
               onClick={handleSave}
@@ -189,29 +200,8 @@ const GeminiAuthSetup = () => {
             )}
           </Grid>
         </Grid>
-
-        {testResult && (
-          <Alert severity={testResult.severity} sx={{ mt: 2 }}>
-            {testResult.message}
-          </Alert>
-        )}
       </Box>
-
-      <Dialog open={showInfobox} onClose={() => setShowInfobox(false)} fullWidth maxWidth="md">
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          Instruções de Configuração
-          <IconButton onClick={() => setShowInfobox(false)} aria-label="close">
-            <CloseIcon />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent dividers>
-          <GeminiInfobox />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowInfobox(false)}>Fechar</Button>
-        </DialogActions>
-      </Dialog>
-    </>
+    </Box>
   );
 };
 
