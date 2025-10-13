@@ -189,7 +189,7 @@ const BriefingPage = ({ onNoBriefingSelected, onUpdate, startInCreateMode, onBri
   const briefingDrawerContent = (
     <Box sx={{ p: 2, width: 320 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h6">Briefings</Typography>
+        <Typography variant="h6" noWrap>Briefings</Typography>
       </Box>
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
         <Button variant="contained" startIcon={<Add />} onClick={handleNewBriefing} fullWidth>+ Novo</Button>

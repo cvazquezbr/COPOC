@@ -187,6 +187,8 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
     // Fetch user's saved template on component mount
     useEffect(() => {
         const fetchTemplate = async () => {
+            // Set default template immediately to avoid race conditions
+            onBriefingDataChange(prev => ({ ...prev, template: defaultBriefingTemplate }));
             try {
                 const response = await fetch('/api/briefing-template');
                 if (response.ok) {
@@ -194,16 +196,12 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
                     onBriefingDataChange(prev => ({ ...prev, template: savedTemplate }));
                     toast.info('Seu modelo de briefing foi carregado.');
                 } else if (response.status === 404) {
-                    // No saved template, use the default.
-                    onBriefingDataChange(prev => ({ ...prev, template: defaultBriefingTemplate }));
                     console.log('Nenhum modelo salvo encontrado, usando o padrão.');
                 } else {
                     throw new Error(`Falha ao buscar o modelo: ${response.statusText}`);
                 }
             } catch (error) {
                 toast.error(`Erro ao carregar seu modelo de briefing: ${error.message}`);
-                // Fallback to default template on error
-                onBriefingDataChange(prev => ({ ...prev, template: defaultBriefingTemplate }));
             }
         };
         if (open) { // Only fetch when the dialog is opened
