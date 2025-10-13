@@ -26,7 +26,7 @@ export default async function handler(req, res) {
   try {
     const client = await pool.connect();
     const userResult = await client.query(
-      'SELECT id, name, email, otp, otp_expires_at FROM users WHERE email = $1',
+      'SELECT id, uuid, name, email, otp, otp_expires_at FROM users WHERE email = $1',
       [email]
     );
 
@@ -52,7 +52,7 @@ export default async function handler(req, res) {
 
     // Create JWT
     const token = jwt.sign(
-      { userId: user.id, email: user.email, name: user.name },
+      { sub: user.uuid, userId: user.id, email: user.email, name: user.name },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
