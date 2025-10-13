@@ -44,7 +44,15 @@ export default async function handler(req, res) {
 
   try {
     const apiResponse = await fetch(url, options);
-    const data = await apiResponse.json();
+    const responseText = await apiResponse.text();
+    let data;
+
+    try {
+      data = JSON.parse(responseText);
+    } catch (e) {
+      console.error('Gemini API returned non-JSON response:', responseText);
+      return res.status(500).json({ error: 'Failed to parse Gemini API response', details: responseText });
+    }
 
     if (!apiResponse.ok) {
         console.error('Gemini API Error:', data);
