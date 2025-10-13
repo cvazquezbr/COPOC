@@ -15,25 +15,25 @@ const GeminiAuthSetup = () => {
   const [testResult, setTestResult] = useState(null);
   const [models, setModels] = useState([]);
 
-  const [apiKey, setApiKey] = useState('');
-  const [selectedModel, setSelectedModel] = useState('gemini-pro');
-
-  useEffect(() => {
-    if (user) {
-      setApiKey(user.gemini_api_key || '');
-      setSelectedModel(user.gemini_model || 'gemini-pro');
-    }
-  }, [user]);
+  // Derive state directly from props/context
+  const apiKey = user?.gemini_api_key || '';
+  const selectedModel = user?.gemini_model || 'gemini-pro';
 
   useEffect(() => {
     const fetchModels = async () => {
-      if (!apiKey) return;
+      if (!apiKey) {
+        setModels([]);
+        return;
+      }
       try {
         geminiAPI.initialize(apiKey);
         const modelList = await geminiAPI.listModels();
         setModels(modelList);
         if (modelList.length > 0 && !modelList.some(m => m.name === selectedModel)) {
-          setSelectedModel(modelList[0].name);
+          // If the current model isn't in the list, don't change it, just warn
+           if (!modelList.some(m => m.name.endsWith(selectedModel))) {
+            toast.warning(`O modelo selecionado (${selectedModel}) não está na lista de modelos disponíveis.`);
+          }
         }
       } catch (error) {
         console.error("Failed to fetch Gemini models:", error);
@@ -42,21 +42,19 @@ const GeminiAuthSetup = () => {
       }
     };
     fetchModels();
-  }, [apiKey]);
+  }, [apiKey, selectedModel]);
 
   const handleApiKeyChange = (e) => {
-    setApiKey(e.target.value);
-    updateSetting('gemini_api_key', e.target.value);
+    const newApiKey = e.target.value;
+    updateSetting('gemini_api_key', newApiKey);
     if (error) setError('');
   };
 
   const handleModelChange = (e) => {
-    setSelectedModel(e.target.value);
     updateSetting('gemini_model', e.target.value);
   };
 
   const handleRemove = () => {
-    setApiKey('');
     updateSetting('gemini_api_key', '');
     toast.info('Chave da API Gemini removida.');
   };
@@ -86,7 +84,7 @@ const GeminiAuthSetup = () => {
   };
 
   const getMaskedKey = (key) => {
-    if (!key || key.length < 8) return 'Chave muito curta para mascarar';
+    if (!key || key.length < 8) return '';
     return `...${key.substring(key.length - 6)}`;
   }
 
@@ -142,7 +140,7 @@ const GeminiAuthSetup = () => {
             value={selectedModel}
             label="Modelo Gemini"
             onChange={handleModelChange}
-            disabled={!apiKey || models.length === 0}
+            disabled={!apiKey}
           >
             {models.length > 0 ? (
               models.map((model) => (
@@ -154,7 +152,7 @@ const GeminiAuthSetup = () => {
                 </MenuItem>
               ))
             ) : (
-              <MenuItem disabled>
+              <MenuItem value={selectedModel} disabled>
                 {apiKey ? 'Buscando modelos...' : 'Insira a chave para listar os modelos'}
               </MenuItem>
             )}
@@ -165,8 +163,8 @@ const GeminiAuthSetup = () => {
           <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>
         )}
 
-        <Grid container spacing={1} sx={{ mt: 2 }}>
-          <Grid item xs={12} sm={6}>
+        <Grid container spacing={2} sx={{ mt: 2 }}>
+          <Grid item xs={12} sm>
             <Button
               onClick={handleTestConnection}
               disabled={isTesting || !apiKey}
@@ -176,7 +174,7 @@ const GeminiAuthSetup = () => {
               {isTesting ? 'Testando...' : 'Testar Conexão'}
             </Button>
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid item xs={12} sm>
             {apiKey && (
               <Button onClick={handleRemove} color="error" variant="outlined" fullWidth>
                 Remover
