@@ -18,7 +18,7 @@ const settingsHandler = async (req, res) => {
 
   if (req.method === 'GET') {
     try {
-      const { rows } = await query('SELECT gemini_api_key, gemini_model FROM users WHERE id = $1', [userId]);
+      const { rows } = await query('SELECT gemini_api_key, gemini_model FROM users WHERE uuid = $1', [userId]);
       if (rows.length === 0) {
         return res.status(404).json({ error: 'User not found' });
       }
@@ -53,7 +53,7 @@ const settingsHandler = async (req, res) => {
       }
 
       values.push(userId);
-      const sql = `UPDATE users SET ${updateFields.join(', ')} WHERE id = $${queryIndex}`;
+      const sql = `UPDATE users SET ${updateFields.join(', ')} WHERE uuid = $${queryIndex}`;
 
       await query(sql, values);
       res.status(200).json({ message: 'Settings updated successfully' });
