@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import cookie from 'cookie';
+import { query } from '../db.js'; // Import the database query function
 
 const JWT_SECRET = process.env.JWT_SECRET || 'a-secure-default-secret-for-development';
 
@@ -18,13 +19,17 @@ export default async function handler(req, res) {
 
     const decoded = jwt.verify(token, JWT_SECRET);
 
-    // The user object is stored in the token.
-    // In a more complex application, you might want to re-fetch user data from the database here.
-    const user = {
-      id: decoded.userId,
-      name: decoded.name,
-      email: decoded.email,
-    };
+    // Fetch the full, up-to-date user object from the database
+    const result = await query(
+      'SELECT id, uuid, name, email, gemini_api_key, gemini_model FROM users WHERE id = $1',
+      [decoded.userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const user = result.rows[0];
 
     res.status(200).json(user);
 
