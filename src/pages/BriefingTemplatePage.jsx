@@ -111,112 +111,75 @@ const BriefingTemplatePage = () => {
     };
   }, [template]);
 
-  // Sync blocks with generalRules
-  useEffect(() => {
-    // Do not run on initial load, let the fetch effect handle the initial state.
-    if (isInitialMount.current || isLoading) return;
+  // This function is the single source of truth for synchronizing blocks.
+  const syncBlocksWithRules = (currentTemplate) => {
+    const parsedTitles = parseBlockOrderFromRules(currentTemplate.generalRules);
+    const existingBlocksMap = new Map(currentTemplate.blocks.map(b => [b.title, b]));
 
-    const parsedTitles = parseBlockOrderFromRules(template.generalRules);
-    const existingBlocks = template.blocks;
-
-    // Create a map of existing blocks by title for quick lookup
-    const existingBlocksMap = new Map(existingBlocks.map(b => [b.title, b]));
-
-    // Determine which blocks are new and which should be kept
-    const newBlocks = [];
-    const titlesToKeep = new Set();
-
-    parsedTitles.forEach(title => {
-        titlesToKeep.add(title);
+    const newBlocks = parsedTitles.map(title => {
         if (existingBlocksMap.has(title)) {
-            // Keep existing block
-            newBlocks.push(existingBlocksMap.get(title));
-        } else {
-            // Add new block
-            newBlocks.push({
-                id: uuidv4(),
-                title: title,
-                content: '',
-                rules: ''
-            });
+            return existingBlocksMap.get(title);
         }
+        return {
+            id: uuidv4(),
+            title: title,
+            content: '',
+            rules: ''
+        };
     });
 
     // Check if the block list has actually changed to avoid unnecessary re-renders
-    if (newBlocks.length !== existingBlocks.length || !newBlocks.every((block, index) => block.id === existingBlocks[index]?.id)) {
-        setTemplate(prev => ({
-            ...prev,
-            blocks: newBlocks
-        }));
+    if (newBlocks.length !== currentTemplate.blocks.length || !newBlocks.every((block, index) => block.id === currentTemplate.blocks[index]?.id)) {
+        return { ...currentTemplate, blocks: newBlocks };
     }
+    return currentTemplate;
+  };
+
+  // Effect for syncing when `generalRules` changes AFTER initial load.
+  useEffect(() => {
+    if (isInitialMount.current || isLoading) {
+      return;
+    }
+    setTemplate(currentTemplate => syncBlocksWithRules(currentTemplate));
   }, [template.generalRules, isLoading]);
 
-  // Fetch template on component mount
+
+  // Fetch template on component mount and perform initial sync.
   useEffect(() => {
     const fetchTemplate = async () => {
       setIsLoading(true);
       setError(null);
       try {
         const response = await fetch('/api/briefing-template');
-
-        // If the request fails for any reason (e.g., network error, 500),
-        // or if no template is found (404), we fall back to the default.
         if (!response.ok) {
-          if (response.status !== 404) {
-            console.error(`Failed to fetch template: ${response.statusText}`);
-            toast.error(`Erro ao carregar o modelo: ${response.statusText}`);
+          if (response.status === 404) {
+            toast.info('Nenhum modelo salvo encontrado, usando o padrão.');
+            setTemplate(syncBlocksWithRules(defaultBriefingTemplate));
+          } else {
+            throw new Error(`Failed to fetch template: ${response.statusText}`);
           }
-          setTemplate(defaultBriefingTemplate);
-          toast.info('Nenhum modelo salvo encontrado, usando o padrão.');
-          return; // Exit early
+          return;
         }
 
         const result = await response.json();
         let templateData;
-        let loadedFromDB = false;
 
-        // If we get a successful response, check if it contains a valid template
         if (result && result.length > 0 && result[0].template_data) {
           const rawData = result[0].template_data;
-          // The `template_data` can be either a string or an object.
-          if (typeof rawData === 'string') {
-            templateData = JSON.parse(rawData);
-          } else {
-            templateData = rawData;
-          }
-          loadedFromDB = true;
-        } else {
-          // Successful response, but no template found for the user
-          templateData = defaultBriefingTemplate;
-        }
-
-        // Ensure all default blocks exist, adding any that are missing.
-        const existingBlockTitles = new Set(templateData.blocks.map(b => b.title));
-        const updatedBlocks = [...templateData.blocks];
-
-        defaultBlockOrder.forEach(title => {
-          if (!existingBlockTitles.has(title)) {
-            updatedBlocks.push({
-              id: uuidv4(),
-              title: title,
-              content: '',
-              rules: ''
-            });
-          }
-        });
-
-        setTemplate({ ...templateData, blocks: updatedBlocks });
-
-        if (loadedFromDB) {
+          templateData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
           toast.info('Seu modelo de briefing foi carregado.');
         } else {
+          templateData = defaultBriefingTemplate;
           toast.info('Usando modelo de briefing padrão.');
         }
+
+        // Perform the first sync right after loading the data.
+        setTemplate(syncBlocksWithRules(templateData));
 
       } catch (error) {
         toast.error(`Erro ao carregar seu modelo de briefing: ${error.message}`);
         setError(error.message);
-        setTemplate(defaultBriefingTemplate); // Fallback on any exception
+        setTemplate(syncBlocksWithRules(defaultBriefingTemplate)); // Fallback on any exception
       } finally {
         setIsLoading(false);
       }
