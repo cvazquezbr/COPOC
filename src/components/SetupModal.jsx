@@ -75,7 +75,6 @@ const SetupModal = ({ open, onClose, initialTab = 0 }) => {
           onChange={handleChange}
           aria-label="Configuration tabs"
           sx={{
-            p: 0,
             borderRight: isMobile ? 0 : 1,
             borderBottom: isMobile ? 1 : 0,
             borderColor: 'divider',
@@ -91,14 +90,14 @@ const SetupModal = ({ open, onClose, initialTab = 0 }) => {
             {...a11yProps(0)}
           />
         </Tabs>
-        <TabPanel value={value} index={0}>
+        <TabPanel value={value} index={0} sx={{ p: 0 }}>
           <GeminiAuthSetup />
         </TabPanel>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Fechar</Button>
       </DialogActions>
-    </Dialog>
+    </Dialog >
   );
 };
 
