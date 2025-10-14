@@ -85,12 +85,14 @@ const BriefingPage = ({
           }
         } else {
           setUserTemplate(defaultBriefingTemplate);
-          console.log('Could not fetch template, using default.');
+          console.error('Could not fetch template, using default.');
         }
       } catch (error) {
         toast.error(`Error loading your briefing template: ${error.message}`);
         setUserTemplate(defaultBriefingTemplate); // Fallback
       } finally {
+        // Ensure userTemplate is never null here
+        setUserTemplate(current => current || defaultBriefingTemplate);
         setIsTemplateLoading(false);
       }
     };
@@ -139,8 +141,8 @@ const BriefingPage = ({
       return;
     }
     setSelectedBriefing(briefing);
-    // Ensure the wizard uses the LATEST user template when opening an old briefing
-    setBriefingFormData({ ...briefing.briefing_data, template: userTemplate });
+    // Use the template stored with the briefing itself
+    setBriefingFormData(briefing.briefing_data);
     setWizardOpen(true);
     if (isMobile) setBriefingDrawerOpen(false);
   };
