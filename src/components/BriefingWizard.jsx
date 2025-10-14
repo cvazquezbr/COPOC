@@ -223,7 +223,8 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
             }
 
             setIsRevising(true);
-            console.log("[Revisão de Briefing] Iniciando revisão de briefing com modelo estruturado.");
+            console.log("[Revisão de Briefing] Iniciando revisão. Template ID:", briefingData.template?.id, "API Key Exists:", !!getGeminiApiKey());
+
             try {
                 const result = await geminiAPI.reviseBriefing(briefingData.baseText, briefingData.template);
 
