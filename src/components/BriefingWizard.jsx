@@ -235,14 +235,6 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
         }
     }, [activeStep, briefingData.sections, onBriefingDataChange]);
 
-    // Effect to advance to the next step after revision is complete
-    useEffect(() => {
-        // We advance to step 1 only if we are on step 0 and the revised text has been populated.
-        if (activeStep === 0 && briefingData.revisedText && !isRevising) {
-            setActiveStep(1);
-        }
-    }, [briefingData.revisedText, activeStep, isRevising]);
-
     const handleNext = async () => {
         if (activeStep === 0) {
             if (isEditorEmpty(briefingData.baseText) || !briefingData.template) {
@@ -256,6 +248,8 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
             }
 
             setIsRevising(true);
+            console.log("[Revisão de Briefing] Iniciando revisão. Template ID:", briefingData.template?.id, "API Key Exists:", !!getGeminiApiKey());
+
             try {
                 const result = await geminiAPI.reviseBriefing(briefingData.baseText, briefingData.template);
 
@@ -290,7 +284,7 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
                     sections: finalSections,
                 }));
                 toast.success('Briefing revisado com sucesso!');
-                // setActiveStep(1); // This will be handled by the useEffect now
+                setActiveStep(1);
             } catch (error) {
                 console.error("Erro detalhado na revisão com IA:", error);
                 toast.error(`Erro na revisão com IA: ${error.message}`);
