@@ -84,7 +84,7 @@ const sectionsToHtml = (sections) => {
 
             default:
                 if (content && content.trim() !== '') {
-                    sectionHtml = `<h3>${title}</h3>\n${content}\n\n`;
+                    sectionHtml = `<h6>${title}</h6>\n${content}\n\n<br/>`;
                 }
                 break;
         }
@@ -211,9 +211,12 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
     }, [activeStep, briefingData.sections, onBriefingDataChange]);
 
     const handleNext = async () => {
+        console.log(`[handleNext] Clicado. Etapa atual: ${activeStep}`);
         if (activeStep === 0) {
+            console.log('[handleNext] Processando Etapa 0: Edição');
             if (isEditorEmpty(briefingData.baseText) || !briefingData.template) {
                 toast.error('O texto base e o modelo de referência são obrigatórios.');
+                console.error('[handleNext] Erro: Texto base ou template ausente.');
                 return;
             }
             if (!geminiAPI.isInitialized) {
@@ -267,14 +270,17 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
                 setIsRevising(false);
             }
         } else if (activeStep === 1) {
+            console.log('[handleNext] Processando Etapa 1: Revisão');
             // When leaving the review step, parse the edited HTML back into sections
             const updatedSections = htmlToSections(briefingData.revisedText);
             onBriefingDataChange(prev => ({
                 ...prev,
                 sections: updatedSections,
             }));
+            console.log('[handleNext] Seções atualizadas a partir do HTML revisado.');
             setActiveStep(prev => prev + 1);
         } else {
+            console.log(`[handleNext] Avançando para a próxima etapa: ${activeStep + 1}`);
             setActiveStep(prev => prev + 1);
         }
     };
