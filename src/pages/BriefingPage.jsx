@@ -29,6 +29,7 @@ import { useLayout } from '../context/LayoutContext';
 
 const drawerWidth = 320;
 
+// This initial text is now a fallback, the primary source will be the fetched template
 const initialBaseText = defaultBriefingTemplate.blocks.map(block => block.content).join('\n');
 
 const emptyBriefingData = {
@@ -62,35 +63,40 @@ const BriefingPage = ({
   const [isBriefingDirty, setIsBriefingDirty] = useState(false);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [navigationTarget, setNavigationTarget] = useState(null);
-  const [template, setTemplate] = useState(null);
+  const [userTemplate, setUserTemplate] = useState(null);
   const [isTemplateLoading, setIsTemplateLoading] = useState(true);
 
-
   // --- Effects -------------------------------------------------------------
-   useEffect(() => {
+  useEffect(() => {
+    // Fetch the user's template once when the page loads.
     const fetchTemplate = async () => {
-        setIsTemplateLoading(true);
-        try {
-            const response = await fetch('/api/briefing-template');
-            if (response.ok) {
-                const savedTemplate = await response.json();
-                setTemplate(savedTemplate);
-                console.log('Template carregado', savedTemplate);
-            } else if (response.status === 404) {
-                setTemplate(defaultBriefingTemplate);
-                console.log('Nenhum modelo salvo encontrado, usando o padrão.');
-            } else {
-                throw new Error(`Falha ao buscar o modelo: ${response.statusText}`);
-            }
-        } catch (error) {
-            toast.error(`Erro ao carregar seu modelo de briefing: ${error.message}`);
-            setTemplate(defaultBriefingTemplate);
-        } finally {
-            setIsTemplateLoading(false);
+      setIsTemplateLoading(true);
+      try {
+        const response = await fetch('/api/briefing-template');
+        if (response.ok) {
+          const savedTemplates = await response.json();
+          // The API returns an array, and the template data is nested.
+          if (savedTemplates && savedTemplates.length > 0 && savedTemplates[0].template_data) {
+            setUserTemplate(savedTemplates[0].template_data);
+            console.log('User template loaded successfully.');
+          } else {
+            setUserTemplate(defaultBriefingTemplate);
+            console.log('No saved template found, using default.');
+          }
+        } else {
+          setUserTemplate(defaultBriefingTemplate);
+          console.log('Could not fetch template, using default.');
         }
+      } catch (error) {
+        toast.error(`Error loading your briefing template: ${error.message}`);
+        setUserTemplate(defaultBriefingTemplate); // Fallback
+      } finally {
+        setIsTemplateLoading(false);
+      }
     };
 
     fetchTemplate();
+    fetchBriefings(); // Fetch existing briefings
   }, []);
 
   useEffect(() => {
@@ -102,16 +108,15 @@ const BriefingPage = ({
   }, [briefingFormData, selectedBriefing]);
 
   useEffect(() => {
-    fetchBriefings();
-  }, []);
-
-  useEffect(() => {
     if (!selectedBriefing && onNoBriefingSelected) onNoBriefingSelected();
   }, [selectedBriefing]);
 
   useEffect(() => {
-    if (startInCreateMode) handleNewBriefing();
-  }, [startInCreateMode]);
+    // Wait for the template to be loaded before entering create mode
+    if (startInCreateMode && !isTemplateLoading) {
+      handleNewBriefing();
+    }
+  }, [startInCreateMode, isTemplateLoading]);
 
   // --- Core logic ---------------------------------------------------------
   const fetchBriefings = async () => {
@@ -134,18 +139,23 @@ const BriefingPage = ({
       return;
     }
     setSelectedBriefing(briefing);
-    setBriefingFormData(briefing.briefing_data);
+    // Ensure the wizard uses the LATEST user template when opening an old briefing
+    setBriefingFormData({ ...briefing.briefing_data, template: userTemplate });
     setWizardOpen(true);
     if (isMobile) setBriefingDrawerOpen(false);
   };
 
   const handleNewBriefing = () => {
+    if (isTemplateLoading || !userTemplate) {
+      toast.error("Aguarde, o modelo de briefing está carregando.");
+      return;
+    }
     setSelectedBriefing(null);
-    // Use the fetched template instead of the default one
+    // Use the fetched template to construct the initial state.
     const newBriefingData = {
       ...emptyBriefingData,
-      baseText: template.blocks.map(block => block.content).join('\n\n'),
-      template: template,
+      baseText: userTemplate.blocks.map(block => block.content).join('\n\n'),
+      template: userTemplate,
     };
     setBriefingFormData(newBriefingData);
     setWizardOpen(true);
@@ -160,9 +170,10 @@ const BriefingPage = ({
 
     try {
       const isNew = !selectedBriefing?.id;
+      // Ensure the saved data includes the template that was used
       const briefingToSave = {
         name: briefingFormData.name,
-        briefing_data: briefingFormData,
+        briefing_data: { ...briefingFormData, template: userTemplate },
       };
 
       const saved = isNew
@@ -227,7 +238,7 @@ const BriefingPage = ({
         disabled={isTemplateLoading}
       >
         Novo Briefing
-        {isTemplateLoading && <CircularProgress size={20} sx={{ ml: 1 }} />}
+        {isTemplateLoading && <CircularProgress size={20} color="inherit" sx={{ ml: 1 }} />}
       </Button>
 
       <Divider />
@@ -250,6 +261,7 @@ const BriefingPage = ({
                 <ListItemButton
                   selected={selectedBriefing?.id === p.id && isWizardOpen}
                   onClick={() => handleNavigation(() => handleSelectBriefing(p))}
+                  disabled={isTemplateLoading}
                 >
                   <ListItemText primary={p.name} />
                 </ListItemButton>
@@ -317,7 +329,7 @@ const BriefingPage = ({
             </Typography>
             <Button variant="contained" onClick={handleNewBriefing} disabled={isTemplateLoading}>
               Criar novo briefing
-              {isTemplateLoading && <CircularProgress size={24} sx={{ ml: 1, position: 'absolute' }} />}
+              {isTemplateLoading && <CircularProgress size={24} sx={{ position: 'absolute' }} />}
             </Button>
           </Paper>
         )}
@@ -355,11 +367,12 @@ const BriefingPage = ({
       />
 
       {/* Botão flutuante no mobile */}
-      {isMobile && (
+      {isMobile && !briefingDrawerOpen && (
         <Fab
           color="primary"
           sx={{ position: 'fixed', bottom: 24, right: 24, boxShadow: 4 }}
           onClick={handleNewBriefing}
+          disabled={isTemplateLoading}
         >
           <Add />
         </Fab>
