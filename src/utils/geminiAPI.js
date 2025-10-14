@@ -186,7 +186,7 @@ class GeminiAPI {
     **Seção a ser Gerada:** "${title}"
 
     **Contexto Adicional (outras seções do briefing):**
-    ${context}
+    ${JSON.stringify(context, null, 2)}
 
     **Instruções:**
     - Gere um conteúdo conciso e impactante para a seção "${title}".
