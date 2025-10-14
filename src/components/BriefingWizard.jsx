@@ -211,20 +211,33 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
     }, [activeStep, briefingData.sections, onBriefingDataChange]);
 
     const handleNext = async () => {
+        console.log(`[handleNext] Clicado. Etapa atual: ${activeStep}`);
         if (activeStep === 0) {
+            console.log('[handleNext] Processando Etapa 0: Edição.');
+
             if (isEditorEmpty(briefingData.baseText)) {
                 toast.error('O texto base é obrigatório.');
+                console.error('[handleNext] Erro: O texto base está vazio.');
                 return;
             }
+            console.log('[handleNext] Check: Texto base preenchido.');
 
             if (!briefingData.template) {
                 toast.error('O modelo de referência é obrigatório.');
+                console.error('[handleNext] Erro: O modelo de referência não foi selecionado.');
                 return;
             }
+            console.log('[handleNext] Check: Modelo de referência selecionado:', briefingData.template ? 'Sim' : 'Não');
+
             if (!geminiAPI.isInitialized) {
                 const apiKey = getGeminiApiKey();
-                if (!apiKey) { toast.error('Chave de API do Gemini não configurada.'); return; }
+                if (!apiKey) {
+                    toast.error('Chave de API do Gemini não configurada.');
+                    console.error('[handleNext] Erro: Chave de API do Gemini não encontrada.');
+                    return;
+                }
                 geminiAPI.initialize(apiKey);
+                console.log('[handleNext] Check: API do Gemini inicializada com sucesso.');
             }
 
             setIsRevising(true);
