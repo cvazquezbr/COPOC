@@ -156,7 +156,7 @@ const BriefingPage = ({
     // Use the fetched template to construct the initial state.
     const newBriefingData = {
       ...emptyBriefingData,
-      baseText: userTemplate.blocks.map(block => block.content).join('\n\n\n'),
+      baseText: userTemplate.blocks.map(block => `## ${block.title} ##\n\n${block.content.replace(/^## .* ##\n\n/, '')}`).join('\n\n'),
       template: userTemplate,
     };
     setBriefingFormData(newBriefingData);
