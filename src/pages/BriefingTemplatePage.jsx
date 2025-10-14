@@ -51,18 +51,21 @@ const highlightOrderRule = (text) => {
 };
 
 const parseBlockOrderFromRules = (rules) => {
-  if (!rules) return defaultBlockOrder;
+    if (!rules) return defaultBlockOrder;
 
-  const match = rules.match(/EXATAMENTE nesta ordem:([\s\S]*?)(?=\n\n|\n*$)/i);
-  if (!match || !match[1]) return defaultBlockOrder;
+    // Use the same regex as highlightOrderRule for consistency.
+    const match = rules.match(/(?:EXATAMENTE nesta ordem:)([\s\S]*?)(?=R\d+\.|\s*$)/i);
+    if (!match || !match[1]) {
+        return defaultBlockOrder;
+    }
 
-  const blockListText = match[1];
-  const blockTitles = blockListText
-    .split('\n')
-    .map(line => line.trim())
-    .filter(line => line && /^[a-zA-Z"']/.test(line)); // Filter for lines that start with a letter, quote, or apostrophe
+    const blockListText = match[1];
+    const blockTitles = blockListText
+        .split('\n')
+        .map(line => line.replace(/^-|\*|^\d+\.\s*/, '').trim()) // Robustly remove list markers
+        .filter(line => line); // Filter out any empty lines after trimming
 
-  return blockTitles.length > 0 ? blockTitles : defaultBlockOrder;
+    return blockTitles.length > 0 ? blockTitles : defaultBlockOrder;
 };
 
 const BriefingTemplatePage = () => {
@@ -107,6 +110,46 @@ const BriefingTemplatePage = () => {
       clearTimeout(handler);
     };
   }, [template]);
+
+  // Sync blocks with generalRules
+  useEffect(() => {
+    // Do not run on initial load, let the fetch effect handle the initial state.
+    if (isInitialMount.current || isLoading) return;
+
+    const parsedTitles = parseBlockOrderFromRules(template.generalRules);
+    const existingBlocks = template.blocks;
+
+    // Create a map of existing blocks by title for quick lookup
+    const existingBlocksMap = new Map(existingBlocks.map(b => [b.title, b]));
+
+    // Determine which blocks are new and which should be kept
+    const newBlocks = [];
+    const titlesToKeep = new Set();
+
+    parsedTitles.forEach(title => {
+        titlesToKeep.add(title);
+        if (existingBlocksMap.has(title)) {
+            // Keep existing block
+            newBlocks.push(existingBlocksMap.get(title));
+        } else {
+            // Add new block
+            newBlocks.push({
+                id: uuidv4(),
+                title: title,
+                content: '',
+                rules: ''
+            });
+        }
+    });
+
+    // Check if the block list has actually changed to avoid unnecessary re-renders
+    if (newBlocks.length !== existingBlocks.length || !newBlocks.every((block, index) => block.id === existingBlocks[index]?.id)) {
+        setTemplate(prev => ({
+            ...prev,
+            blocks: newBlocks
+        }));
+    }
+  }, [template.generalRules, isLoading]);
 
   // Fetch template on component mount
   useEffect(() => {
