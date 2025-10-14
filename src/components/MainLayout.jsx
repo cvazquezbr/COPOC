@@ -56,9 +56,6 @@ const MainLayout = () => {
                 <MenuIcon />
               </IconButton>
             )}
-            <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-              Copilot
-            </Typography>
             <Button color="inherit" component={RouterLink} to="/briefing-template">
               Templates
             </Button>
