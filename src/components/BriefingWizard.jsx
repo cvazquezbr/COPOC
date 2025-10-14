@@ -84,7 +84,7 @@ const sectionsToHtml = (sections) => {
 
             default:
                 if (content && content.trim() !== '') {
-                    sectionHtml = `<h6>${title}</h6>\n${content}\n\n`;
+                    sectionHtml = `<h3>${title}</h3>\n${content}\n\n`;
                 }
                 break;
         }
@@ -192,6 +192,7 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
     const [isNotesDrawerOpen, setNotesDrawerOpen] = useState(false);
     const [focusModeTarget, setFocusModeTarget] = useState(null); // null | 'baseText' | 'revisedText'
     const [activeSuggestion, setActiveSuggestion] = useState({ title: null, content: '' });
+    const [errorFromGeminiRevision, setErrorFromGeminiRevision] = useState(false);
 
     const wordInputRef = useRef(null);
     const pdfInputRef = useRef(null);
@@ -241,10 +242,13 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
             }
 
             setIsRevising(true);
+            console.log("[Revisão de Briefing] Iniciando revisão. Template ID:", briefingData.template?.id, "API Key Exists:", !!getGeminiApiKey());
+
             try {
                 const result = await geminiAPI.reviseBriefing(briefingData.baseText, briefingData.template);
 
                 if (!result || typeof result.sections !== 'object' || result.sections === null) {
+                    console.error("Resposta da IA inválida ou malformada:", result);
                     throw new Error("A resposta da IA não continha a estrutura de seções esperada.");
                 }
 
@@ -277,7 +281,18 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
                 setActiveStep(1);
             } catch (error) {
                 console.error("Erro detalhado na revisão com IA:", error);
-                toast.error(`Erro na revisão com IA: ${error.message}`);
+                let userErrorMessage = "Erro desconhecido na revisão com IA.";
+                if (error.message.includes("JSON válido")) {
+                    userErrorMessage = "A IA não retornou um formato de briefing válido. Tente novamente ou revise o texto base.";
+                } else if (error.message.includes("estrutura de seções esperada")) {
+                    userErrorMessage = "A IA retornou um briefing com estrutura inesperada. Tente novamente.";
+                } else if (error.message.includes("Falha na comunicação com o proxy da API Gemini")) {
+                    userErrorMessage = "Falha de comunicação com a API Gemini. Verifique sua conexão ou a chave da API.";
+                } else {
+                    userErrorMessage = `Erro na revisão com IA: ${error.message}. Verifique o console para mais detalhes.`;
+                }
+                toast.error(userErrorMessage);
+                setErrorFromGeminiRevision(true);
             } finally {
                 setIsRevising(false);
             }
@@ -536,6 +551,16 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
                             disabled={isRevising}
                         >
                             {isRevising && activeStep === 0 ? 'Revisando...' : 'Próximo'}
+                        </Button>
+                    )}
+                    {activeStep === 0 && !isRevising && errorFromGeminiRevision && (
+                        <Button
+                            variant="outlined"
+                            color="secondary"
+                            onClick={() => setActiveStep(1)} // Permite avançar manualmente
+                            sx={{ ml: 2 }}
+                        >
+                            Ignorar Revisão (Avançar)
                         </Button>
                     )}
                 </DialogActions>
