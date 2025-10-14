@@ -14,10 +14,14 @@ export default async function handler(req, res) {
     }
 
     const decoded = jwt.verify(token, JWT_SECRET);
-    const userId = decoded.userId;
+    const userUuid = decoded.sub; // Use the 'sub' claim for the user's UUID.
+
+    if (!userUuid) {
+      return res.status(401).json({ message: 'Invalid token: user UUID not found.' });
+    }
 
     if (req.method === 'GET') {
-      const { rows } = await query('SELECT * FROM briefing_templates WHERE user_id = $1', [userId]);
+      const { rows } = await query('SELECT * FROM briefing_templates WHERE user_id = (SELECT id FROM users WHERE uuid = $1)', [userUuid]);
       if (rows.length === 0) {
         return res.status(404).json({ message: 'Template not found' });
       }
@@ -26,11 +30,11 @@ export default async function handler(req, res) {
       const { template_data } = req.body;
       const { rows } = await query(
         `INSERT INTO briefing_templates (user_id, template_data)
-         VALUES ($1, $2)
+         VALUES ((SELECT id FROM users WHERE uuid = $1), $2)
          ON CONFLICT (user_id)
          DO UPDATE SET template_data = $2, updated_at = NOW()
          RETURNING *`,
-        [userId, JSON.stringify(template_data)]
+        [userUuid, JSON.stringify(template_data)]
       );
       res.status(200).json(rows[0]);
     } else {
