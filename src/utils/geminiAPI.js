@@ -113,22 +113,22 @@ class GeminiAPI {
         .join('\n\n');
 
       const prompt = `
-        **DIRETRIZES CRÍTICAS PARA A RESPOSTA:**
-        - Sua resposta DEVE ser um objeto JSON válido e completo, sem nenhum texto ou formatação adicional antes ou depois do JSON.
-        - O JSON deve conter APENAS as chaves "sections" e "revisionNotes".
-        - A estrutura do JSON DEVE ser EXATAMENTE a seguinte:
+
+        **DIRETIZES:**
+
+        - **NUNCA** copie nem resuma partes das instruções deste prompt (tudo que aparece antes de “T3. TEXTO BASE”).
+        - **NÃO** insira menções a regras, seções vazias, instruções, rótulos (como “R1”, “R2”, etc.) ou frases automáticas como “A revisão não encontrou conteúdo para esta seção”.
+        - Sua resposta **DEVE** ser um objeto JSON válido, sem nenhum texto ou formatação adicional fora dele.
+        - A estrutura do JSON deve ser **EXATAMENTE** a seguinte:
         {
           "sections": {
-            // As chaves aqui devem corresponder EXATAMENTE aos títulos dos blocos do modelo.
-            // Exemplo: "Título da Missão": "<p>Conteúdo...</p>",
-            // Exemplo: "Saudação": "<p>Conteúdo...</p>",
-            // Inclua TODOS os blocos do modelo, mesmo que o conteúdo seja vazio.
+            // As chaves aqui devem corresponder aos títulos dos blocos do modelo
+            "Título da Missão": "<p>Conteúdo...</p>",
+            "Saudação": "<p>Conteúdo...</p>",
+            // etc...
           },
-          "revisionNotes": ["Nota descrevendo revisão 1.", "Nota descrevendo revisão 2."] // Pode ser um array vazio se não houver notas.
+          "revisionNotes": ["Nota descrevendo revisão 1.", "Nota descrevendo revisão 2.", "Nota descrevendo revisão 3."]
         }
-        - O conteúdo de cada seção dentro de "sections" DEVE ser formatado em Markdown.
-        - NUNCA inclua menções a regras, seções vazias, instruções, rótulos (como “R1”, “R2”, etc.) ou frases automáticas como “A revisão não encontrou conteúdo para esta seção” DENTRO do JSON.
-        - NUNCA copie nem resuma partes das instruções deste prompt (tudo que aparece antes de “T3. TEXTO BASE”).
 
         **SUA TAREFA:**
         ${template.generalRules}
@@ -153,22 +153,19 @@ class GeminiAPI {
 
       const responseText = await this.generateContent(prompt, model, purpose);
 
-	      // Tentar extrair o JSON de um bloco de código, ou assumir que é JSON puro
-	      let jsonString = responseText;
-	      const codeBlockMatch = responseText.match(/```json\n([\s\S]*?)\n```/);
-	      if (codeBlockMatch && codeBlockMatch[1]) {
-	        jsonString = codeBlockMatch[1];
-	      } else {
-	        // Fallback para tentar encontrar o primeiro e último { } para JSON puro
-	        const firstBrace = responseText.indexOf("{");
-	        const lastBrace = responseText.lastIndexOf("}");
-	        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-	          jsonString = responseText.substring(firstBrace, lastBrace + 1);
-	        }
-	      }
+      const match = responseText.match(/```json\n([\s\S]*?)\n```|```([\s\S]*?)```/);
+      let jsonString = responseText;
+      if (match) {
+        jsonString = match[1] || match[2];
+      } else {
+        const plainJsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (plainJsonMatch) {
+          jsonString = plainJsonMatch[0];
+        }
+      }
 
-	      try {
-	        const parsed = JSON.parse(jsonString);
+      try {
+        const parsed = JSON.parse(jsonString);
         console.log(`[${purpose}] JSON extraído e parseado com sucesso.`);
         return parsed;
       } catch (e) {
