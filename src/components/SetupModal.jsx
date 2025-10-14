@@ -75,6 +75,7 @@ const SetupModal = ({ open, onClose, initialTab = 0 }) => {
           onChange={handleChange}
           aria-label="Configuration tabs"
           sx={{
+            p: 0,
             borderRight: isMobile ? 0 : 1,
             borderBottom: isMobile ? 1 : 0,
             borderColor: 'divider',
