@@ -251,18 +251,20 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
 
             try {
                 const result = await geminiAPI.reviseBriefing(briefingData.baseText, briefingData.template);
-                const aiSections = result.sections || {};
 
+                if (!result || typeof result.sections !== 'object' || result.sections === null) {
+                    console.error("Resposta da IA inválida ou malformada:", result);
+                    throw new Error("A resposta da IA não continha a estrutura de seções esperada.");
+                }
+
+                const aiSections = result.sections;
                 const blockOrder = extractBlockOrder(briefingData.template.generalRules, briefingData.template.blocks.map(b => b.title));
-
                 const finalSections = {};
-                // Create a case-insensitive map of AI sections
                 const aiSectionsMap = new Map(Object.entries(aiSections).map(([k, v]) => [k.toLowerCase(), v]));
 
                 blockOrder.forEach(title => {
                     const lowerCaseTitle = title.toLowerCase();
                     if (aiSectionsMap.has(lowerCaseTitle) && aiSectionsMap.get(lowerCaseTitle).trim() !== '') {
-                        // Preserve the original title casing from blockOrder
                         finalSections[title] = aiSectionsMap.get(lowerCaseTitle);
                     } else {
                         finalSections[title] = "<p>A revisão não encontrou conteúdo para esta seção.</p>";
@@ -282,7 +284,9 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
                 }));
                 toast.success('Briefing revisado com sucesso!');
                 setActiveStep(1);
+
             } catch (error) {
+                console.error("Erro detalhado na revisão com IA:", error);
                 toast.error(`Erro na revisão com IA: ${error.message}`);
             } finally {
                 setIsRevising(false);
