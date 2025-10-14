@@ -144,7 +144,7 @@ const GeminiAuthSetup = () => {
           }}
         />
 
-        <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+        <FormControl fullWidth size="small" sx={{ mb: 1 }}>
           <InputLabel id="gemini-model-select-label">Modelo Gemini</InputLabel>
           <Select
             labelId="gemini-model-select-label"
@@ -186,17 +186,17 @@ const GeminiAuthSetup = () => {
       {/* Fixed Actions Footer */}
       <Box sx={{ p: isMobile ? 2 : 3, pt: 2, borderTop: 1, borderColor: 'divider' }}>
         <Grid container spacing={2} alignItems="center" direction={isMobile ? 'column' : 'row'}>
-          <Grid item xs={12} sm>
+          <Grid item xs={4} sm>
             <Button onClick={handleSave} disabled={isSaving} variant="contained" fullWidth>
               {isSaving ? <CircularProgress size={24} color="inherit" /> : 'Salvar'}
             </Button>
           </Grid>
-          <Grid item xs={12} sm>
+          <Grid item xs={4} sm>
             <Button onClick={handleTestConnection} disabled={isTesting || !apiKey} variant="outlined" fullWidth>
               {isTesting ? 'Testando...' : 'Testar'}
             </Button>
           </Grid>
-          <Grid item xs={12} sm>
+          <Grid item xs={4} sm>
             {apiKey && (
               <Button onClick={handleRemove} color="error" variant="outlined" fullWidth disabled={isSaving}>
                 Remover
