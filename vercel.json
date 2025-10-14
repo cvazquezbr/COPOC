@@ -4,5 +4,10 @@
       "source": "/:path((?!api/|assets/).*)",
       "destination": "/index.html"
     }
-  ]
+  ],
+  "functions": {
+    "api/gemini.js": {
+      "maxDuration": 30
+    }
+  }
 }
