@@ -84,7 +84,7 @@ const sectionsToHtml = (sections) => {
 
             default:
                 if (content && content.trim() !== '') {
-                    sectionHtml = `<h6>${title}</h6>\n${content}\n\n<br/>`;
+                    sectionHtml = `<h6>${title}</h6>\n${content}\n\n`;
                 }
                 break;
         }
@@ -211,43 +211,27 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
     }, [activeStep, briefingData.sections, onBriefingDataChange]);
 
     const handleNext = async () => {
-        console.log(`[handleNext] Clicado. Etapa atual: ${activeStep}`);
         if (activeStep === 0) {
-            console.log('[handleNext] Processando Etapa 0: Edição.');
-
             if (isEditorEmpty(briefingData.baseText)) {
                 toast.error('O texto base é obrigatório.');
-                console.error('[handleNext] Erro: O texto base está vazio.');
                 return;
             }
-            console.log('[handleNext] Check: Texto base preenchido.');
 
             if (!briefingData.template) {
                 toast.error('O modelo de referência é obrigatório.');
-                console.error('[handleNext] Erro: O modelo de referência não foi selecionado.');
                 return;
             }
-            console.log('[handleNext] Check: Modelo de referência selecionado:', briefingData.template?.name);
-
             if (!geminiAPI.isInitialized) {
                 const apiKey = getGeminiApiKey();
-                if (!apiKey) {
-                    toast.error('Chave de API do Gemini não configurada.');
-                    console.error('[handleNext] Erro: Chave de API do Gemini não encontrada.');
-                    return;
-                }
+                if (!apiKey) { toast.error('Chave de API do Gemini não configurada.'); return; }
                 geminiAPI.initialize(apiKey);
-                console.log('[handleNext] Check: API do Gemini inicializada com sucesso.');
             }
 
             setIsRevising(true);
-            console.log("[Revisão de Briefing] Iniciando revisão. Template ID:", briefingData.template?.id, "API Key Exists:", !!getGeminiApiKey());
-
             try {
                 const result = await geminiAPI.reviseBriefing(briefingData.baseText, briefingData.template);
 
                 if (!result || typeof result.sections !== 'object' || result.sections === null) {
-                    console.error("Resposta da IA inválida ou malformada:", result);
                     throw new Error("A resposta da IA não continha a estrutura de seções esperada.");
                 }
 
@@ -285,17 +269,14 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
                 setIsRevising(false);
             }
         } else if (activeStep === 1) {
-            console.log('[handleNext] Processando Etapa 1: Revisão');
             // When leaving the review step, parse the edited HTML back into sections
             const updatedSections = htmlToSections(briefingData.revisedText);
             onBriefingDataChange(prev => ({
                 ...prev,
                 sections: updatedSections,
             }));
-            console.log('[handleNext] Seções atualizadas a partir do HTML revisado.');
             setActiveStep(prev => prev + 1);
         } else {
-            console.log(`[handleNext] Avançando para a próxima etapa: ${activeStep + 1}`);
             setActiveStep(prev => prev + 1);
         }
     };
