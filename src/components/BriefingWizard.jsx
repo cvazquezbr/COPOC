@@ -196,32 +196,7 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
     const wordInputRef = useRef(null);
     const pdfInputRef = useRef(null);
 
-    // Fetch user's saved template on component mount
-    useEffect(() => {
-        const fetchTemplate = async () => {
-            try {
-                const response = await fetch('/api/briefing-template');
-                if (response.ok) {
-                    const savedTemplate = await response.json();
-                    onBriefingDataChange(prev => ({ ...prev, template: savedTemplate }));
-                    toast.info('Seu modelo de briefing foi carregado.');
-                } else if (response.status === 404) {
-                    // No saved template, use the default.
-                    onBriefingDataChange(prev => ({ ...prev, template: defaultBriefingTemplate }));
-                    console.log('Nenhum modelo salvo encontrado, usando o padrão.');
-                } else {
-                    throw new Error(`Falha ao buscar o modelo: ${response.statusText}`);
-                }
-            } catch (error) {
-                toast.error(`Erro ao carregar seu modelo de briefing: ${error.message}`);
-                // Fallback to default template on error
-                onBriefingDataChange(prev => ({ ...prev, template: defaultBriefingTemplate }));
-            }
-        };
-        if (open) { // Only fetch when the dialog is opened
-            fetchTemplate();
-        }
-    }, [open, onBriefingDataChange]);
+    // Template is now passed via props, so no need to fetch it here.
 
     useEffect(() => {
         if (activeStep === 3) {
@@ -248,8 +223,7 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
             }
 
             setIsRevising(true);
-            console.log("[Revisão de Briefing] Iniciando revisão. Template ID:", briefingData.template?.id, "API Key Exists:", !!getGeminiApiKey());
-
+            console.log("[Revisão de Briefing] Iniciando revisão de briefing com modelo estruturado.");
             try {
                 const result = await geminiAPI.reviseBriefing(briefingData.baseText, briefingData.template);
 

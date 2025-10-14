@@ -62,8 +62,37 @@ const BriefingPage = ({
   const [isBriefingDirty, setIsBriefingDirty] = useState(false);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [navigationTarget, setNavigationTarget] = useState(null);
+  const [template, setTemplate] = useState(null);
+  const [isTemplateLoading, setIsTemplateLoading] = useState(true);
+
 
   // --- Effects -------------------------------------------------------------
+   useEffect(() => {
+    const fetchTemplate = async () => {
+        setIsTemplateLoading(true);
+        try {
+            const response = await fetch('/api/briefing-template');
+            if (response.ok) {
+                const savedTemplate = await response.json();
+                setTemplate(savedTemplate);
+                console.log('Template carregado', savedTemplate);
+            } else if (response.status === 404) {
+                setTemplate(defaultBriefingTemplate);
+                console.log('Nenhum modelo salvo encontrado, usando o padrão.');
+            } else {
+                throw new Error(`Falha ao buscar o modelo: ${response.statusText}`);
+            }
+        } catch (error) {
+            toast.error(`Erro ao carregar seu modelo de briefing: ${error.message}`);
+            setTemplate(defaultBriefingTemplate);
+        } finally {
+            setIsTemplateLoading(false);
+        }
+    };
+
+    fetchTemplate();
+  }, []);
+
   useEffect(() => {
     if (selectedBriefing && briefingFormData) {
       setIsBriefingDirty(!isEqual(selectedBriefing.briefing_data, briefingFormData));
@@ -112,7 +141,13 @@ const BriefingPage = ({
 
   const handleNewBriefing = () => {
     setSelectedBriefing(null);
-    setBriefingFormData({ ...emptyBriefingData });
+    // Use the fetched template instead of the default one
+    const newBriefingData = {
+      ...emptyBriefingData,
+      baseText: template.blocks.map(block => block.content).join('\n\n'),
+      template: template,
+    };
+    setBriefingFormData(newBriefingData);
     setWizardOpen(true);
     if (isMobile) setBriefingDrawerOpen(false);
   };
@@ -189,8 +224,10 @@ const BriefingPage = ({
         onClick={handleNewBriefing}
         fullWidth
         sx={{ mb: 2, borderRadius: 2 }}
+        disabled={isTemplateLoading}
       >
         Novo Briefing
+        {isTemplateLoading && <CircularProgress size={20} sx={{ ml: 1 }} />}
       </Button>
 
       <Divider />
@@ -278,8 +315,9 @@ const BriefingPage = ({
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
               Selecione um briefing existente ou crie um novo para começar.
             </Typography>
-            <Button variant="contained" onClick={handleNewBriefing}>
+            <Button variant="contained" onClick={handleNewBriefing} disabled={isTemplateLoading}>
               Criar novo briefing
+              {isTemplateLoading && <CircularProgress size={24} sx={{ ml: 1, position: 'absolute' }} />}
             </Button>
           </Paper>
         )}
