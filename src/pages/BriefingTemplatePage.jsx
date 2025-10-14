@@ -316,15 +316,19 @@ const BriefingTemplatePage = () => {
                         <Grid container spacing={2}>
                             <Grid item xs={12} md={6}>
                                 <Typography variant="subtitle2" gutterBottom>Conteúdo do Exemplo</Typography>
-                                <Paper variant="outlined" sx={{ p: 2, whiteSpace: 'pre-wrap', backgroundColor: 'grey.100', minHeight: '100px' }}>
-                                    {block.content}
-                                </Paper>
+                                <Paper
+                                    variant="outlined"
+                                    sx={{ p: 2, backgroundColor: 'grey.100', minHeight: '100px', overflowY: 'auto' }}
+                                    dangerouslySetInnerHTML={{ __html: block.content.replace(/\n/g, '<br />') }}
+                                />
                             </Grid>
                             <Grid item xs={12} md={6}>
                                 <Typography variant="subtitle2" gutterBottom>Instruções para a IA</Typography>
-                                <Paper variant="outlined" sx={{ p: 2, whiteSpace: 'pre-wrap', backgroundColor: 'grey.100', minHeight: '100px' }}>
-                                    {block.rules}
-                                </Paper>
+                                <Paper
+                                    variant="outlined"
+                                    sx={{ p: 2, backgroundColor: 'grey.100', minHeight: '100px', overflowY: 'auto' }}
+                                    dangerouslySetInnerHTML={{ __html: block.rules.replace(/\n/g, '<br />') }}
+                                />
                             </Grid>
                         </Grid>
                     </AccordionDetails>
