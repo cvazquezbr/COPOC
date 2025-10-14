@@ -114,22 +114,26 @@ const BriefingTemplatePage = () => {
   // This function is the single source of truth for synchronizing blocks.
   const syncBlocksWithRules = (currentTemplate) => {
     const parsedTitles = parseBlockOrderFromRules(currentTemplate.generalRules);
-    const existingBlocksMap = new Map(currentTemplate.blocks.map(b => [b.title, b]));
+    // Use lowercase titles for the map keys to ensure case-insensitive matching.
+    const existingBlocksMap = new Map(currentTemplate.blocks.map(b => [b.title.toLowerCase(), b]));
 
     const newBlocks = parsedTitles.map(title => {
-        if (existingBlocksMap.has(title)) {
-            return existingBlocksMap.get(title);
+        const lowerCaseTitle = title.toLowerCase();
+        if (existingBlocksMap.has(lowerCaseTitle)) {
+            // Retrieve the existing block but update its title to match the casing from the rules.
+            const existingBlock = existingBlocksMap.get(lowerCaseTitle);
+            return { ...existingBlock, title: title };
         }
         return {
             id: uuidv4(),
-            title: title,
+            title: title, // Preserve the casing from the rules.
             content: '',
             rules: ''
         };
     });
 
     // Check if the block list has actually changed to avoid unnecessary re-renders
-    if (newBlocks.length !== currentTemplate.blocks.length || !newBlocks.every((block, index) => block.id === currentTemplate.blocks[index]?.id)) {
+    if (newBlocks.length !== currentTemplate.blocks.length || !newBlocks.every((block, index) => block.id === currentTemplate.blocks[index]?.id && block.title === currentTemplate.blocks[index]?.title)) {
         return { ...currentTemplate, blocks: newBlocks };
     }
     return currentTemplate;
@@ -252,8 +256,9 @@ const BriefingTemplatePage = () => {
   const dynamicBlockOrder = parseBlockOrderFromRules(template.generalRules);
 
   const sortedBlocks = [...template.blocks].sort((a, b) => {
-    const indexA = dynamicBlockOrder.indexOf(a.title);
-    const indexB = dynamicBlockOrder.indexOf(b.title);
+    const lowerCaseDynamicOrder = dynamicBlockOrder.map(t => t.toLowerCase());
+    const indexA = lowerCaseDynamicOrder.indexOf(a.title.toLowerCase());
+    const indexB = lowerCaseDynamicOrder.indexOf(b.title.toLowerCase());
 
     // Handle cases where a title might not be in the dynamic order list
     if (indexA === -1) return 1;

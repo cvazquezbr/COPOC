@@ -39,8 +39,10 @@ const sectionsToHtml = (sections) => {
                 break;
             }
             case 'dos': {
-                const dosContent = sections['DOs'] || sections['dos'] || '';
-                const dontsContent = sections["DON'Ts"] || sections["don'ts"] || '';
+                const dosKey = Object.keys(sections).find(k => k.toLowerCase() === 'dos') || 'dos';
+                const dontsKey = Object.keys(sections).find(k => k.toLowerCase() === "don'ts") || "don'ts";
+                const dosContent = sections[dosKey] || '';
+                const dontsContent = sections[dontsKey] || '';
                 const dosList = parseList(dosContent);
                 const dontsList = parseList(dontsContent);
 
@@ -254,10 +256,14 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
                 const blockOrder = extractBlockOrder(briefingData.template.generalRules, briefingData.template.blocks.map(b => b.title));
 
                 const finalSections = {};
+                // Create a case-insensitive map of AI sections
+                const aiSectionsMap = new Map(Object.entries(aiSections).map(([k, v]) => [k.toLowerCase(), v]));
+
                 blockOrder.forEach(title => {
-                    const aiKey = Object.keys(aiSections).find(k => k.toLowerCase() === title.toLowerCase());
-                    if (aiKey && aiSections[aiKey] && aiSections[aiKey].trim() !== '') {
-                        finalSections[title] = aiSections[aiKey];
+                    const lowerCaseTitle = title.toLowerCase();
+                    if (aiSectionsMap.has(lowerCaseTitle) && aiSectionsMap.get(lowerCaseTitle).trim() !== '') {
+                        // Preserve the original title casing from blockOrder
+                        finalSections[title] = aiSectionsMap.get(lowerCaseTitle);
                     } else {
                         finalSections[title] = "<p>A revisão não encontrou conteúdo para esta seção.</p>";
                     }
