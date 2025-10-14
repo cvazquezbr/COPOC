@@ -185,7 +185,7 @@ const GeminiAuthSetup = () => {
 
       {/* Fixed Actions Footer */}
       <Box sx={{ p: isMobile ? 2 : 3, pt: 1, borderTop: 1, borderColor: 'divider' }}>
-        <Grid container spacing={2} alignItems="center" direction={isMobile ? 'column' : 'row'}>
+        <Grid container spacing={2} alignItems="center" direction={'row'}>
           <Grid item xs={4}>
             <Button onClick={handleSave} disabled={isSaving} variant="contained" fullWidth>
               {isSaving ? <CircularProgress size={24} color="inherit" /> : 'Salvar'}
