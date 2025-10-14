@@ -29,9 +29,11 @@ import { useLayout } from '../context/LayoutContext';
 
 const drawerWidth = 320;
 
+const initialBaseText = defaultBriefingTemplate.blocks.map(block => block.content).join('\n');
+
 const emptyBriefingData = {
   name: '',
-  baseText: '',
+  baseText: initialBaseText,
   template: defaultBriefingTemplate,
   revisedText: '',
   revisionNotes: '',
