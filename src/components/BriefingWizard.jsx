@@ -249,20 +249,22 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
 
             if (!isHtml && briefingData.baseText) {
                 console.log('[handleNext] O texto base parece ser texto simples. Formatando para HTML.');
+                let text = briefingData.baseText;
 
                 if (briefingData.template && briefingData.template.blocks) {
                     const blockTitles = briefingData.template.blocks.map(b => b.title);
                     blockTitles.forEach(title => {
                         const escapedTitle = title.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-                        const regex = new RegExp(`^\\s*(${escapedTitle})\\s*$`, 'gim');
-                        processedBaseText = processedBaseText.replace(regex, '<h6>$1</h6>');
+                        // Regex to find the title on its own line, optionally preceded/followed by markdown hashes
+                        const regex = new RegExp(`^\\s*(?:#+\\s*)?(${escapedTitle})(?:\\s*#+)?\\s*$`, 'gim');
+                        text = text.replace(regex, `<h6>$1</h6>`);
                     });
                 }
 
-                processedBaseText = processedBaseText
+                processedBaseText = text
                     .replace(/\n/g, '<br />')
-                    .replace(/(<h6>.*<\/h6>)<br \/>/gi, '$1')
-                    .replace(/(<br \s*\/?>\s*){2,}/g, '<p></p>');
+                    .replace(/(<h6>.*<\/h6>)<br \/>/gi, '$1') // Remove <br> immediately after an <h6>
+                    .replace(/(<br \s*\/?>\s*){2,}/g, '<p></p>'); // Replace double line breaks with paragraph separators
 
             } else {
                 console.log('[handleNext] O texto base parece ser HTML. Nenhuma formatação automática aplicada.');
