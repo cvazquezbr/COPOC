@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import {
   Paper, Typography, Box, Button, CircularProgress,
 } from '@mui/material';
@@ -19,12 +18,11 @@ const emptyBriefingData = {
   revisionNotes: '',
   sections: {},
   finalText: '',
-  type: 'text',
+  type: 'text', // Default type
 };
 
 const BriefingPage = () => {
   const { selectedBriefingId, briefings, fetchBriefings, setSelectedBriefingId } = useLayout();
-  const [searchParams, setSearchParams] = useSearchParams();
 
   const [briefingData, setBriefingData] = useState(null);
   const [originalBriefingData, setOriginalBriefingData] = useState(null);
@@ -34,6 +32,7 @@ const BriefingPage = () => {
   const [userTemplate, setUserTemplate] = useState(null);
   const [isTemplateLoading, setIsTemplateLoading] = useState(true);
   const [isNewBriefing, setIsNewBriefing] = useState(false);
+  const [creationMode, setCreationMode] = useState('text');
 
   const fetchUserTemplate = useCallback(async () => {
     setIsTemplateLoading(true);
@@ -62,32 +61,13 @@ const BriefingPage = () => {
   }, [fetchUserTemplate]);
 
   useEffect(() => {
-    const createNew = searchParams.get('create') === 'true';
-    setIsNewBriefing(createNew);
-
-    if (createNew && !isTemplateLoading) {
-      const newBaseText = userTemplate.blocks.map(block => {
-        const titleHtml = `<h3>${block.title}</h3>`;
-        const contentHtml = (block.content || '').split('\n').filter(line => line.trim()).map(line => `<p>${line.trim()}</p>`).join('\n');
-        return `${titleHtml}\n${contentHtml}`;
-      }).join('\n\n<hr />\n\n');
-
-      const newBriefing = {
-        ...emptyBriefingData,
-        baseText: newBaseText,
-        template: userTemplate,
-      };
-      setBriefingData(newBriefing);
-      setOriginalBriefingData(newBriefing);
-      setWizardOpen(true);
-      setSelectedBriefingId(null);
-      // Remove the query param after use
-      setSearchParams({}, { replace: true });
-    } else if (!createNew && selectedBriefingId) {
+    if (selectedBriefingId) {
       const selected = briefings.find(b => b.id === selectedBriefingId);
       if (selected) {
         setBriefingData(selected.briefing_data);
         setOriginalBriefingData(selected.briefing_data);
+        setCreationMode(selected.briefing_data.type || 'text');
+        setIsNewBriefing(false);
         setWizardOpen(true);
       }
     } else {
@@ -95,7 +75,8 @@ const BriefingPage = () => {
       setBriefingData(null);
       setOriginalBriefingData(null);
     }
-  }, [selectedBriefingId, briefings, searchParams, isTemplateLoading, userTemplate, setSearchParams, setSelectedBriefingId]);
+  }, [selectedBriefingId, briefings]);
+
 
   useEffect(() => {
     if (briefingData && originalBriefingData) {
@@ -104,6 +85,51 @@ const BriefingPage = () => {
       setIsBriefingDirty(false);
     }
   }, [briefingData, originalBriefingData]);
+
+  const handleNewBriefing = (mode) => {
+    if (isTemplateLoading || !userTemplate) {
+        toast.error("Aguarde, o modelo de briefing está carregando.");
+        return;
+    }
+    setCreationMode(mode);
+    setIsNewBriefing(true);
+    setSelectedBriefingId(null);
+
+    let newBriefingData;
+
+    if (mode === 'text') {
+        const newBaseText = userTemplate.blocks.map(block => {
+            const titleHtml = `<h3>${block.title}</h3>`;
+            const contentHtml = (block.content || '').split('\n').filter(line => line.trim()).map(line => `<p>${line.trim()}</p>`).join('\n');
+            return `${titleHtml}\n${contentHtml}`;
+        }).join('\n\n<hr />\n\n');
+
+        newBriefingData = {
+            ...emptyBriefingData,
+            type: 'text',
+            baseText: newBaseText,
+            template: userTemplate,
+        };
+    } else { // 'sections' mode
+        const initialSections = {};
+        userTemplate.blocks.forEach(block => {
+            initialSections[block.title] = block.content ? `<p>${block.content.replace(/\n/g, '</p><p>')}</p>` : '';
+        });
+
+        newBriefingData = {
+            ...emptyBriefingData,
+            type: 'sections',
+            baseText: '', // No base text initially for section mode
+            sections: initialSections,
+            template: userTemplate,
+        };
+    }
+
+    setBriefingData(newBriefingData);
+    setOriginalBriefingData(newBriefingData);
+    setWizardOpen(true);
+  };
+
 
   const handleSaveBriefing = async () => {
     if (!briefingData?.name) {
@@ -123,11 +149,10 @@ const BriefingPage = () => {
         : await updateBriefing(selectedBriefingId, briefingData.name, dataToSave);
 
       toast.success(`Briefing ${isNewBriefing ? 'criado' : 'atualizado'} com sucesso!`);
-      await fetchBriefings(); // Refresh the list in the layout
+      await fetchBriefings();
 
-      // After saving, select the briefing (new or updated)
       setSelectedBriefingId(saved.id);
-      setIsNewBriefing(false); // It's no longer a "new" briefing
+      setIsNewBriefing(false);
       setBriefingData(saved.briefing_data);
       setOriginalBriefingData(saved.briefing_data);
       setWizardOpen(true);
@@ -165,7 +190,6 @@ const BriefingPage = () => {
   const handleDelete = async () => {
     if (!selectedBriefingId) return;
 
-    // Simple confirmation dialog
     if (window.confirm(`Tem certeza que deseja excluir o briefing "${briefingData?.name}"?`)) {
       try {
         await deleteBriefing(selectedBriefingId);
@@ -180,29 +204,39 @@ const BriefingPage = () => {
   };
 
 
-  if (isTemplateLoading && searchParams.get('create') === 'true') {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-        <CircularProgress />
-        <Typography sx={{ ml: 2 }}>Carregando modelo para novo briefing...</Typography>
-      </Box>
-    );
-  }
-
-  if (!isWizardOpen || !briefingData) {
+  if (!selectedBriefingId && !isWizardOpen) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
-        <Paper elevation={0} sx={{ p: 5, textAlign: 'center', backgroundColor: 'transparent' }}>
+        <Paper elevation={3} sx={{ p: 5, borderRadius: 3, textAlign: 'center', maxWidth: 480, width: '100%' }}>
           <Typography variant="h6" gutterBottom>
             Nenhum briefing selecionado
           </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Selecione um briefing na barra lateral ou crie um novo para começar.
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Selecione um briefing existente ou crie um novo para começar.
           </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Button variant="contained" onClick={() => handleNewBriefing('text')} disabled={isTemplateLoading}>
+                Criar por Texto
+                {isTemplateLoading && <CircularProgress size={24} sx={{ position: 'absolute' }} />}
+              </Button>
+              <Button variant="outlined" onClick={() => handleNewBriefing('sections')} disabled={isTemplateLoading}>
+                Criar por Seções
+              </Button>
+            </Box>
         </Paper>
       </Box>
     );
   }
+
+  if (!briefingData) {
+    return (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+            <CircularProgress />
+            <Typography sx={{ ml: 2 }}>Carregando briefing...</Typography>
+        </Box>
+    );
+  }
+
 
   return (
     <>
@@ -214,6 +248,7 @@ const BriefingPage = () => {
         briefingData={briefingData}
         onBriefingDataChange={setBriefingData}
         isNewBriefing={isNewBriefing}
+        creationMode={creationMode}
       />
       <UnsavedChangesDialog
         open={showUnsavedDialog}

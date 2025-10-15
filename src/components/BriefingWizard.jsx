@@ -170,18 +170,24 @@ const isEditorEmpty = (htmlString) => {
     return tempDiv.textContent.trim() === '' && !tempDiv.querySelector('img');
 };
 
-const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBriefingDataChange, isNewBriefing }) => {
+const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBriefingDataChange, isNewBriefing, creationMode = 'text' }) => {
     const { user } = useUserAuth();
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
-    const steps = ['Edição', 'Revisão', 'Finalização'];
+    const steps = useMemo(() => {
+        if (creationMode === 'sections') {
+            return ['Preencher Seções', 'Revisão', 'Finalização'];
+        }
+        return ['Edição', 'Revisão', 'Finalização'];
+    }, [creationMode]);
 
     const [activeStep, setActiveStep] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
     const [loadingMessage, setLoadingMessage] = useState('');
     const [isNotesDrawerOpen, setNotesDrawerOpen] = useState(false);
     const [focusModeTarget, setFocusModeTarget] = useState(null);
+    const [activeSuggestion, setActiveSuggestion] = useState({ title: null, content: '' });
     const [revisionError, setRevisionError] = useState(null);
     const [isRevised, setIsRevised] = useState(false);
 
@@ -228,8 +234,13 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
 
 
     const handleNext = async () => {
+        const currentStepLabel = steps[activeStep];
         const nextStep = activeStep + 1;
-        if (activeStep === 1) { // From 'Revisão' to 'Finalização'
+
+        if (currentStepLabel === 'Preencher Seções') {
+            const baseTextFromSections = sectionsToHtml(briefingData.sections, briefingData.template?.blocks?.map(b => b.title) || []);
+            onBriefingDataChange(prev => ({ ...prev, baseText: baseTextFromSections }));
+        } else if (currentStepLabel === 'Revisão') {
             const updatedSections = htmlToSections(briefingData.revisedText);
             onBriefingDataChange(prev => ({
                 ...prev,
@@ -245,6 +256,13 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
 
     const handleBriefingDataChange = (field, value) => {
         onBriefingDataChange(prev => ({ ...prev, [field]: value }));
+    };
+
+    const handleSectionChange = (title, content) => {
+        onBriefingDataChange(prev => ({
+            ...prev,
+            sections: { ...prev.sections, [title]: content }
+        }));
     };
 
     const handleRevise = async () => {
@@ -332,6 +350,37 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
         }
     };
 
+    const handleGenerateSuggestion = async (title) => {
+        setLoadingMessage(`Gerando sugestão para "${title}"...`);
+        setIsLoading(true);
+        try {
+            const context = {
+                dos: briefingData.sections['DOs'] || '',
+                donts: briefingData.sections["DON'Ts"] || '',
+                mainMessage: briefingData.sections['Mensagem Principal'] || '',
+                campaignInfo: briefingData.sections['Sobre a campanha'] || '',
+            };
+            const suggestion = await geminiAPI.generateBlockSuggestion(title, context);
+            if (suggestion && suggestion.trim() !== '') {
+                setActiveSuggestion({ title, content: suggestion });
+            } else {
+                toast.info('A IA não conseguiu gerar uma sugestão para este bloco. Tente editar manualmente.');
+            }
+        } catch (error) {
+            toast.error(`Erro ao gerar sugestão: ${error.message}`);
+            setActiveSuggestion({ title, content: `Falha ao gerar sugestão: ${error.message}` });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleAcceptSuggestion = () => {
+        if (!activeSuggestion.title) return;
+        handleSectionChange(activeSuggestion.title, activeSuggestion.content);
+        toast.success(`Bloco "${activeSuggestion.title}" atualizado!`);
+        setActiveSuggestion({ title: null, content: '' });
+    };
+
     const renderStep0_Edit = () => (
         <Grid container spacing={3} sx={{ height: '100%' }}>
             <Grid item xs={12} sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -365,6 +414,64 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
         </Grid>
     );
 
+    const renderStep0_Sections = () => {
+        const blockOrder = briefingData.template?.blocks?.map(b => b.title) || [];
+        const sortedSections = Object.entries(briefingData.sections).sort(([a], [b]) => {
+            const indexA = blockOrder.indexOf(a);
+            const indexB = blockOrder.indexOf(b);
+            if (indexA === -1) return 1;
+            if (indexB === -1) return -1;
+            return indexA - indexB;
+        });
+
+        return (
+            <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <Typography variant="h6" gutterBottom>Completar Blocos</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Preencha as seções abaixo. Você pode usar a IA para gerar sugestões.
+                </Typography>
+                <Grid container spacing={2} sx={{ flexGrow: 1, minHeight: 0 }}>
+                    <Grid item xs={12} md={5} sx={{ height: '100%', overflowY: 'auto', pr: 1 }}>
+                        {sortedSections.map(([title, content]) => {
+                            const isEmpty = isEditorEmpty(content);
+                            return (
+                                <Card key={title} variant="outlined" sx={{ mb: 2, borderColor: isEmpty ? 'warning.main' : 'divider' }}>
+                                    <CardContent>
+                                        <Typography variant="h6" component="div">{title}</Typography>
+                                        {isEmpty ? (
+                                            <Alert severity="warning" sx={{ mt: 1 }}>Este bloco está vazio.</Alert>
+                                        ) : (
+                                            <Typography variant="body2" color="text.secondary" sx={{ maxHeight: 100, overflow: 'hidden', textOverflow: 'ellipsis' }} dangerouslySetInnerHTML={{ __html: content }} />
+                                        )}
+                                    </CardContent>
+                                    <CardActions>
+                                        <Button size="small" startIcon={<Edit />} onClick={() => setActiveSuggestion({ title, content: content || '' })}>Editar</Button>
+                                        {isEmpty && <Button size="small" onClick={() => handleGenerateSuggestion(title)}>Sugerir</Button>}
+                                    </CardActions>
+                                </Card>
+                            );
+                        })}
+                    </Grid>
+                    <Grid item xs={12} md={7} sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                        {activeSuggestion.title ? (
+                            <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                                <Typography variant="h6" gutterBottom>{`Editando: "${activeSuggestion.title}"`}</Typography>
+                                <Box sx={{ flexGrow: 1, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                                    <TextEditor value={activeSuggestion.content} onChange={(val) => setActiveSuggestion(prev => ({ ...prev, content: val }))} html={true} />
+                                </Box>
+                                <Button onClick={handleAcceptSuggestion} variant="contained" startIcon={<Check />} sx={{ mt: 2 }}>Confirmar Texto</Button>
+                            </Box>
+                        ) : (
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', border: '2px dashed', borderColor: 'divider', borderRadius: 2 }}>
+                                <Typography color="text.secondary">Selecione "Editar" ou "Sugerir" em um bloco à esquerda.</Typography>
+                            </Box>
+                        )}
+                    </Grid>
+                </Grid>
+            </Box>
+        );
+    }
+
     const renderStep1_Review = () => {
         if (revisionError) {
             return (
@@ -383,7 +490,7 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
                 <Box sx={{ textAlign: 'center', p: 4 }}>
                     <Typography variant="h6" gutterBottom>Pronto para revisar com a IA?</Typography>
                     <Typography color="text.secondary" sx={{ mb: 2 }}>
-                        Clique no botão abaixo para iniciar a revisão do seu briefing.
+                        A IA irá analisar o conteúdo, reestruturá-lo conforme o modelo e fazer sugestões.
                     </Typography>
                     <Button
                         variant="contained"
@@ -493,12 +600,15 @@ const FinalizationStep = ({ briefingData, onBriefingDataChange }) => {
 };
 
     const renderContent = () => {
-        switch (activeStep) {
-            case 0:
+        const currentStepLabel = steps[activeStep];
+        switch (currentStepLabel) {
+            case 'Edição':
                 return renderStep0_Edit();
-            case 1:
+            case 'Preencher Seções':
+                return renderStep0_Sections();
+            case 'Revisão':
                 return renderStep1_Review();
-            case 2:
+            case 'Finalização':
                 return <FinalizationStep briefingData={briefingData} onBriefingDataChange={handleBriefingDataChange} />;
             default:
                 return null;
@@ -509,7 +619,7 @@ const FinalizationStep = ({ briefingData, onBriefingDataChange }) => {
         <>
             <Dialog open={open} onClose={onClose} fullWidth maxWidth="xl" fullScreen={isMobile} PaperProps={{ sx: { height: isMobile ? '100%' : '90vh' } }}>
                 <DialogTitle>
-                    {isNewBriefing ? 'Novo Briefing' : `Editando: ${briefingData?.name || ''}`}
+                    {isNewBriefing ? `Novo Briefing (${creationMode === 'text' ? 'Texto' : 'Seções'})` : `Editando: ${briefingData?.name || ''}`}
                 </DialogTitle>
                 <DialogContent sx={{ display: 'flex', flexDirection: 'column', overflowY: 'hidden', p: { xs: 1, sm: 2, md: 3 } }}>
                     <Stepper activeStep={activeStep} sx={{ mb: 2, flexShrink: 0 }}>

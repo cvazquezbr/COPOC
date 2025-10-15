@@ -145,7 +145,7 @@ const MainLayout = () => {
 
   const handleNewBriefing = () => {
     setSelectedBriefingId(null);
-    navigate('/?create=true');
+    navigate('/');
     if (isMobile) setMobileOpen(false);
   };
 
