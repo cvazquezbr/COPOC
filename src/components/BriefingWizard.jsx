@@ -188,7 +188,6 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
     const [activeStep, setActiveStep] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
     const [loadingMessage, setLoadingMessage] = useState('');
-    const [isRevising, setIsRevising] = useState(false);
     const [isNotesDrawerOpen, setNotesDrawerOpen] = useState(false);
     const [focusModeTarget, setFocusModeTarget] = useState(null); // null | 'baseText' | 'revisedText'
     const [activeSuggestion, setActiveSuggestion] = useState({ title: null, content: '' });
@@ -281,11 +280,13 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
             geminiAPI.initialize(apiKey);
         }
 
-        setIsRevising(true);
+        setLoadingMessage('Iniciando revisão com IA...');
+        setIsLoading(true);
         setRevisionError(null);
         setIsRevised(false);
 
         try {
+            setLoadingMessage('Analisando e reestruturando o briefing...');
             const result = await geminiAPI.reviseBriefing(briefingData.baseText, briefingData.template);
 
             if (!result || typeof result.sections !== 'object' || result.sections === null) {
@@ -323,7 +324,8 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
             setRevisionError(userErrorMessage);
             toast.error(userErrorMessage);
         } finally {
-            setIsRevising(false);
+            setIsLoading(false);
+            setLoadingMessage('');
         }
     };
 
@@ -423,7 +425,7 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
         if (revisionError) {
             return (
                 <Alert severity="error" action={
-                    <Button color="inherit" size="small" onClick={handleRevise} disabled={isRevising}>
+                    <Button color="inherit" size="small" onClick={handleRevise} disabled={isLoading}>
                         Tentar Novamente
                     </Button>
                 }>
@@ -443,10 +445,10 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
                         variant="contained"
                         color="primary"
                         onClick={handleRevise}
-                        disabled={isRevising}
-                        startIcon={isRevising ? <CircularProgress size={20} /> : <Check />}
+                        disabled={isLoading}
+                        startIcon={isLoading ? <CircularProgress size={20} /> : <Check />}
                     >
-                        {isRevising ? 'Revisando...' : 'Revisar com IA'}
+                        {isLoading ? loadingMessage : 'Revisar com IA'}
                     </Button>
                 </Box>
             );
@@ -591,10 +593,10 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
                     ) : (
                         <Button
                             onClick={handleNext}
-                            endIcon={isRevising ? <CircularProgress size={20} color="inherit" /> : <ArrowForward />}
-                            disabled={isRevising}
+                            endIcon={<ArrowForward />}
+                            disabled={isLoading}
                         >
-                            {isRevising && activeStep === 0 ? 'Revisando...' : 'Próximo'}
+                            Próximo
                         </Button>
                     )}
                 </DialogActions>
