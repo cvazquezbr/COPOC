@@ -11,7 +11,7 @@ import HtmlDisplay from './HtmlDisplay';
 import { defaultBriefingTemplate } from '../utils/defaultBriefingTemplate';
 import { parseWordDocument, parsePdfDocument } from '../utils/fileImport';
 import geminiAPI from '../utils/geminiAPI';
-import { getGeminiApiKey } from '../utils/geminiCredentials';
+import { useUserAuth } from '../context/UserAuthContext';
 
 const sectionsToHtml = (sections) => {
     let htmlContent = '';
@@ -182,6 +182,7 @@ const isEditorEmpty = (htmlString) => {
 };
 
 const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDataChange }) => {
+    const { user } = useUserAuth();
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
@@ -271,14 +272,12 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
             return;
         }
 
-        if (!geminiAPI.isInitialized) {
-            const apiKey = getGeminiApiKey();
-            if (!apiKey) {
-                toast.error('Chave de API do Gemini não configurada.');
-                return;
-            }
-            geminiAPI.initialize(apiKey);
+        const apiKey = user?.gemini_api_key;
+        if (!apiKey) {
+            toast.error('Chave de API do Gemini não configurada. Por favor, verifique suas configurações.');
+            return;
         }
+        geminiAPI.initialize(apiKey);
 
         setIsLoading(true);
         setLoadingMessage('Iniciando revisão com IA...');
