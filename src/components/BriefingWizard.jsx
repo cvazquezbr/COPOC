@@ -244,8 +244,32 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
             setIsRevising(true);
             console.log("[Revisão de Briefing] Iniciando revisão. Template ID:", briefingData.template?.id, "API Key Exists:", !!getGeminiApiKey());
 
+            let processedBaseText = briefingData.baseText;
+            const isHtml = /<[a-z][\s\S]*>/i.test(processedBaseText);
+
+            if (!isHtml && briefingData.baseText) {
+                console.log('[handleNext] O texto base parece ser texto simples. Formatando para HTML.');
+
+                if (briefingData.template && briefingData.template.blocks) {
+                    const blockTitles = briefingData.template.blocks.map(b => b.title);
+                    blockTitles.forEach(title => {
+                        const escapedTitle = title.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+                        const regex = new RegExp(`^\\s*(${escapedTitle})\\s*$`, 'gim');
+                        processedBaseText = processedBaseText.replace(regex, '<h6>$1</h6>');
+                    });
+                }
+
+                processedBaseText = processedBaseText
+                    .replace(/\n/g, '<br />')
+                    .replace(/(<h6>.*<\/h6>)<br \/>/gi, '$1')
+                    .replace(/(<br \s*\/?>\s*){2,}/g, '<p></p>');
+
+            } else {
+                console.log('[handleNext] O texto base parece ser HTML. Nenhuma formatação automática aplicada.');
+            }
+
             try {
-                const result = await geminiAPI.reviseBriefing(briefingData.baseText, briefingData.template);
+                const result = await geminiAPI.reviseBriefing(processedBaseText, briefingData.template);
 
                 if (!result || typeof result.sections !== 'object' || result.sections === null) {
                     console.error("Resposta da IA inválida ou malformada:", result);
@@ -292,7 +316,7 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
                     userErrorMessage = `Erro na revisão com IA: ${error.message}. Verifique o console para mais detalhes.`;
                 }
                 toast.error(userErrorMessage);
-                setErrorFromGeminiRevision(true);
+                setErrorFromGeminiRevision(true); // Ativa o estado de erro
             } finally {
                 setIsRevising(false);
             }
