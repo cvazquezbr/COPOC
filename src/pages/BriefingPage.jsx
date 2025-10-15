@@ -154,9 +154,21 @@ const BriefingPage = ({
     }
     setSelectedBriefing(null);
     // Use the fetched template to construct the initial state.
+    const newBaseText = userTemplate.blocks.map(block => {
+      const titleHtml = `<h3>${block.title}</h3>`;
+      // Ensure content is a string before splitting
+      const contentHtml = (block.content || '')
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line)
+        .map(line => `<p>${line}</p>`)
+        .join('\n');
+      return `${titleHtml}\n${contentHtml}`;
+    }).join('\n\n');
+
     const newBriefingData = {
       ...emptyBriefingData,
-      baseText: userTemplate.blocks.map(block => `## ${block.title} ##\n\n${block.content.replace(/^## .* ##\n\n/, '')}`).join('\n\n'),
+      baseText: newBaseText,
       template: userTemplate,
     };
     setBriefingFormData(newBriefingData);
