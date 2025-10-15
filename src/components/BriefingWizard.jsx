@@ -266,10 +266,12 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
         console.log("Iniciando o processo de revisão com IA...");
         if (isEditorEmpty(briefingData.baseText)) {
             toast.error('O texto base é obrigatório.');
+            console.error('O texto base está vazio ou contém apenas espaços em branco.');
             return;
         }
         if (!briefingData.template) {
             toast.error('O modelo de referência é obrigatório.');
+            console.error('O modelo de referência não está definido.');
             return;
         }
 
@@ -277,6 +279,7 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
             const apiKey = getGeminiApiKey();
             if (!apiKey) {
                 toast.error('Chave de API do Gemini não configurada.');
+                console.error('Chave de API do Gemini não encontrada nas credenciais.');
                 return;
             }
             console.log("A");
@@ -288,7 +291,7 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
         setLoadingMessage('Iniciando revisão com IA...');
         setRevisionError(null);
         setIsRevised(false);
-
+        console.log("C");
         try {
             setLoadingMessage('Analisando e reestruturando o briefing...');
             const result = await geminiAPI.reviseBriefing(briefingData.baseText, briefingData.template);
