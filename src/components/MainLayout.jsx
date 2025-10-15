@@ -28,12 +28,9 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import AddIcon from '@mui/icons-material/Add';
 import DescriptionIcon from '@mui/icons-material/Description';
 import ArticleIcon from '@mui/icons-material/Article';
-import Brightness4Icon from '@mui/icons-material/Brightness4';
-import Brightness7Icon from '@mui/icons-material/Brightness7';
 
 import { useUserAuth } from '../context/UserAuthContext';
 import { useLayout } from '../context/LayoutContext';
-import { useTheme as useAppTheme } from '../context/ThemeContext';
 import SetupModal from './SetupModal';
 import { getBriefings } from '../utils/briefingState';
 
@@ -105,7 +102,6 @@ const DesktopDrawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== 
 
 const MainLayout = () => {
   const theme = useTheme();
-  const { mode, toggleTheme } = useAppTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
   const { logout } = useUserAuth();
@@ -229,16 +225,15 @@ const MainLayout = () => {
             >
               <MenuIcon />
             </IconButton>
-            <Box sx={{ flexGrow: 1 }} />
+            <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
+              M.I.D.I.A.T.O.R
+            </Typography>
             <IconButton
               color="inherit"
               onClick={() => navigate('/briefing-template')}
               aria-label="Edit Template"
             >
               <ArticleIcon />
-            </IconButton>
-            <IconButton sx={{ ml: 1 }} onClick={toggleTheme} color="inherit" aria-label="Toggle theme">
-              {mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
             </IconButton>
             <IconButton
               color="inherit"
