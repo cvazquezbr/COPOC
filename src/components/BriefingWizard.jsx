@@ -278,7 +278,9 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
         }
         console.log("Y");
         if (!geminiAPI.isInitialized) {
+            console.log("Y1", geminiAPI);
             const apiKey = getGeminiApiKey();
+                    console.log("Y2", apiKey);
             if (!apiKey) {
                 toast.error('Chave de API do Gemini não configurada.');
                 console.error('Chave de API do Gemini não encontrada nas credenciais.');
