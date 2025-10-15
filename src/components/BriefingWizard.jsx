@@ -194,6 +194,38 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
     const [activeSuggestion, setActiveSuggestion] = useState({ title: null, content: '' });
     const [errorFromGeminiRevision, setErrorFromGeminiRevision] = useState(false);
 
+    const formattedBaseText = useMemo(() => {
+        if (!briefingData.baseText) return '';
+
+        const isHtml = /<[a-z][\s\S]*>/i.test(briefingData.baseText);
+        // Only format if it's not already HTML
+        if (isHtml) {
+            return briefingData.baseText;
+        }
+
+        console.log('[useMemo] O texto base parece ser texto simples. Formatando para HTML.');
+        let text = briefingData.baseText;
+
+        // Use template block titles to find and replace headers
+        if (briefingData.template && briefingData.template.blocks) {
+            const blockTitles = briefingData.template.blocks.map(b => b.title);
+            blockTitles.forEach(title => {
+                // Escape special regex characters in the title
+                const escapedTitle = title.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+                // Regex to find the title on its own line, optionally surrounded by markdown hashes
+                const regex = new RegExp(`^\\s*(?:#+\\s*)?(${escapedTitle})(?:\\s*#+)?\\s*$`, 'gim');
+                text = text.replace(regex, `<h6>$1</h6>`);
+            });
+        }
+
+        // Replace newlines with <br> and double newlines with <p>
+        return text
+            .replace(/\n/g, '<br />')
+            .replace(/(<h6>.*<\/h6>)<br \/>/gi, '$1') // Remove <br> immediately after an <h6>
+            .replace(/(<br \s*\/?>\s*){2,}/g, '<p></p>');
+
+    }, [briefingData.baseText, briefingData.template]);
+
     const wordInputRef = useRef(null);
     const pdfInputRef = useRef(null);
 
@@ -419,7 +451,7 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
                 </Box>
                 <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
                     <TextEditor
-                        value={briefingData.baseText}
+                        value={formattedBaseText}
                         onChange={(val) => handleBriefingDataChange('baseText', val)}
                         html={true}
                         placeholder="Digite ou cole o conteúdo do briefing aqui..."
