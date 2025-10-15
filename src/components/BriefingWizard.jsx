@@ -11,7 +11,7 @@ import HtmlDisplay from './HtmlDisplay';
 import { defaultBriefingTemplate } from '../utils/defaultBriefingTemplate';
 import { parseWordDocument, parsePdfDocument } from '../utils/fileImport';
 import geminiAPI from '../utils/geminiAPI';
-import { getGeminiApiKey } from '../utils/geminiCredentials';
+import { useUserAuth } from '../context/UserAuthContext';
 
 const sectionsToHtml = (sections) => {
     let htmlContent = '';
@@ -182,6 +182,7 @@ const isEditorEmpty = (htmlString) => {
 };
 
 const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDataChange }) => {
+    const { user } = useUserAuth();
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
@@ -276,21 +277,13 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
             console.error('O modelo de referência não está definido.');
             return;
         }
-        console.log("Y");
-        if (!geminiAPI.isInitialized) {
-            console.log("Y1", geminiAPI);
-            const apiKey = getGeminiApiKey();
-                    console.log("Y2", apiKey);
-            if (!apiKey) {
-                toast.error('Chave de API do Gemini não configurada.');
-                console.error('Chave de API do Gemini não encontrada nas credenciais.');
-                return;
-            }
-            console.log("A");
-            geminiAPI.initialize(apiKey);        
-            console.log("B");
+
+        const apiKey = user?.gemini_api_key;
+        if (!apiKey) {
+            toast.error('Chave de API do Gemini não configurada. Por favor, verifique suas configurações.');
+            return;
         }
-                console.log("Z");
+        geminiAPI.initialize(apiKey);
 
         setIsLoading(true);
         setLoadingMessage('Iniciando revisão com IA...');
