@@ -563,69 +563,69 @@ const BriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDataCha
             </Box>
         );
     }
-    const renderStep3_Finalize = () => {
-        const [tabIndex, setTabIndex] = useState(0);
+const FinalizationStep = ({ briefingData, onBriefingDataChange }) => {
+    const [tabIndex, setTabIndex] = useState(0);
 
-        const handleTabChange = (event, newValue) => {
-            setTabIndex(newValue);
-        };
-
-        const dosContent = briefingData.sections['DOs'] || '<p>Nenhum DO definido.</p>';
-        const dontsContent = briefingData.sections["DON'Ts"] || "<p>Nenhum DON'T definido.</p>";
-
-        return (
-            <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <Typography variant="h6" gutterBottom>Finalização</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    Defina um nome para o seu briefing e revise o documento final. Para fazer ajustes, volte às etapas anteriores.
-                </Typography>
-                <TextField
-                    name="name"
-                    label="Nome do Briefing"
-                    fullWidth
-                    value={briefingData.name || ''}
-                    onChange={(e) => handleBriefingDataChange('name', e.target.value)}
-                    required
-                    sx={{ mb: 2, flexShrink: 0 }}
-                />
-                <Box sx={{ borderBottom: 1, borderColor: 'divider', flexShrink: 0 }}>
-                    <Tabs value={tabIndex} onChange={handleTabChange} aria-label="abas de finalização">
-                        <Tab label="Documento" />
-                        <Tab label="DOs & DON'Ts" />
-                    </Tabs>
-                </Box>
-                <Box sx={{ flexGrow: 1, overflowY: 'auto', p: tabIndex === 1 ? 2 : 0, minHeight: 0 }}>
-                    {tabIndex === 0 && (
-                        <HtmlDisplay htmlContent={briefingData.finalText} />
-                    )}
-                    {tabIndex === 1 && (
-                        <Grid container spacing={2}>
-                            <Grid item xs={12} md={6}>
-                                <Card variant="outlined" sx={{ height: '100%' }}>
-                                    <CardContent>
-                                        <Typography variant="h5" component="div" sx={{ mb: 1.5 }}>
-                                            DOs
-                                        </Typography>
-                                        <HtmlDisplay htmlContent={dosContent} />
-                                    </CardContent>
-                                </Card>
-                            </Grid>
-                            <Grid item xs={12} md={6}>
-                                <Card variant="outlined" sx={{ height: '100%' }}>
-                                    <CardContent>
-                                        <Typography variant="h5" component="div" sx={{ mb: 1.5 }}>
-                                            DON'Ts
-                                        </Typography>
-                                        <HtmlDisplay htmlContent={dontsContent} />
-                                    </CardContent>
-                                </Card>
-                            </Grid>
-                        </Grid>
-                    )}
-                </Box>
-            </Box>
-        );
+    const handleTabChange = (event, newValue) => {
+        setTabIndex(newValue);
     };
+
+    const dosContent = briefingData.sections['DOs'] || '<p>Nenhum DO definido.</p>';
+    const dontsContent = briefingData.sections["DON'Ts"] || "<p>Nenhum DON'T definido.</p>";
+
+    return (
+        <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <Typography variant="h6" gutterBottom>Finalização</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Defina um nome para o seu briefing e revise o documento final. Para fazer ajustes, volte às etapas anteriores.
+            </Typography>
+            <TextField
+                name="name"
+                label="Nome do Briefing"
+                fullWidth
+                value={briefingData.name || ''}
+                onChange={(e) => onBriefingDataChange('name', e.target.value)}
+                required
+                sx={{ mb: 2, flexShrink: 0 }}
+            />
+            <Box sx={{ borderBottom: 1, borderColor: 'divider', flexShrink: 0 }}>
+                <Tabs value={tabIndex} onChange={handleTabChange} aria-label="abas de finalização">
+                    <Tab label="Documento" />
+                    <Tab label="DOs & DON'Ts" />
+                </Tabs>
+            </Box>
+            <Box sx={{ flexGrow: 1, overflowY: 'auto', p: tabIndex === 1 ? 2 : 0, minHeight: 0 }}>
+                {tabIndex === 0 && (
+                    <HtmlDisplay htmlContent={briefingData.finalText} />
+                )}
+                {tabIndex === 1 && (
+                    <Grid container spacing={2}>
+                        <Grid item xs={12} md={6}>
+                            <Card variant="outlined" sx={{ height: '100%' }}>
+                                <CardContent>
+                                    <Typography variant="h5" component="div" sx={{ mb: 1.5 }}>
+                                        DOs
+                                    </Typography>
+                                    <HtmlDisplay htmlContent={dosContent} />
+                                </CardContent>
+                            </Card>
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                            <Card variant="outlined" sx={{ height: '100%' }}>
+                                <CardContent>
+                                    <Typography variant="h5" component="div" sx={{ mb: 1.5 }}>
+                                        DON'Ts
+                                    </Typography>
+                                    <HtmlDisplay htmlContent={dontsContent} />
+                                </CardContent>
+                            </Card>
+                        </Grid>
+                    </Grid>
+                )}
+            </Box>
+        </Box>
+    );
+};
 
     const renderContent = () => {
         const currentStepLabel = steps[activeStep];
@@ -637,7 +637,7 @@ const BriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDataCha
             case 'Revisão':
                 return renderStep1_Review();
             case 'Finalização':
-                return renderStep3_Finalize();
+                return <FinalizationStep briefingData={briefingData} onBriefingDataChange={handleBriefingDataChange} />;
             default:
                 return null;
         }
