@@ -28,8 +28,15 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { name, details, final_text, creation_mode, base_text, template, model_used, revised_text } = req.body;
+      // Corrigido para corresponder à estrutura do corpo da requisição do frontend
+      const { nomeBriefing, briefing_data } = req.body;
+      const name = nomeBriefing;
+
+      // Extrai os campos do objeto aninhado briefing_data
+      const { details, final_text, creation_mode, base_text, template, model_used, revised_text } = briefing_data;
+
       const { rows } = await query(
+        // Remove as colunas 'company' e 'project' que não existem
         'INSERT INTO briefings (user_id, name, details, final_text, creation_mode, base_text, template, model_used, revised_text) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
         [userUuid, name, details, final_text, creation_mode, base_text, JSON.stringify(template), model_used, revised_text]
       );
