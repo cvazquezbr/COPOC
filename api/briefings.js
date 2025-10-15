@@ -14,13 +14,14 @@ export default async function handler(req, res) {
     }
 
     const decoded = jwt.verify(token, JWT_SECRET);
-    const userId = decoded.userId;
+    // O 'sub' (subject) do JWT é o UUID do usuário, que corresponde a 'auth.users(id)'.
+    const userUuid = decoded.sub;
 
-    const userResult = await query('SELECT uuid FROM users WHERE id = $1', [userId]);
-    if (userResult.rows.length === 0) {
-      return res.status(404).json({ message: 'User not found' });
+    if (!userUuid) {
+      return res.status(400).json({ message: 'Invalid token: User UUID not found.' });
     }
-    const userUuid = userResult.rows[0].uuid;
+
+    // A busca extra na tabela 'users' foi removida pois era incorreta e desnecessária.
 
     if (req.method === 'GET') {
       const { rows } = await query('SELECT * FROM briefings WHERE user_id = $1', [userUuid]);
@@ -28,17 +29,12 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      // Corrigido para corresponder à estrutura do corpo da requisição do frontend
       const { nomeBriefing, briefing_data } = req.body;
       const name = nomeBriefing;
 
-      // Extrai os campos do objeto aninhado briefing_data
-      const { details, final_text, creation_mode, base_text, template, model_used, revised_text } = briefing_data;
-
       const { rows } = await query(
-        // Remove as colunas 'company' e 'project' que não existem
-        'INSERT INTO briefings (user_id, name, details, final_text, creation_mode, base_text, template, model_used, revised_text) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
-        [userUuid, name, details, final_text, creation_mode, base_text, JSON.stringify(template), model_used, revised_text]
+        'INSERT INTO briefings (user_id, name, briefing_data) VALUES ($1, $2, $3) RETURNING *',
+        [userUuid, name, JSON.stringify(briefing_data)]
       );
       return res.status(201).json(rows[0]);
     }
