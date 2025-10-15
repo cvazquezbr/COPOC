@@ -7,17 +7,7 @@ export const getBriefings = async () => {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || 'Failed to fetch briefings.');
   }
-  const data = await res.json();
-  return Array.isArray(data) ? data : [];
-};
-
-export const getBriefing = async (id) => {
-    const res = await fetchWithAuth(`/api/briefings/${id}`);
-    if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Failed to fetch briefing.');
-    }
-    return res.json();
+  return res.json();
 };
 
 export const saveBriefing = async (name, briefingData) => {
