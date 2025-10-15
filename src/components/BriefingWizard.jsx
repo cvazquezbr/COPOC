@@ -196,9 +196,7 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
 
     const formattedBaseText = useMemo(() => {
         if (!briefingData.baseText) return '';
-
         const isHtml = /<[a-z][\s\S]*>/i.test(briefingData.baseText);
-        // Only format if it's not already HTML
         if (isHtml) {
             return briefingData.baseText;
         }
@@ -206,24 +204,19 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
         console.log('[useMemo] O texto base parece ser texto simples. Formatando para HTML.');
         let text = briefingData.baseText;
 
-        // Use template block titles to find and replace headers
         if (briefingData.template && briefingData.template.blocks) {
             const blockTitles = briefingData.template.blocks.map(b => b.title);
             blockTitles.forEach(title => {
-                // Escape special regex characters in the title
                 const escapedTitle = title.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-                // Regex to find the title on its own line, optionally surrounded by markdown hashes
-                const regex = new RegExp(`^\\s*(?:#+\\s*)?(${escapedTitle})(?:\\s*#+)?\\s*$`, 'gim');
-                text = text.replace(regex, `<h6>$1</h6>`);
+                const regex = new RegExp(`^.*${escapedTitle}.*$`, 'gim');
+                text = text.replace(regex, `<h6>${title}</h6>`);
             });
         }
 
-        // Replace newlines with <br> and double newlines with <p>
         return text
             .replace(/\n/g, '<br />')
-            .replace(/(<h6>.*<\/h6>)<br \/>/gi, '$1') // Remove <br> immediately after an <h6>
+            .replace(/(<h6>.*<\/h6>)<br \/>/gi, '$1')
             .replace(/(<br \s*\/?>\s*){2,}/g, '<p></p>');
-
     }, [briefingData.baseText, briefingData.template]);
 
     const wordInputRef = useRef(null);
