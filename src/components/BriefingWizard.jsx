@@ -3,7 +3,7 @@ import {
     Box, Button, Typography, Stepper, Step, StepLabel, Dialog, DialogTitle, DialogContent, Grid, CircularProgress, TextField, useMediaQuery, Backdrop, DialogActions, Paper, Card, CardContent, CardActions, Alert, Drawer, Tooltip, IconButton, Tabs, Tab
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { ArrowBack, ArrowForward, UploadFile, Edit, Check, Notes as NotesIcon, Fullscreen, FullscreenExit, Download } from '@mui/icons-material';
+import { ArrowBack, ArrowForward, UploadFile, Edit, Check, Notes as NotesIcon, Fullscreen, FullscreenExit, Download, Delete as DeleteIcon } from '@mui/icons-material';
 import { toast } from 'sonner';
 
 import TextEditor from './TextEditor';
@@ -89,7 +89,6 @@ const sectionsToHtml = (sections, blockOrder = []) => {
 
         if (sectionHtml) {
             htmlContent += sectionHtml;
-            // Add a separator line between sections, but not after the last one.
             if (index < orderedTitles.length - 1) {
                 htmlContent += '<hr style="border: 0; border-top: 1px solid #ccc; margin: 20px 0;" />\n';
             }
@@ -105,36 +104,30 @@ const htmlToSections = (html) => {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
 
-    // Handle Título da Missão (h2)
     const missionTitleElement = doc.querySelector('h2');
     if (missionTitleElement) {
         sections['Título da Missão'] = missionTitleElement.innerHTML;
     }
 
-    // Handle other sections (h3)
     const otherSectionElements = doc.querySelectorAll('h3');
     otherSectionElements.forEach(h3 => {
         const title = h3.textContent.trim();
         let content = '';
         let nextElement = h3.nextSibling;
         while (nextElement && nextElement.nodeName !== 'H3' && nextElement.nodeName !== 'TABLE') {
-            // Preserve HTML content by using outerHTML for elements and data for text nodes
             content += nextElement.outerHTML || nextElement.data || '';
             nextElement = nextElement.nextSibling;
         }
         sections[title] = content.trim();
     });
 
-    // Handle DOs and DON'Ts from the table
     const table = doc.querySelector('table');
     if (table) {
         const dosList = [];
         const dontsList = [];
 
-        // Assuming the structure from sectionsToHtml: first <ul> is DOs, second is DON'Ts
         const dosItems = table.querySelectorAll('tbody tr td:first-child ul li');
         dosItems.forEach(li => {
-            // Recreate the <p> tag structure expected by the editor
             dosList.push(`<p>${li.textContent.replace('→ ', '').trim()}</p>`);
         });
 
@@ -143,7 +136,6 @@ const htmlToSections = (html) => {
             dontsList.push(`<p>${li.textContent.replace('→ ', '').trim()}</p>`);
         });
 
-        // Join list items into a single HTML string for each section
         if (dosList.length > 0) {
             sections['DOs'] = dosList.join('');
         }
@@ -165,25 +157,20 @@ const extractBlockOrder = (rules, defaultOrder) => {
             .filter(item => item && !item.startsWith('//'));
 
         if (blockList.length > 0) {
-            console.log('Ordem dos blocos extraída das regras:', blockList);
             return blockList;
         }
     }
-
-    console.log('Nenhuma ordem de blocos encontrada nas regras, usando a ordem padrão.');
     return defaultOrder;
 };
 
 const isEditorEmpty = (htmlString) => {
     if (!htmlString) return true;
-    // Creates a temporary div to parse the HTML string.
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = htmlString;
-    // Returns true if there's no text content and no images.
     return tempDiv.textContent.trim() === '' && !tempDiv.querySelector('img');
 };
 
-const BriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDataChange, creationMode = 'text' }) => { // Default to 'text'
+const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBriefingDataChange, isNewBriefing, creationMode = 'text' }) => {
     const { user } = useUserAuth();
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -192,7 +179,6 @@ const BriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDataCha
         if (creationMode === 'sections') {
             return ['Preencher Seções', 'Revisão', 'Finalização'];
         }
-        // Default to 'text' mode steps
         return ['Edição', 'Revisão', 'Finalização'];
     }, [creationMode]);
 
@@ -200,7 +186,7 @@ const BriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDataCha
     const [isLoading, setIsLoading] = useState(false);
     const [loadingMessage, setLoadingMessage] = useState('');
     const [isNotesDrawerOpen, setNotesDrawerOpen] = useState(false);
-    const [focusModeTarget, setFocusModeTarget] = useState(null); // null | 'baseText' | 'revisedText'
+    const [focusModeTarget, setFocusModeTarget] = useState(null);
     const [activeSuggestion, setActiveSuggestion] = useState({ title: null, content: '' });
     const [revisionError, setRevisionError] = useState(null);
     const [isRevised, setIsRevised] = useState(false);
@@ -211,10 +197,7 @@ const BriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDataCha
         if (isHtml) {
             return briefingData.baseText;
         }
-
-        console.log('[useMemo] O texto base parece ser texto simples. Formatando para HTML.');
         let text = briefingData.baseText;
-
         if (briefingData.template && briefingData.template.blocks) {
             const blockTitles = briefingData.template.blocks.map(b => b.title);
             blockTitles.forEach(title => {
@@ -223,20 +206,21 @@ const BriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDataCha
                 text = text.replace(regex, `<h6>${title}</h6>`);
             });
         }
-
-        return text
-            .replace(/\n/g, '<br />')
-            .replace(/(<h6>.*<\/h6>)<br \/>/gi, '$1')
-            .replace(/(<br \s*\/?>\s*){2,}/g, '<p></p>');
+        return text.replace(/\n/g, '<br />').replace(/(<h6>.*<\/h6>)<br \/>/gi, '$1').replace(/(<br \s*\/?>\s*){2,}/g, '<p></p>');
     }, [briefingData.baseText, briefingData.template]);
 
     const wordInputRef = useRef(null);
     const pdfInputRef = useRef(null);
 
-    // Template is now passed via props, so no need to fetch it here.
+    useEffect(() => {
+        if (open) {
+            setActiveStep(0);
+            setIsRevised(false);
+            setRevisionError(null);
+        }
+    }, [open]);
 
     useEffect(() => {
-        // Finalization step logic
         if (activeStep === steps.length - 1) {
             setLoadingMessage('Gerando texto final...');
             setIsLoading(true);
@@ -253,28 +237,17 @@ const BriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDataCha
         const currentStepLabel = steps[activeStep];
         const nextStep = activeStep + 1;
 
-        if (currentStepLabel === 'Edição') {
-            // From 'Edição' to 'Revisão'
-            setActiveStep(nextStep);
-        } else if (currentStepLabel === 'Preencher Seções') {
-            // From 'Preencher Seções' to 'Revisão'
-            // Generate baseText from sections before moving to revision
+        if (currentStepLabel === 'Preencher Seções') {
             const baseTextFromSections = sectionsToHtml(briefingData.sections, briefingData.template?.blocks?.map(b => b.title) || []);
             onBriefingDataChange(prev => ({ ...prev, baseText: baseTextFromSections }));
-            setActiveStep(nextStep);
         } else if (currentStepLabel === 'Revisão') {
-            // From 'Revisão' to 'Finalização'
-            // Parse revisedText back into sections
             const updatedSections = htmlToSections(briefingData.revisedText);
             onBriefingDataChange(prev => ({
                 ...prev,
                 sections: updatedSections,
             }));
-            setActiveStep(nextStep);
-        } else {
-            // For any other case, just advance
-            setActiveStep(nextStep);
         }
+        setActiveStep(nextStep);
     };
 
     const handleBack = () => {
@@ -283,6 +256,13 @@ const BriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDataCha
 
     const handleBriefingDataChange = (field, value) => {
         onBriefingDataChange(prev => ({ ...prev, [field]: value }));
+    };
+
+    const handleSectionChange = (title, content) => {
+        onBriefingDataChange(prev => ({
+            ...prev,
+            sections: { ...prev.sections, [title]: content }
+        }));
     };
 
     const handleRevise = async () => {
@@ -351,13 +331,6 @@ const BriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDataCha
         }
     };
 
-    const handleSectionChange = (title, content) => {
-        onBriefingDataChange(prev => ({
-            ...prev,
-            sections: { ...prev.sections, [title]: content }
-        }));
-    };
-
     const handleFileImport = async (event, parser, contentSetter) => {
         const file = event.target.files[0];
         if (!file) return;
@@ -376,7 +349,6 @@ const BriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDataCha
             event.target.value = null;
         }
     };
-
 
     const handleGenerateSuggestion = async (title) => {
         setLoadingMessage(`Gerando sugestão para "${title}"...`);
@@ -411,7 +383,6 @@ const BriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDataCha
 
     const renderStep0_Edit = () => (
         <Grid container spacing={3} sx={{ height: '100%' }}>
-            {/* Coluna do Texto Base */}
             <Grid item xs={12} sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                     <Box>
@@ -443,6 +414,64 @@ const BriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDataCha
         </Grid>
     );
 
+    const renderStep0_Sections = () => {
+        const blockOrder = briefingData.template?.blocks?.map(b => b.title) || [];
+        const sortedSections = Object.entries(briefingData.sections).sort(([a], [b]) => {
+            const indexA = blockOrder.indexOf(a);
+            const indexB = blockOrder.indexOf(b);
+            if (indexA === -1) return 1;
+            if (indexB === -1) return -1;
+            return indexA - indexB;
+        });
+
+        return (
+            <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <Typography variant="h6" gutterBottom>Completar Blocos</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Preencha as seções abaixo. Você pode usar a IA para gerar sugestões.
+                </Typography>
+                <Grid container spacing={2} sx={{ flexGrow: 1, minHeight: 0 }}>
+                    <Grid item xs={12} md={5} sx={{ height: '100%', overflowY: 'auto', pr: 1 }}>
+                        {sortedSections.map(([title, content]) => {
+                            const isEmpty = isEditorEmpty(content);
+                            return (
+                                <Card key={title} variant="outlined" sx={{ mb: 2, borderColor: isEmpty ? 'warning.main' : 'divider' }}>
+                                    <CardContent>
+                                        <Typography variant="h6" component="div">{title}</Typography>
+                                        {isEmpty ? (
+                                            <Alert severity="warning" sx={{ mt: 1 }}>Este bloco está vazio.</Alert>
+                                        ) : (
+                                            <Typography variant="body2" color="text.secondary" sx={{ maxHeight: 100, overflow: 'hidden', textOverflow: 'ellipsis' }} dangerouslySetInnerHTML={{ __html: content }} />
+                                        )}
+                                    </CardContent>
+                                    <CardActions>
+                                        <Button size="small" startIcon={<Edit />} onClick={() => setActiveSuggestion({ title, content: content || '' })}>Editar</Button>
+                                        {isEmpty && <Button size="small" onClick={() => handleGenerateSuggestion(title)}>Sugerir</Button>}
+                                    </CardActions>
+                                </Card>
+                            );
+                        })}
+                    </Grid>
+                    <Grid item xs={12} md={7} sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                        {activeSuggestion.title ? (
+                            <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                                <Typography variant="h6" gutterBottom>{`Editando: "${activeSuggestion.title}"`}</Typography>
+                                <Box sx={{ flexGrow: 1, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                                    <TextEditor value={activeSuggestion.content} onChange={(val) => setActiveSuggestion(prev => ({ ...prev, content: val }))} html={true} />
+                                </Box>
+                                <Button onClick={handleAcceptSuggestion} variant="contained" startIcon={<Check />} sx={{ mt: 2 }}>Confirmar Texto</Button>
+                            </Box>
+                        ) : (
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', border: '2px dashed', borderColor: 'divider', borderRadius: 2 }}>
+                                <Typography color="text.secondary">Selecione "Editar" ou "Sugerir" em um bloco à esquerda.</Typography>
+                            </Box>
+                        )}
+                    </Grid>
+                </Grid>
+            </Box>
+        );
+    }
+
     const renderStep1_Review = () => {
         if (revisionError) {
             return (
@@ -461,7 +490,7 @@ const BriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDataCha
                 <Box sx={{ textAlign: 'center', p: 4 }}>
                     <Typography variant="h6" gutterBottom>Pronto para revisar com a IA?</Typography>
                     <Typography color="text.secondary" sx={{ mb: 2 }}>
-                        Clique no botão abaixo para iniciar a revisão do seu briefing.
+                        A IA irá analisar o conteúdo, reestruturá-lo conforme o modelo e fazer sugestões.
                     </Typography>
                     <Button
                         variant="contained"
@@ -506,63 +535,6 @@ const BriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDataCha
         );
     };
 
-    const renderStep2_CompleteBlocks = () => {
-        const blockOrder = briefingData.template?.blocks?.map(b => b.title) || [];
-        const sortedSections = Object.entries(briefingData.sections).sort(([a], [b]) => {
-            const indexA = blockOrder.indexOf(a);
-            const indexB = blockOrder.indexOf(b);
-            if (indexA === -1) return 1;
-            if (indexB === -1) return -1;
-            return indexA - indexB;
-        });
-
-        return (
-            <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <Typography variant="h6" gutterBottom>Completar Blocos</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    Complete as seções que a IA não conseguiu preencher ou edite as existentes.
-                </Typography>
-                <Grid container spacing={2} sx={{ flexGrow: 1, minHeight: 0 }}>
-                    <Grid item xs={12} md={5} sx={{ height: '100%', overflowY: 'auto' }}>
-                        {sortedSections.map(([title, content]) => {
-                            const isEmpty = !content || content.trim() === '';
-                            return (
-                                <Card key={title} variant="outlined" sx={{ mb: 2, borderColor: isEmpty ? 'error.main' : 'divider' }}>
-                                    <CardContent>
-                                        <Typography variant="h6" component="div">{title}</Typography>
-                                        {isEmpty ? (
-                                            <Alert severity="warning" sx={{ mt: 1 }}>Este bloco está vazio.</Alert>
-                                        ) : (
-                                            <Typography variant="body2" color="text.secondary" sx={{ maxHeight: 100, overflow: 'hidden', textOverflow: 'ellipsis' }} dangerouslySetInnerHTML={{ __html: content }} />
-                                        )}
-                                    </CardContent>
-                                    <CardActions>
-                                        <Button size="small" startIcon={<Edit />} onClick={() => setActiveSuggestion({ title, content: content || '' })}>Editar</Button>
-                                        {isEmpty && <Button size="small" onClick={() => handleGenerateSuggestion(title)}>Sugerir</Button>}
-                                    </CardActions>
-                                </Card>
-                            );
-                        })}
-                    </Grid>
-                    <Grid item xs={12} md={7} sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                        {activeSuggestion.title ? (
-                            <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                                <Typography variant="h6" gutterBottom>{`Sugestão para: "${activeSuggestion.title}"`}</Typography>
-                                <Box sx={{ flexGrow: 1, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
-                                    <TextEditor value={activeSuggestion.content} onChange={(val) => setActiveSuggestion(prev => ({ ...prev, content: val }))} html={true} />
-                                </Box>
-                                <Button onClick={handleAcceptSuggestion} variant="contained" startIcon={<Check />} sx={{ mt: 2 }}>Aceitar e Usar este Texto</Button>
-                            </Box>
-                        ) : (
-                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', border: '2px dashed', borderColor: 'divider', borderRadius: 2 }}>
-                                <Typography color="text.secondary">Selecione "Editar" ou "Sugerir" em um bloco à esquerda.</Typography>
-                            </Box>
-                        )}
-                    </Grid>
-                </Grid>
-            </Box>
-        );
-    }
 const FinalizationStep = ({ briefingData, onBriefingDataChange }) => {
     const [tabIndex, setTabIndex] = useState(0);
 
@@ -633,7 +605,7 @@ const FinalizationStep = ({ briefingData, onBriefingDataChange }) => {
             case 'Edição':
                 return renderStep0_Edit();
             case 'Preencher Seções':
-                return renderStep2_CompleteBlocks(); // Re-using the same component
+                return renderStep0_Sections();
             case 'Revisão':
                 return renderStep1_Review();
             case 'Finalização':
@@ -657,12 +629,19 @@ const FinalizationStep = ({ briefingData, onBriefingDataChange }) => {
                         {renderContent()}
                     </Box>
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={onClose} color="secondary">Cancelar</Button>
+                <DialogActions sx={{ p: { xs: 1, sm: 2 }}}>
+                    {onDelete && (
+                        <Tooltip title="Excluir Briefing">
+                            <IconButton onClick={onDelete} color="error" sx={{ mr: 'auto' }}>
+                                <DeleteIcon />
+                            </IconButton>
+                        </Tooltip>
+                    )}
+                    <Button onClick={onClose}>Cancelar</Button>
                     <Box sx={{ flexGrow: 1 }} />
                     <Button disabled={activeStep === 0} onClick={handleBack}>Anterior</Button>
                     {activeStep === steps.length - 1 ? (
-                        <Button onClick={() => onSave(briefingData)} variant="contained" color="primary">Salvar Briefing</Button>
+                        <Button onClick={onSave} variant="contained" color="primary">Salvar Briefing</Button>
                     ) : (
                         <Button
                             onClick={handleNext}

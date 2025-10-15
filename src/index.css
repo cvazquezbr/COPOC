@@ -1,4 +1,25 @@
 /* =================================================================
+   Global Styles & Background
+================================================================= */
+
+body {
+  background-color: #f8fafc; /* Fallback for browsers that don't support gradients */
+  background-image:
+    radial-gradient(at 0% 0%, hsla(253, 100%, 95%, 1) 0px, transparent 50%),
+    radial-gradient(at 50% 0%, hsla(200, 100%, 95%, 1) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, hsla(339, 100%, 95%, 1) 0px, transparent 50%);
+  transition: background-color 0.3s ease;
+}
+
+body.dark-mode-active {
+  background-color: #0f172a; /* Dark fallback */
+  background-image:
+    radial-gradient(at 0% 100%, hsla(253, 100%, 10%, 1) 0px, transparent 50%),
+    radial-gradient(at 50% 100%, hsla(200, 100%, 10%, 1) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, hsla(339, 100%, 10%, 1) 0px, transparent 50%);
+}
+
+/* =================================================================
    Modern Scrollbar Styles
 ================================================================= */
 

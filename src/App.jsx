@@ -6,7 +6,7 @@ import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import MainLayout from './components/MainLayout';
 import BriefingPage from './pages/BriefingPage';
-import BriefingTemplatePage from './pages/BriefingTemplatePage';
+import TemplatePage from './pages/TemplatePage';
 
 // Context
 import { useUserAuth, UserAuthContextProvider } from './context/UserAuthContext';
@@ -43,7 +43,7 @@ function App() {
         }
       >
         <Route index element={<BriefingPage />} />
-        <Route path="briefing-template" element={<BriefingTemplatePage />} />
+        <Route path="briefing-template" element={<TemplatePage />} />
       </Route>
 
       {/* Fallback for non-matching routes */}

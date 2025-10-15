@@ -14,7 +14,6 @@ import {
   IconButton,
   Divider
 } from '@mui/material';
-import { Add, Delete as DeleteIcon } from '@mui/icons-material';
 import { toast } from 'sonner';
 import isEqual from 'lodash.isequal';
 import { getBriefings, getBriefing, saveBriefing, updateBriefing, deleteBriefing } from '../utils/briefingState';
@@ -30,7 +29,7 @@ const emptyBriefingData = {
   revisionNotes: '',
   sections: {},
   finalText: '',
-  type: 'text',
+  type: 'text', // Default type
 };
 
 const BriefingPage = () => {
@@ -46,9 +45,10 @@ const BriefingPage = () => {
   const [isWizardOpen, setWizardOpen] = useState(false);
   const [isBriefingDirty, setIsBriefingDirty] = useState(false);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
-  const [navigationTarget, setNavigationTarget] = useState(null);
   const [userTemplate, setUserTemplate] = useState(null);
   const [isTemplateLoading, setIsTemplateLoading] = useState(true);
+  const [isNewBriefing, setIsNewBriefing] = useState(false);
+  const [creationMode, setCreationMode] = useState('text');
 
   const fetchBriefings = async () => {
     setBriefingsLoading(true);
@@ -123,7 +123,7 @@ const BriefingPage = () => {
     } else {
       setIsBriefingDirty(false);
     }
-  }, [briefingFormData, selectedBriefing]);
+  }, []);
 
 
   const handleNewBriefing = (mode) => {
@@ -132,7 +132,8 @@ const BriefingPage = () => {
         return;
     }
     setCreationMode(mode);
-    setSelectedBriefing(null);
+    setIsNewBriefing(true);
+    setSelectedBriefingId(null);
 
     let newBriefingData;
     if (mode === 'text') {
@@ -180,12 +181,12 @@ const BriefingPage = () => {
     }
   };
 
-  const handleNavigation = (targetAction) => {
+  const handleCloseWizard = () => {
     if (isBriefingDirty) {
-      setNavigationTarget(() => targetAction);
       setShowUnsavedDialog(true);
     } else {
-      targetAction();
+      setWizardOpen(false);
+      setSelectedBriefingId(null);
     }
   };
 
