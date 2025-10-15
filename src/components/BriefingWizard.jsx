@@ -645,8 +645,8 @@ const FinalizationStep = ({ briefingData, onBriefingDataChange }) => {
 
     return (
         <>
-            <Dialog open={open} onClose={onClose} fullWidth maxWidth="xl" fullScreen={isMobile} PaperProps={{ sx: { height: isMobile ? '100%' : '90vh' } }}>
-                <DialogTitle>
+            <Dialog open={open} onClose={onClose} fullWidth maxWidth="xl" fullScreen={isMobile} PaperProps={{ sx: { height: isMobile ? '100%' : '90vh' } }} aria-labelledby="briefing-wizard-title">
+                <DialogTitle id="briefing-wizard-title">
                     {creationMode === 'text' ? 'Novo Briefing a partir de Texto' : 'Novo Briefing a partir de Seções'}
                 </DialogTitle>
                 <DialogContent sx={{ display: 'flex', flexDirection: 'column', overflowY: 'hidden', p: { xs: 1, sm: 2, md: 3 } }}>
