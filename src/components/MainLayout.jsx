@@ -1,25 +1,134 @@
-import React, { useState } from 'react';
-import { Outlet, useLocation, Link as RouterLink } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Outlet, useNavigate } from 'react-router-dom';
 import {
-  Box, AppBar, Toolbar, IconButton, Typography, Button, Menu, MenuItem, Drawer, List, ListItem, ListItemText, CssBaseline,
+  Box,
+  AppBar as MuiAppBar,
+  Toolbar,
+  IconButton,
+  Typography,
+  Menu,
+  MenuItem,
+  Drawer as MuiDrawer,
+  List,
+  ListItem,
+  ListItemText,
+  CssBaseline,
+  Divider,
+  ListItemIcon,
+  ListItemButton,
+  useTheme,
+  styled,
+  Button,
+  useMediaQuery,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import AccountCircle from '@mui/icons-material/AccountCircle';
 import SettingsIcon from '@mui/icons-material/Settings';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import AddIcon from '@mui/icons-material/Add';
+import DescriptionIcon from '@mui/icons-material/Description';
+import ArticleIcon from '@mui/icons-material/Article';
 
-import { useLayout } from '../context/LayoutContext';
 import { useUserAuth } from '../context/UserAuthContext';
+import { useLayout } from '../context/LayoutContext';
 import SetupModal from './SetupModal';
+import { getBriefings } from '../utils/briefingState';
 
-const drawerWidth = 240;
+const drawerWidth = 280;
+
+const openedMixin = (theme) => ({
+  width: drawerWidth,
+  transition: theme.transitions.create('width', {
+    easing: theme.transitions.easing.sharp,
+    duration: theme.transitions.duration.enteringScreen,
+  }),
+  overflowX: 'hidden',
+});
+
+const closedMixin = (theme) => ({
+  transition: theme.transitions.create('width', {
+    easing: theme.transitions.easing.sharp,
+    duration: theme.transitions.duration.leavingScreen,
+  }),
+  overflowX: 'hidden',
+  width: `calc(${theme.spacing(7)} + 1px)`,
+  [theme.breakpoints.up('sm')]: {
+    width: `calc(${theme.spacing(8)} + 1px)`,
+  },
+});
+
+const DrawerHeader = styled('div')(({ theme }) => ({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  padding: theme.spacing(0, 1),
+  ...theme.mixins.toolbar,
+}));
+
+const AppBar = styled(MuiAppBar, {
+  shouldForwardProp: (prop) => prop !== 'open',
+})(({ theme, open, isMobile }) => ({
+  zIndex: theme.zIndex.drawer + 1,
+  transition: theme.transitions.create(['width', 'margin'], {
+    easing: theme.transitions.easing.sharp,
+    duration: theme.transitions.duration.leavingScreen,
+  }),
+  ...(!isMobile && open && {
+    marginLeft: drawerWidth,
+    width: `calc(100% - ${drawerWidth}px)`,
+    transition: theme.transitions.create(['width', 'margin'], {
+      easing: theme.transitions.easing.sharp,
+      duration: theme.transitions.duration.enteringScreen,
+    }),
+  }),
+}));
+
+const DesktopDrawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== 'open' })(
+  ({ theme, open }) => ({
+    width: drawerWidth,
+    flexShrink: 0,
+    whiteSpace: 'nowrap',
+    boxSizing: 'border-box',
+    ...(open && {
+      ...openedMixin(theme),
+      '& .MuiDrawer-paper': openedMixin(theme),
+    }),
+    ...(!open && {
+      ...closedMixin(theme),
+      '& .MuiDrawer-paper': closedMixin(theme),
+    }),
+  }),
+);
 
 const MainLayout = () => {
-  const { setBriefingDrawerOpen } = useLayout();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const navigate = useNavigate();
   const { logout } = useUserAuth();
-  const location = useLocation();
+  const {
+    briefings,
+    fetchBriefings,
+    setSelectedBriefingId,
+    selectedBriefingId,
+    isDrawerOpen,
+    setDrawerOpen,
+  } = useLayout();
+
   const [setupModalOpen, setSetupModalOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    fetchBriefings();
+  }, [fetchBriefings]);
+
+  const handleDrawerToggle = () => {
+    if (isMobile) {
+      setMobileOpen(!mobileOpen);
+    } else {
+      setDrawerOpen(!isDrawerOpen);
+    }
+  };
 
   const handleMenu = (event) => {
     setAnchorEl(event.currentTarget);
@@ -34,50 +143,98 @@ const MainLayout = () => {
     logout();
   };
 
-  const handleDrawerToggle = () => {
-    setMobileOpen(!mobileOpen);
+  const handleNewBriefing = () => {
+    setSelectedBriefingId(null);
+    navigate('/?create=true');
+    if (isMobile) setMobileOpen(false);
   };
 
-  const isBriefingPage = location.pathname === '/';
+  const handleSelectBriefing = (id) => {
+    setSelectedBriefingId(id);
+    navigate('/');
+    if (isMobile) setMobileOpen(false);
+  };
 
-  const drawer = (
+  const drawerContent = (
     <div>
-      <Toolbar />
+      <DrawerHeader>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={handleNewBriefing}
+          sx={{
+            margin: 'auto',
+            flexGrow: 1,
+            mr: 1,
+            ml: 1,
+            opacity: isMobile || isDrawerOpen ? 1 : 0,
+            transition: 'opacity 0.2s',
+          }}
+        >
+          Novo Briefing
+        </Button>
+        <IconButton onClick={() => isMobile ? setMobileOpen(false) : setDrawerOpen(false)}>
+          <ChevronLeftIcon />
+        </IconButton>
+      </DrawerHeader>
+      <Divider />
       <List>
-        <ListItem button component={RouterLink} to="/">
-          <ListItemText primary="Briefings" />
-        </ListItem>
-        <ListItem button component={RouterLink} to="/briefing-template">
-          <ListItemText primary="Templates" />
-        </ListItem>
+        {briefings.map((briefing) => (
+          <ListItem key={briefing.id} disablePadding sx={{ display: 'block' }}>
+            <ListItemButton
+              selected={selectedBriefingId === briefing.id}
+              onClick={() => handleSelectBriefing(briefing.id)}
+              sx={{
+                minHeight: 48,
+                justifyContent: (isDrawerOpen || isMobile) ? 'initial' : 'center',
+                px: 2.5,
+              }}
+            >
+              <ListItemIcon
+                sx={{
+                  minWidth: 0,
+                  mr: (isDrawerOpen || isMobile) ? 3 : 'auto',
+                  justifyContent: 'center',
+                }}
+              >
+                <DescriptionIcon />
+              </ListItemIcon>
+              <ListItemText primary={briefing.name} sx={{ opacity: (isDrawerOpen || isMobile) ? 1 : 0 }} />
+            </ListItemButton>
+          </ListItem>
+        ))}
       </List>
     </div>
   );
 
   return (
     <>
-      <Box sx={{ display: 'flex', height: '100vh' }}>
+      <Box sx={{ display: 'flex' }}>
         <CssBaseline />
-        <AppBar
-          position="fixed"
-          sx={{
-            width: { sm: `calc(100% - ${drawerWidth}px)` },
-            ml: { sm: `${drawerWidth}px` },
-          }}
-        >
+        <AppBar position="fixed" open={!isMobile && isDrawerOpen} isMobile={isMobile}>
           <Toolbar>
             <IconButton
               color="inherit"
               aria-label="open drawer"
-              edge="start"
               onClick={handleDrawerToggle}
-              sx={{ mr: 2, display: { sm: 'none' } }}
+              edge="start"
+              sx={{
+                marginRight: 2,
+                ...((!isMobile && isDrawerOpen) && { display: 'none' }),
+              }}
             >
               <MenuIcon />
             </IconButton>
             <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
               M.I.D.I.A.T.O.R
             </Typography>
+            <IconButton
+              color="inherit"
+              onClick={() => navigate('/briefing-template')}
+              aria-label="Edit Template"
+            >
+              <ArticleIcon />
+            </IconButton>
             <IconButton
               color="inherit"
               onClick={() => setSetupModalOpen(true)}
@@ -99,15 +256,9 @@ const MainLayout = () => {
               <Menu
                 id="menu-appbar"
                 anchorEl={anchorEl}
-                anchorOrigin={{
-                  vertical: 'top',
-                  horizontal: 'right',
-                }}
+                anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
                 keepMounted
-                transformOrigin={{
-                  vertical: 'top',
-                  horizontal: 'right',
-                }}
+                transformOrigin={{ vertical: 'top', horizontal: 'right' }}
                 open={Boolean(anchorEl)}
                 onClose={handleClose}
               >
@@ -118,46 +269,28 @@ const MainLayout = () => {
         </AppBar>
         <Box
           component="nav"
-          sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
-          aria-label="mailbox folders"
+          sx={{ width: { sm: isDrawerOpen ? drawerWidth : `calc(${theme.spacing(7)} + 1px)` }, flexShrink: { sm: 0 } }}
         >
-          <Drawer
-            variant="temporary"
-            open={mobileOpen}
-            onClose={handleDrawerToggle}
-            ModalProps={{
-              keepMounted: true, // Better open performance on mobile.
-            }}
-            sx={{
-              display: { xs: 'block', sm: 'none' },
-              '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
-            }}
-          >
-            {drawer}
-          </Drawer>
-          <Drawer
-            variant="permanent"
-            sx={{
-              display: { xs: 'none', sm: 'block' },
-              '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
-            }}
-            open
-          >
-            {drawer}
-          </Drawer>
+          {isMobile ? (
+            <MuiDrawer
+              variant="temporary"
+              open={mobileOpen}
+              onClose={handleDrawerToggle}
+              ModalProps={{ keepMounted: true }}
+              sx={{
+                '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+              }}
+            >
+              {drawerContent}
+            </MuiDrawer>
+          ) : (
+            <DesktopDrawer variant="permanent" open={isDrawerOpen}>
+              {drawerContent}
+            </DesktopDrawer>
+          )}
         </Box>
-        <Box
-          component="main"
-          sx={{
-            flexGrow: 1,
-            p: 3,
-            width: { sm: `calc(100% - ${drawerWidth}px)` },
-            pt: '64px', // For standard toolbar height
-            height: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
+        <Box component="main" sx={{ flexGrow: 1, p: 3, minHeight: '100vh' }}>
+          <Toolbar />
           <Outlet />
         </Box>
       </Box>
