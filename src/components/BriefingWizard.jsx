@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
-    Box, Button, Typography, Stepper, Step, StepLabel, Dialog, DialogTitle, DialogContent, Grid, CircularProgress, TextField, useMediaQuery, Backdrop, DialogActions, Paper, Card, CardContent, CardActions, Alert, Drawer, Tooltip, IconButton
+    Box, Button, Typography, Stepper, Step, StepLabel, Dialog, DialogTitle, DialogContent, Grid, CircularProgress, TextField, useMediaQuery, Backdrop, DialogActions, Paper, Card, CardContent, CardActions, Alert, Drawer, Tooltip, IconButton, Tabs, Tab
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { ArrowBack, ArrowForward, UploadFile, Edit, Check, Notes as NotesIcon, Fullscreen, FullscreenExit, Download } from '@mui/icons-material';
@@ -13,7 +13,7 @@ import { parseWordDocument, parsePdfDocument } from '../utils/fileImport';
 import geminiAPI from '../utils/geminiAPI';
 import { useUserAuth } from '../context/UserAuthContext';
 
-const sectionsToHtml = (sections) => {
+const sectionsToHtml = (sections, blockOrder = []) => {
     let htmlContent = '';
     const processedTitles = new Set();
 
@@ -24,13 +24,17 @@ const sectionsToHtml = (sections) => {
         return items.map(item => item.textContent.trim()).filter(text => text);
     };
 
-    Object.entries(sections).forEach(([title, content]) => {
-        if (processedTitles.has(title.toLowerCase())) {
+    const sectionsMap = new Map(Object.entries(sections).map(([k, v]) => [k.toLowerCase(), v]));
+    const orderedTitles = blockOrder.length > 0 ? blockOrder : Object.keys(sections);
+
+    orderedTitles.forEach((title, index) => {
+        const lowerCaseTitle = title.toLowerCase();
+        if (processedTitles.has(lowerCaseTitle)) {
             return;
         }
 
+        const content = sectionsMap.get(lowerCaseTitle) || '';
         let sectionHtml = '';
-        const lowerCaseTitle = title.toLowerCase();
 
         switch (lowerCaseTitle) {
             case 'título da missão': {
@@ -39,10 +43,8 @@ const sectionsToHtml = (sections) => {
                 break;
             }
             case 'dos': {
-                const dosKey = Object.keys(sections).find(k => k.toLowerCase() === 'dos') || 'dos';
-                const dontsKey = Object.keys(sections).find(k => k.toLowerCase() === "don'ts") || "don'ts";
-                const dosContent = sections[dosKey] || '';
-                const dontsContent = sections[dontsKey] || '';
+                const dosContent = sectionsMap.get('dos') || '';
+                const dontsContent = sectionsMap.get("don'ts") || '';
                 const dosList = parseList(dosContent);
                 const dontsList = parseList(dontsContent);
 
@@ -76,12 +78,8 @@ const sectionsToHtml = (sections) => {
                 processedTitles.add("don'ts");
                 break;
             }
-
             case "don'ts":
-                // This is handled by the 'dos' case to ensure they are always together.
-                // If 'dos' is not in the sections, it will be skipped, so we do nothing here.
-                return;
-
+                return; // Handled by 'dos'
             default:
                 if (content && content.trim() !== '') {
                     sectionHtml = `<h3>${title}</h3>\n${content}\n\n`;
@@ -89,7 +87,13 @@ const sectionsToHtml = (sections) => {
                 break;
         }
 
-        htmlContent += sectionHtml;
+        if (sectionHtml) {
+            htmlContent += sectionHtml;
+            // Add a separator line between sections, but not after the last one.
+            if (index < orderedTitles.length - 1) {
+                htmlContent += '<hr style="border: 0; border-top: 1px solid #ccc; margin: 20px 0;" />\n';
+            }
+        }
         processedTitles.add(lowerCaseTitle);
     });
 
@@ -170,8 +174,6 @@ const extractBlockOrder = (rules, defaultOrder) => {
     return defaultOrder;
 };
 
-const steps = ['Edição', 'Revisão', 'Completar Blocos', 'Finalização'];
-
 const isEditorEmpty = (htmlString) => {
     if (!htmlString) return true;
     // Creates a temporary div to parse the HTML string.
@@ -181,10 +183,18 @@ const isEditorEmpty = (htmlString) => {
     return tempDiv.textContent.trim() === '' && !tempDiv.querySelector('img');
 };
 
-const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDataChange }) => {
+const BriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDataChange, creationMode = 'text' }) => { // Default to 'text'
     const { user } = useUserAuth();
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
+    const steps = useMemo(() => {
+        if (creationMode === 'sections') {
+            return ['Preencher Seções', 'Revisão', 'Finalização'];
+        }
+        // Default to 'text' mode steps
+        return ['Edição', 'Revisão', 'Finalização'];
+    }, [creationMode]);
 
     const [activeStep, setActiveStep] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
@@ -226,31 +236,44 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
     // Template is now passed via props, so no need to fetch it here.
 
     useEffect(() => {
-        if (activeStep === 3) {
+        // Finalization step logic
+        if (activeStep === steps.length - 1) {
             setLoadingMessage('Gerando texto final...');
             setIsLoading(true);
             setTimeout(() => {
-                const finalHtml = sectionsToHtml(briefingData.sections);
+                const finalHtml = sectionsToHtml(briefingData.sections, briefingData.template?.blocks?.map(b => b.title) || []);
                 onBriefingDataChange(prev => ({ ...prev, finalText: finalHtml }));
                 setIsLoading(false);
             }, 100);
         }
-    }, [activeStep, briefingData.sections, onBriefingDataChange]);
+    }, [activeStep, steps.length, briefingData.sections, briefingData.template, onBriefingDataChange]);
+
 
     const handleNext = async () => {
-        if (activeStep === 0) {
-            // Just move to the next step, no API call
-            setActiveStep(1);
-        } else if (activeStep === 1) {
-            // When leaving the review step, parse the edited HTML back into sections
+        const currentStepLabel = steps[activeStep];
+        const nextStep = activeStep + 1;
+
+        if (currentStepLabel === 'Edição') {
+            // From 'Edição' to 'Revisão'
+            setActiveStep(nextStep);
+        } else if (currentStepLabel === 'Preencher Seções') {
+            // From 'Preencher Seções' to 'Revisão'
+            // Generate baseText from sections before moving to revision
+            const baseTextFromSections = sectionsToHtml(briefingData.sections, briefingData.template?.blocks?.map(b => b.title) || []);
+            onBriefingDataChange(prev => ({ ...prev, baseText: baseTextFromSections }));
+            setActiveStep(nextStep);
+        } else if (currentStepLabel === 'Revisão') {
+            // From 'Revisão' to 'Finalização'
+            // Parse revisedText back into sections
             const updatedSections = htmlToSections(briefingData.revisedText);
             onBriefingDataChange(prev => ({
                 ...prev,
                 sections: updatedSections,
             }));
-            setActiveStep(prev => prev + 1);
+            setActiveStep(nextStep);
         } else {
-            setActiveStep(prev => prev + 1);
+            // For any other case, just advance
+            setActiveStep(nextStep);
         }
     };
 
@@ -540,41 +563,92 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
             </Box>
         );
     }
-    const renderStep3_Finalize = () => (
-        <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <Typography variant="h6" gutterBottom>Finalização</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Defina um nome para o seu briefing e revise o documento final. Para fazer ajustes, volte às etapas anteriores.
-            </Typography>
-            <TextField
-                name="name"
-                label="Nome do Briefing"
-                fullWidth
-                value={briefingData.name || ''}
-                onChange={(e) => handleBriefingDataChange('name', e.target.value)}
-                required
-                sx={{ mb: 2, flexShrink: 0 }}
-            />
-            <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                <HtmlDisplay htmlContent={briefingData.finalText} />
+    const renderStep3_Finalize = () => {
+        const [tabIndex, setTabIndex] = useState(0);
+
+        const handleTabChange = (event, newValue) => {
+            setTabIndex(newValue);
+        };
+
+        const dosContent = briefingData.sections['DOs'] || '<p>Nenhum DO definido.</p>';
+        const dontsContent = briefingData.sections["DON'Ts"] || "<p>Nenhum DON'T definido.</p>";
+
+        return (
+            <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <Typography variant="h6" gutterBottom>Finalização</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Defina um nome para o seu briefing e revise o documento final. Para fazer ajustes, volte às etapas anteriores.
+                </Typography>
+                <TextField
+                    name="name"
+                    label="Nome do Briefing"
+                    fullWidth
+                    value={briefingData.name || ''}
+                    onChange={(e) => handleBriefingDataChange('name', e.target.value)}
+                    required
+                    sx={{ mb: 2, flexShrink: 0 }}
+                />
+                <Box sx={{ borderBottom: 1, borderColor: 'divider', flexShrink: 0 }}>
+                    <Tabs value={tabIndex} onChange={handleTabChange} aria-label="abas de finalização">
+                        <Tab label="Documento" />
+                        <Tab label="DOs & DON'Ts" />
+                    </Tabs>
+                </Box>
+                <Box sx={{ flexGrow: 1, overflowY: 'auto', p: tabIndex === 1 ? 2 : 0, minHeight: 0 }}>
+                    {tabIndex === 0 && (
+                        <HtmlDisplay htmlContent={briefingData.finalText} />
+                    )}
+                    {tabIndex === 1 && (
+                        <Grid container spacing={2}>
+                            <Grid item xs={12} md={6}>
+                                <Card variant="outlined" sx={{ height: '100%' }}>
+                                    <CardContent>
+                                        <Typography variant="h5" component="div" sx={{ mb: 1.5 }}>
+                                            DOs
+                                        </Typography>
+                                        <HtmlDisplay htmlContent={dosContent} />
+                                    </CardContent>
+                                </Card>
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                                <Card variant="outlined" sx={{ height: '100%' }}>
+                                    <CardContent>
+                                        <Typography variant="h5" component="div" sx={{ mb: 1.5 }}>
+                                            DON'Ts
+                                        </Typography>
+                                        <HtmlDisplay htmlContent={dontsContent} />
+                                    </CardContent>
+                                </Card>
+                            </Grid>
+                        </Grid>
+                    )}
+                </Box>
             </Box>
-        </Box>
-    );
+        );
+    };
 
     const renderContent = () => {
-        switch (activeStep) {
-            case 0: return renderStep0_Edit();
-            case 1: return renderStep1_Review();
-            case 2: return renderStep2_CompleteBlocks();
-            case 3: return renderStep3_Finalize();
-            default: return null;
+        const currentStepLabel = steps[activeStep];
+        switch (currentStepLabel) {
+            case 'Edição':
+                return renderStep0_Edit();
+            case 'Preencher Seções':
+                return renderStep2_CompleteBlocks(); // Re-using the same component
+            case 'Revisão':
+                return renderStep1_Review();
+            case 'Finalização':
+                return renderStep3_Finalize();
+            default:
+                return null;
         }
     }
 
     return (
         <>
             <Dialog open={open} onClose={onClose} fullWidth maxWidth="xl" fullScreen={isMobile} PaperProps={{ sx: { height: isMobile ? '100%' : '90vh' } }}>
-                <DialogTitle>Novo Briefing a partir de Texto</DialogTitle>
+                <DialogTitle>
+                    {creationMode === 'text' ? 'Novo Briefing a partir de Texto' : 'Novo Briefing a partir de Seções'}
+                </DialogTitle>
                 <DialogContent sx={{ display: 'flex', flexDirection: 'column', overflowY: 'hidden', p: { xs: 1, sm: 2, md: 3 } }}>
                     <Stepper activeStep={activeStep} sx={{ mb: 2, flexShrink: 0 }}>
                         {steps.map((label) => (<Step key={label}><StepLabel>{label}</StepLabel></Step>))}
@@ -657,4 +731,4 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
     );
 }
 
-export default TextBriefingWizard;
+export default BriefingWizard;
