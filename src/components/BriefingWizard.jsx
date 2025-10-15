@@ -269,12 +269,14 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
             console.error('O texto base está vazio ou contém apenas espaços em branco.');
             return;
         }
+        console.log("X");
+
         if (!briefingData.template) {
             toast.error('O modelo de referência é obrigatório.');
             console.error('O modelo de referência não está definido.');
             return;
         }
-
+        console.log("Y");
         if (!geminiAPI.isInitialized) {
             const apiKey = getGeminiApiKey();
             if (!apiKey) {
@@ -286,10 +288,12 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
             geminiAPI.initialize(apiKey);        
             console.log("B");
         }
+                console.log("Z");
 
         setIsLoading(true);
         setLoadingMessage('Iniciando revisão com IA...');
         setRevisionError(null);
+        
         setIsRevised(false);
         console.log("C");
         try {
