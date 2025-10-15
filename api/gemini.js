@@ -27,9 +27,10 @@ export default async function handler(req, res) {
       url = `${GEMINI_API_BASE_URL}/models?key=${apiKey}`;
       break;
 
+    case 'reviseBriefing': // Added to handle the new action
     case 'generateContent':
       if (!prompt || !model) {
-        return res.status(400).json({ error: 'Prompt and model are required for generateContent' });
+        return res.status(400).json({ error: 'Prompt and model are required for this action' });
       }
       const modelName = model.startsWith('models/') ? model.split('/')[1] : model;
       url = `${GEMINI_API_BASE_URL}/models/${modelName}:generateContent?key=${apiKey}`;
