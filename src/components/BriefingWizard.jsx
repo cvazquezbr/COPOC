@@ -236,6 +236,60 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
         }
     }, [activeStep, briefingData.sections, onBriefingDataChange]);
 
+    useEffect(() => {
+        const performRevision = async () => {
+            if (isLoading && loadingMessage.startsWith('Iniciando')) {
+                setRevisionError(null);
+                setIsRevised(false);
+
+                try {
+                    setLoadingMessage('Analisando e reestruturando o briefing...');
+                    const result = await geminiAPI.reviseBriefing(briefingData.baseText, briefingData.template);
+
+                    if (!result || typeof result.sections !== 'object' || result.sections === null) {
+                        throw new Error("A resposta da IA não continha a estrutura de seções esperada.");
+                    }
+
+                    const aiSections = result.sections;
+                    const blockOrder = extractBlockOrder(briefingData.template.generalRules, briefingData.template.blocks.map(b => b.title));
+                    const finalSections = {};
+                    const aiSectionsMap = new Map(Object.entries(aiSections).map(([k, v]) => [k.toLowerCase(), v]));
+
+                    blockOrder.forEach(title => {
+                        const lowerCaseTitle = title.toLowerCase();
+                        if (aiSectionsMap.has(lowerCaseTitle) && aiSectionsMap.get(lowerCaseTitle).trim() !== '') {
+                            finalSections[title] = aiSectionsMap.get(lowerCaseTitle);
+                        } else {
+                            finalSections[title] = "<p>A revisão não encontrou conteúdo para esta seção.</p>";
+                        }
+                    });
+
+                    const revisedText = sectionsToHtml(finalSections);
+                    const formattedNotes = Array.isArray(result.revisionNotes) ? result.revisionNotes.map(note => `<p>- ${note}</p>`).join('') : result.revisionNotes || '';
+
+                    onBriefingDataChange(prev => ({
+                        ...prev,
+                        revisedText: revisedText,
+                        revisionNotes: formattedNotes,
+                        sections: finalSections,
+                    }));
+                    toast.success('Briefing revisado com sucesso!');
+                    setIsRevised(true);
+                } catch (error) {
+                    console.error("Erro detalhado na revisão com IA:", error);
+                    let userErrorMessage = `Erro na revisão com IA: ${error.message}. Verifique o console para mais detalhes.`;
+                    setRevisionError(userErrorMessage);
+                    toast.error(userErrorMessage);
+                } finally {
+                    setIsLoading(false);
+                    setLoadingMessage('');
+                }
+            }
+        };
+
+        performRevision();
+    }, [isLoading, loadingMessage, briefingData, onBriefingDataChange]);
+
     const handleNext = async () => {
         if (activeStep === 0) {
             // Just move to the next step, no API call
@@ -261,7 +315,7 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
         onBriefingDataChange(prev => ({ ...prev, [field]: value }));
     };
 
-    const handleRevise = async () => {
+    const handleRevise = () => {
         if (isEditorEmpty(briefingData.baseText)) {
             toast.error('O texto base é obrigatório.');
             return;
@@ -280,54 +334,9 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
             geminiAPI.initialize(apiKey);
         }
 
-        setLoadingMessage('Iniciando revisão com IA...');
         setIsLoading(true);
-        setRevisionError(null);
-        setIsRevised(false);
-
-        try {
-            setLoadingMessage('Analisando e reestruturando o briefing...');
-            const result = await geminiAPI.reviseBriefing(briefingData.baseText, briefingData.template);
-
-            if (!result || typeof result.sections !== 'object' || result.sections === null) {
-                throw new Error("A resposta da IA não continha a estrutura de seções esperada.");
-            }
-
-            const aiSections = result.sections;
-            const blockOrder = extractBlockOrder(briefingData.template.generalRules, briefingData.template.blocks.map(b => b.title));
-            const finalSections = {};
-            const aiSectionsMap = new Map(Object.entries(aiSections).map(([k, v]) => [k.toLowerCase(), v]));
-
-            blockOrder.forEach(title => {
-                const lowerCaseTitle = title.toLowerCase();
-                if (aiSectionsMap.has(lowerCaseTitle) && aiSectionsMap.get(lowerCaseTitle).trim() !== '') {
-                    finalSections[title] = aiSectionsMap.get(lowerCaseTitle);
-                } else {
-                    finalSections[title] = "<p>A revisão não encontrou conteúdo para esta seção.</p>";
-                }
-            });
-
-            const revisedText = sectionsToHtml(finalSections);
-            const formattedNotes = Array.isArray(result.revisionNotes) ? result.revisionNotes.map(note => `<p>- ${note}</p>`).join('') : result.revisionNotes || '';
-
-            onBriefingDataChange(prev => ({
-                ...prev,
-                revisedText: revisedText,
-                revisionNotes: formattedNotes,
-                sections: finalSections,
-            }));
-            toast.success('Briefing revisado com sucesso!');
-            setIsRevised(true);
-        } catch (error) {
-            console.error("Erro detalhado na revisão com IA:", error);
-            let userErrorMessage = `Erro na revisão com IA: ${error.message}. Verifique o console para mais detalhes.`;
-            setRevisionError(userErrorMessage);
-            toast.error(userErrorMessage);
-        } finally {
-            setIsLoading(false);
-            setLoadingMessage('');
-        }
-    };
+        setLoadingMessage('Iniciando revisão com IA...');
+};
 
     const handleSectionChange = (title, content) => {
         onBriefingDataChange(prev => ({
@@ -446,7 +455,7 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
                         color="primary"
                         onClick={handleRevise}
                         disabled={isLoading}
-                        startIcon={isLoading ? <CircularProgress size={20} /> : <Check />}
+                        startIcon={isLoading ? <CircularProgress size={20} color="inherit" /> : <Check />}
                     >
                         {isLoading ? loadingMessage : 'Revisar com IA'}
                     </Button>
