@@ -5,18 +5,18 @@ export const lightTheme = createTheme({
   palette: {
     mode: 'light',
     primary: {
-      main: '#8b5cf6', // Purple
+      main: '#6d28d9', // Roxo mais escuro para melhor contraste
     },
     secondary: {
-      main: '#ec4899', // Pink
+      main: '#be185d', // Rosa mais escuro
     },
     background: {
-      default: 'transparent', // Fundo principal transparente
-      paper: 'rgba(255, 255, 255, 0.7)', // Papel com transparência
+      default: 'transparent',
+      paper: 'rgba(248, 250, 252, 0.85)', // Fundo do card mais opaco (slate-50)
     },
     text: {
-      primary: '#1f2937',
-      secondary: '#4b5563',
+      primary: '#1e293b', // Cor de texto mais escura (slate-800)
+      secondary: '#475569', // Cor de texto secundária mais escura (slate-600)
     }
   },
   typography: {
@@ -26,36 +26,33 @@ export const lightTheme = createTheme({
     h6: { fontWeight: 600 },
   },
   components: {
-    // Aplicando o efeito Glass no AppBar
     MuiAppBar: {
       styleOverrides: {
         root: {
-          backgroundColor: 'rgba(255, 255, 255, 0.5)',
+          backgroundColor: 'rgba(255, 255, 255, 0.7)', // Fundo um pouco mais opaco
           backdropFilter: 'blur(12px)',
-          boxShadow: '0 2px 10px rgba(0, 0, 0, 0.05)',
-          borderBottom: '1px solid rgba(229, 231, 235, 0.8)', // e5e7eb com alpha
+          boxShadow: 'none',
+          borderBottom: '1px solid rgba(226, 232, 240, 0.8)', // Borda mais sutil (slate-200)
         }
       }
     },
-    // Aplicando o efeito Glass no Drawer
     MuiDrawer: {
       styleOverrides: {
         paper: {
-          backgroundColor: 'rgba(255, 255, 255, 0.6)',
+          backgroundColor: 'rgba(248, 250, 252, 0.75)', // Fundo do drawer (slate-50)
           backdropFilter: 'blur(12px)',
-          borderRight: '1px solid rgba(229, 231, 235, 0.9)', // e5e7eb com alpha
+          borderRight: '1px solid rgba(226, 232, 240, 0.9)', // Borda mais sutil (slate-200)
         }
       }
     },
-    // Aplicando o efeito Glass nos Cards
     MuiCard: {
       styleOverrides: {
         root: {
-          backgroundColor: 'rgba(255, 255, 255, 0.7)',
+          backgroundColor: 'rgba(255, 255, 255, 0.8)', // Fundo do card mais opaco
           backdropFilter: 'blur(10px)',
           borderRadius: 16,
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.05)',
-          border: '1px solid rgba(229, 231, 235, 1)', // e5e7eb
+          boxShadow: '0 2px 12px rgba(0, 0, 0, 0.04)', // Sombra mais suave
+          border: '1px solid rgba(226, 232, 240, 1)', // Borda mais sutil (slate-200)
         }
       }
     },

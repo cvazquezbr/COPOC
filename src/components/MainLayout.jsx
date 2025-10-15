@@ -229,9 +229,7 @@ const MainLayout = () => {
             >
               <MenuIcon />
             </IconButton>
-            <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-              M.I.D.I.A.T.O.R
-            </Typography>
+            <Box sx={{ flexGrow: 1 }} />
             <IconButton
               color="inherit"
               onClick={() => navigate('/briefing-template')}
