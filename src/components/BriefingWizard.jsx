@@ -192,7 +192,8 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
     const [isNotesDrawerOpen, setNotesDrawerOpen] = useState(false);
     const [focusModeTarget, setFocusModeTarget] = useState(null); // null | 'baseText' | 'revisedText'
     const [activeSuggestion, setActiveSuggestion] = useState({ title: null, content: '' });
-    const [errorFromGeminiRevision, setErrorFromGeminiRevision] = useState(false);
+    const [revisionError, setRevisionError] = useState(null);
+    const [isRevised, setIsRevised] = useState(false);
 
     const formattedBaseText = useMemo(() => {
         if (!briefingData.baseText) return '';
@@ -237,116 +238,9 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
     }, [activeStep, briefingData.sections, onBriefingDataChange]);
 
     const handleNext = async () => {
-        console.log(`[handleNext] Clicado. Etapa atual: ${activeStep}`);
         if (activeStep === 0) {
-            console.log('[handleNext] Processando Etapa 0: Edição.');
-
-            if (isEditorEmpty(briefingData.baseText)) {
-                toast.error('O texto base é obrigatório.');
-                console.error('[handleNext] Erro: O texto base está vazio.');
-                return;
-            }
-            console.log('[handleNext] Check: Texto base preenchido.');
-
-            if (!briefingData.template) {
-                toast.error('O modelo de referência é obrigatório.');
-                console.error('[handleNext] Erro: O modelo de referência não foi selecionado.');
-                return;
-            }
-            console.log('[handleNext] Check: Modelo de referência selecionado:', briefingData.template ? 'Sim' : 'Não');
-
-            if (!geminiAPI.isInitialized) {
-                const apiKey = getGeminiApiKey();
-                if (!apiKey) {
-                    toast.error('Chave de API do Gemini não configurada.');
-                    console.error('[handleNext] Erro: Chave de API do Gemini não encontrada.');
-                    return;
-                }
-                geminiAPI.initialize(apiKey);
-                console.log('[handleNext] Check: API do Gemini inicializada com sucesso.');
-            }
-
-            setIsRevising(true);
-            console.log("[Revisão de Briefing] Iniciando revisão. Template ID:", briefingData.template?.id, "API Key Exists:", !!getGeminiApiKey());
-
-            let processedBaseText = briefingData.baseText;
-            const isHtml = /<[a-z][\s\S]*>/i.test(processedBaseText);
-
-            if (!isHtml && briefingData.baseText) {
-                console.log('[handleNext] O texto base parece ser texto simples. Formatando para HTML.');
-                let text = briefingData.baseText;
-
-                if (briefingData.template && briefingData.template.blocks) {
-                    const blockTitles = briefingData.template.blocks.map(b => b.title);
-                    blockTitles.forEach(title => {
-                        const escapedTitle = title.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-                        // Regex to find the title on its own line, optionally preceded/followed by markdown hashes
-                        const regex = new RegExp(`^\\s*(?:#+\\s*)?(${escapedTitle})(?:\\s*#+)?\\s*$`, 'gim');
-                        text = text.replace(regex, `<h6>$1</h6>`);
-                    });
-                }
-
-                processedBaseText = text
-                    .replace(/\n/g, '<br />')
-                    .replace(/(<h6>.*<\/h6>)<br \/>/gi, '$1') // Remove <br> immediately after an <h6>
-                    .replace(/(<br \s*\/?>\s*){2,}/g, '<p></p>'); // Replace double line breaks with paragraph separators
-
-            } else {
-                console.log('[handleNext] O texto base parece ser HTML. Nenhuma formatação automática aplicada.');
-            }
-
-            try {
-                const result = await geminiAPI.reviseBriefing(processedBaseText, briefingData.template);
-
-                if (!result || typeof result.sections !== 'object' || result.sections === null) {
-                    console.error("Resposta da IA inválida ou malformada:", result);
-                    throw new Error("A resposta da IA não continha a estrutura de seções esperada.");
-                }
-
-                const aiSections = result.sections;
-                const blockOrder = extractBlockOrder(briefingData.template.generalRules, briefingData.template.blocks.map(b => b.title));
-                const finalSections = {};
-                const aiSectionsMap = new Map(Object.entries(aiSections).map(([k, v]) => [k.toLowerCase(), v]));
-
-                blockOrder.forEach(title => {
-                    const lowerCaseTitle = title.toLowerCase();
-                    if (aiSectionsMap.has(lowerCaseTitle) && aiSectionsMap.get(lowerCaseTitle).trim() !== '') {
-                        finalSections[title] = aiSectionsMap.get(lowerCaseTitle);
-                    } else {
-                        finalSections[title] = "<p>A revisão não encontrou conteúdo para esta seção.</p>";
-                    }
-                });
-
-                const revisedText = sectionsToHtml(finalSections);
-                const formattedNotes = Array.isArray(result.revisionNotes)
-                    ? result.revisionNotes.map(note => `<p>- ${note}</p>`).join('')
-                    : result.revisionNotes || '';
-
-                onBriefingDataChange(prev => ({
-                    ...prev,
-                    revisedText: revisedText,
-                    revisionNotes: formattedNotes,
-                    sections: finalSections,
-                }));
-                toast.success('Briefing revisado com sucesso!');
-                setActiveStep(1);
-            } catch (error) {
-                console.error("Erro detalhado na revisão com IA:", error);
-                let userErrorMessage = "Erro desconhecido na revisão com IA.";
-                if (error.message.includes("JSON válido")) {
-                    userErrorMessage = "A IA não retornou um formato de briefing válido. Tente novamente ou revise o texto base.";
-                } else if (error.message.includes("estrutura de seções esperada")) {
-                    userErrorMessage = "A IA retornou um briefing com estrutura inesperada. Tente novamente.";
-                } else if (error.message.includes("Falha na comunicação com o proxy da API Gemini")) {
-                    userErrorMessage = "Falha de comunicação com a API Gemini. Verifique sua conexão ou a chave da API.";
-                } else {
-                    userErrorMessage = `Erro na revisão com IA: ${error.message}. Verifique o console para mais detalhes.`;
-                }
-                toast.error(userErrorMessage);
-                setErrorFromGeminiRevision(true); // Ativa o estado de erro
-            } finally {
-                setIsRevising(false);
-            }
+            // Just move to the next step, no API call
+            setActiveStep(1);
         } else if (activeStep === 1) {
             // When leaving the review step, parse the edited HTML back into sections
             const updatedSections = htmlToSections(briefingData.revisedText);
@@ -366,6 +260,71 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
 
     const handleBriefingDataChange = (field, value) => {
         onBriefingDataChange(prev => ({ ...prev, [field]: value }));
+    };
+
+    const handleRevise = async () => {
+        if (isEditorEmpty(briefingData.baseText)) {
+            toast.error('O texto base é obrigatório.');
+            return;
+        }
+        if (!briefingData.template) {
+            toast.error('O modelo de referência é obrigatório.');
+            return;
+        }
+
+        if (!geminiAPI.isInitialized) {
+            const apiKey = getGeminiApiKey();
+            if (!apiKey) {
+                toast.error('Chave de API do Gemini não configurada.');
+                return;
+            }
+            geminiAPI.initialize(apiKey);
+        }
+
+        setIsRevising(true);
+        setRevisionError(null);
+        setIsRevised(false);
+
+        try {
+            const result = await geminiAPI.reviseBriefing(briefingData.baseText, briefingData.template);
+
+            if (!result || typeof result.sections !== 'object' || result.sections === null) {
+                throw new Error("A resposta da IA não continha a estrutura de seções esperada.");
+            }
+
+            const aiSections = result.sections;
+            const blockOrder = extractBlockOrder(briefingData.template.generalRules, briefingData.template.blocks.map(b => b.title));
+            const finalSections = {};
+            const aiSectionsMap = new Map(Object.entries(aiSections).map(([k, v]) => [k.toLowerCase(), v]));
+
+            blockOrder.forEach(title => {
+                const lowerCaseTitle = title.toLowerCase();
+                if (aiSectionsMap.has(lowerCaseTitle) && aiSectionsMap.get(lowerCaseTitle).trim() !== '') {
+                    finalSections[title] = aiSectionsMap.get(lowerCaseTitle);
+                } else {
+                    finalSections[title] = "<p>A revisão não encontrou conteúdo para esta seção.</p>";
+                }
+            });
+
+            const revisedText = sectionsToHtml(finalSections);
+            const formattedNotes = Array.isArray(result.revisionNotes) ? result.revisionNotes.map(note => `<p>- ${note}</p>`).join('') : result.revisionNotes || '';
+
+            onBriefingDataChange(prev => ({
+                ...prev,
+                revisedText: revisedText,
+                revisionNotes: formattedNotes,
+                sections: finalSections,
+            }));
+            toast.success('Briefing revisado com sucesso!');
+            setIsRevised(true);
+        } catch (error) {
+            console.error("Erro detalhado na revisão com IA:", error);
+            let userErrorMessage = `Erro na revisão com IA: ${error.message}. Verifique o console para mais detalhes.`;
+            setRevisionError(userErrorMessage);
+            toast.error(userErrorMessage);
+        } finally {
+            setIsRevising(false);
+        }
     };
 
     const handleSectionChange = (title, content) => {
@@ -460,34 +419,68 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
         </Grid>
     );
 
-    const renderStep1_Review = () => (
-        <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <Grid container spacing={2} sx={{ flexGrow: 1, minHeight: 0 }}>
-                <Grid item xs={12} sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                        <Typography variant="h6" gutterBottom mb={0}>
-                            Briefing Revisado (Editável)
-                        </Typography>
-                        <Box>
-                            <Tooltip title="Edição Focada">
-                                <IconButton onClick={() => setFocusModeTarget('revisedText')}>
-                                    <Fullscreen />
-                                </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Ver Notas da Revisão">
-                                <Button startIcon={<NotesIcon />} onClick={() => setNotesDrawerOpen(true)}>
-                                    Ver Notas
-                                </Button>
-                            </Tooltip>
+    const renderStep1_Review = () => {
+        if (revisionError) {
+            return (
+                <Alert severity="error" action={
+                    <Button color="inherit" size="small" onClick={handleRevise} disabled={isRevising}>
+                        Tentar Novamente
+                    </Button>
+                }>
+                    {revisionError}
+                </Alert>
+            );
+        }
+
+        if (!isRevised) {
+            return (
+                <Box sx={{ textAlign: 'center', p: 4 }}>
+                    <Typography variant="h6" gutterBottom>Pronto para revisar com a IA?</Typography>
+                    <Typography color="text.secondary" sx={{ mb: 2 }}>
+                        Clique no botão abaixo para iniciar a revisão do seu briefing.
+                    </Typography>
+                    <Button
+                        variant="contained"
+                        color="primary"
+                        onClick={handleRevise}
+                        disabled={isRevising}
+                        startIcon={isRevising ? <CircularProgress size={20} /> : <Check />}
+                    >
+                        {isRevising ? 'Revisando...' : 'Revisar com IA'}
+                    </Button>
+                </Box>
+            );
+        }
+
+        return (
+            <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <Grid container spacing={2} sx={{ flexGrow: 1, minHeight: 0 }}>
+                    <Grid item xs={12} sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                            <Typography variant="h6" gutterBottom mb={0}>
+                                Briefing Revisado (Editável)
+                            </Typography>
+                            <Box>
+                                <Tooltip title="Edição Focada">
+                                    <IconButton onClick={() => setFocusModeTarget('revisedText')}>
+                                        <Fullscreen />
+                                    </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Ver Notas da Revisão">
+                                    <Button startIcon={<NotesIcon />} onClick={() => setNotesDrawerOpen(true)}>
+                                        Ver Notas
+                                    </Button>
+                                </Tooltip>
+                            </Box>
                         </Box>
-                    </Box>
-                    <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
-                        <TextEditor value={briefingData.revisedText} onChange={(val) => handleBriefingDataChange('revisedText', val)} html={true} />
-                    </Box>
+                        <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                            <TextEditor value={briefingData.revisedText} onChange={(val) => handleBriefingDataChange('revisedText', val)} html={true} />
+                        </Box>
+                    </Grid>
                 </Grid>
-            </Grid>
-        </Box>
-    );
+            </Box>
+        );
+    };
 
     const renderStep2_CompleteBlocks = () => {
         const blockOrder = briefingData.template?.blocks?.map(b => b.title) || [];
@@ -602,16 +595,6 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
                             disabled={isRevising}
                         >
                             {isRevising && activeStep === 0 ? 'Revisando...' : 'Próximo'}
-                        </Button>
-                    )}
-                    {activeStep === 0 && !isRevising && errorFromGeminiRevision && (
-                        <Button
-                            variant="outlined"
-                            color="secondary"
-                            onClick={() => setActiveStep(1)} // Permite avançar manualmente
-                            sx={{ ml: 2 }}
-                        >
-                            Ignorar Revisão (Avançar)
                         </Button>
                     )}
                 </DialogActions>
