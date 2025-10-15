@@ -262,6 +262,8 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
     };
 
     const handleRevise = async () => {
+
+        console.log("Iniciando o processo de revisão com IA...");
         if (isEditorEmpty(briefingData.baseText)) {
             toast.error('O texto base é obrigatório.');
             return;
@@ -277,7 +279,9 @@ const TextBriefingWizard = ({ open, onClose, onSave, briefingData, onBriefingDat
                 toast.error('Chave de API do Gemini não configurada.');
                 return;
             }
-            geminiAPI.initialize(apiKey);
+            console.log("A");
+            geminiAPI.initialize(apiKey);        
+            console.log("B");
         }
 
         setIsLoading(true);
