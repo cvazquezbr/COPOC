@@ -59,6 +59,7 @@ const BriefingPage = ({
   const [briefingsLoading, setBriefingsLoading] = useState(true);
   const [briefingsError, setBriefingsError] = useState(null);
   const [briefingFormData, setBriefingFormData] = useState(null);
+  const [creationMode, setCreationMode] = useState('text');
   const [isWizardOpen, setWizardOpen] = useState(false);
   const [isBriefingDirty, setIsBriefingDirty] = useState(false);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
@@ -147,34 +148,50 @@ const BriefingPage = ({
     if (isMobile) setBriefingDrawerOpen(false);
   };
 
-  const handleNewBriefing = () => {
+  const handleNewBriefing = (mode) => {
     if (isTemplateLoading || !userTemplate) {
-      toast.error("Aguarde, o modelo de briefing está carregando.");
-      return;
+        toast.error("Aguarde, o modelo de briefing está carregando.");
+        return;
     }
+    setCreationMode(mode);
     setSelectedBriefing(null);
-    // Use the fetched template to construct the initial state.
-    const newBaseText = userTemplate.blocks.map(block => {
-      const titleHtml = `<h3>${block.title}</h3>`;
-      // Ensure content is a string before splitting
-      const contentHtml = (block.content || '')
-        .split('\n')
-        .map(line => line.trim())
-        .filter(line => line)
-        .map(line => `<p>${line}</p>`)
-        .join('\n');
-      return `${titleHtml}\n${contentHtml}`;
-    }).join('\n\n');
 
-    const newBriefingData = {
-      ...emptyBriefingData,
-      baseText: newBaseText,
-      template: userTemplate,
-    };
+    let newBriefingData;
+
+    if (mode === 'text') {
+        const newBaseText = userTemplate.blocks.map(block => {
+            const titleHtml = `<h3>${block.title}</h3>`;
+            const contentHtml = (block.content || '')
+                .split('\n')
+                .filter(line => line.trim())
+                .map(line => `<p>${line.trim()}</p>`)
+                .join('\n');
+            return `${titleHtml}\n${contentHtml}`;
+        }).join('\n\n<hr />\n\n'); // Add horizontal lines between sections
+
+        newBriefingData = {
+            ...emptyBriefingData,
+            baseText: newBaseText,
+            template: userTemplate,
+        };
+    } else { // 'sections' mode
+        const initialSections = {};
+        userTemplate.blocks.forEach(block => {
+            initialSections[block.title] = block.content ? `<p>${block.content.replace(/\n/g, '</p><p>')}</p>` : '';
+        });
+
+        newBriefingData = {
+            ...emptyBriefingData,
+            baseText: '', // No base text initially for section mode
+            sections: initialSections,
+            template: userTemplate,
+        };
+    }
+
     setBriefingFormData(newBriefingData);
     setWizardOpen(true);
     if (isMobile) setBriefingDrawerOpen(false);
-  };
+};
 
   const handleSaveBriefing = async () => {
     if (!briefingFormData?.name) {
@@ -243,17 +260,29 @@ const BriefingPage = ({
         )}
       </Box>
 
-      <Button
-        variant="contained"
-        startIcon={<Add />}
-        onClick={handleNewBriefing}
-        fullWidth
-        sx={{ mb: 2, borderRadius: 2 }}
-        disabled={isTemplateLoading}
-      >
-        Novo Briefing
-        {isTemplateLoading && <CircularProgress size={20} color="inherit" sx={{ ml: 1 }} />}
-      </Button>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
+        <Button
+          variant="contained"
+          startIcon={<Add />}
+          onClick={() => handleNewBriefing('text')}
+          fullWidth
+          sx={{ borderRadius: 2 }}
+          disabled={isTemplateLoading}
+        >
+          Novo Briefing (Texto)
+          {isTemplateLoading && <CircularProgress size={20} color="inherit" sx={{ ml: 1 }} />}
+        </Button>
+        <Button
+          variant="outlined"
+          startIcon={<Add />}
+          onClick={() => handleNewBriefing('sections')}
+          fullWidth
+          sx={{ borderRadius: 2 }}
+          disabled={isTemplateLoading}
+        >
+          Novo Briefing (Seções)
+        </Button>
+      </Box>
 
       <Divider />
 
@@ -341,10 +370,15 @@ const BriefingPage = ({
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
               Selecione um briefing existente ou crie um novo para começar.
             </Typography>
-            <Button variant="contained" onClick={handleNewBriefing} disabled={isTemplateLoading}>
-              Criar novo briefing
-              {isTemplateLoading && <CircularProgress size={24} sx={{ position: 'absolute' }} />}
-            </Button>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Button variant="contained" onClick={() => handleNewBriefing('text')} disabled={isTemplateLoading}>
+                Criar por Texto
+                {isTemplateLoading && <CircularProgress size={24} sx={{ position: 'absolute' }} />}
+              </Button>
+              <Button variant="outlined" onClick={() => handleNewBriefing('sections')} disabled={isTemplateLoading}>
+                Criar por Seções
+              </Button>
+            </Box>
           </Paper>
         )}
       </Box>
@@ -361,6 +395,7 @@ const BriefingPage = ({
           onSave={handleSaveBriefing}
           briefingData={briefingFormData}
           onBriefingDataChange={setBriefingFormData}
+          creationMode={creationMode}
         />
       )}
 
