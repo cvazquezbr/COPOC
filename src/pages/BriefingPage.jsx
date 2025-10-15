@@ -1,36 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { useTheme } from '@mui/material/styles';
-import useMediaQuery from '@mui/material/useMediaQuery';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
-  Paper,
-  Typography,
-  Box,
-  Button,
-  Alert,
-  IconButton,
-  Toolbar,
-  Divider,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemText,
-  CircularProgress,
+  Paper, Typography, Box, Button, CircularProgress,
 } from '@mui/material';
-import { Add, Delete as DeleteIcon } from '@mui/icons-material';
 import { toast } from 'sonner';
 import isEqual from 'lodash.isequal';
-import { getBriefings, saveBriefing, updateBriefing, deleteBriefing } from '../utils/briefingState';
+import { saveBriefing, updateBriefing, deleteBriefing } from '../utils/briefingState';
 import BriefingWizard from '../components/BriefingWizard';
 import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
 import { defaultBriefingTemplate } from '../utils/defaultBriefingTemplate';
 import { useLayout } from '../context/LayoutContext';
 
-// This initial text is now a fallback, the primary source will be the fetched template
-const initialBaseText = defaultBriefingTemplate.blocks.map(block => block.content).join('\n');
-
 const emptyBriefingData = {
   name: '',
-  baseText: initialBaseText,
+  baseText: '',
   template: defaultBriefingTemplate,
   revisedText: '',
   revisionNotes: '',
@@ -39,183 +22,116 @@ const emptyBriefingData = {
   type: 'text',
 };
 
-const BriefingPage = ({
-  onNoBriefingSelected,
-  onUpdate,
-  startInCreateMode,
-  onBriefingCreated,
-  onCreationCancelled,
-}) => {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const { setBriefingDrawerOpen } = useLayout();
+const BriefingPage = () => {
+  const { selectedBriefingId, briefings, fetchBriefings, setSelectedBriefingId } = useLayout();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const [briefingList, setBriefingList] = useState([]);
-  const [selectedBriefing, setSelectedBriefing] = useState(null);
-  const [briefingsLoading, setBriefingsLoading] = useState(true);
-  const [briefingsError, setBriefingsError] = useState(null);
-  const [briefingFormData, setBriefingFormData] = useState(null);
-  const [creationMode, setCreationMode] = useState('text');
+  const [briefingData, setBriefingData] = useState(null);
+  const [originalBriefingData, setOriginalBriefingData] = useState(null);
   const [isWizardOpen, setWizardOpen] = useState(false);
   const [isBriefingDirty, setIsBriefingDirty] = useState(false);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
-  const [navigationTarget, setNavigationTarget] = useState(null);
   const [userTemplate, setUserTemplate] = useState(null);
   const [isTemplateLoading, setIsTemplateLoading] = useState(true);
+  const [isNewBriefing, setIsNewBriefing] = useState(false);
 
-  // --- Effects -------------------------------------------------------------
-  useEffect(() => {
-    // Fetch the user's template once when the page loads.
-    const fetchTemplate = async () => {
-      setIsTemplateLoading(true);
-      try {
-        const response = await fetch('/api/briefing-template');
-        if (response.ok) {
-          const savedTemplates = await response.json();
-          // The API returns an array, and the template data is nested.
-          if (savedTemplates && savedTemplates.length > 0 && savedTemplates[0].template_data) {
-            setUserTemplate(savedTemplates[0].template_data);
-            console.log('User template loaded successfully.');
-          } else {
-            setUserTemplate(defaultBriefingTemplate);
-            console.log('No saved template found, using default.');
-          }
+  const fetchUserTemplate = useCallback(async () => {
+    setIsTemplateLoading(true);
+    try {
+      const response = await fetch('/api/briefing-template');
+      if (response.ok) {
+        const savedTemplates = await response.json();
+        if (savedTemplates && savedTemplates.length > 0 && savedTemplates[0].template_data) {
+          setUserTemplate(savedTemplates[0].template_data);
         } else {
           setUserTemplate(defaultBriefingTemplate);
-          console.error('Could not fetch template, using default.');
         }
-      } catch (error) {
-        toast.error(`Error loading your briefing template: ${error.message}`);
-        setUserTemplate(defaultBriefingTemplate); // Fallback
-      } finally {
-        // Ensure userTemplate is never null here
-        setUserTemplate(current => current || defaultBriefingTemplate);
-        setIsTemplateLoading(false);
+      } else {
+        setUserTemplate(defaultBriefingTemplate);
       }
-    };
-
-    fetchTemplate();
-    fetchBriefings(); // Fetch existing briefings
+    } catch (error) {
+      toast.error(`Error loading your briefing template: ${error.message}`);
+      setUserTemplate(defaultBriefingTemplate);
+    } finally {
+      setIsTemplateLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    if (selectedBriefing && briefingFormData) {
-      setIsBriefingDirty(!isEqual(selectedBriefing.briefing_data, briefingFormData));
+    fetchUserTemplate();
+  }, [fetchUserTemplate]);
+
+  useEffect(() => {
+    const createNew = searchParams.get('create') === 'true';
+    setIsNewBriefing(createNew);
+
+    if (createNew && !isTemplateLoading) {
+      const newBaseText = userTemplate.blocks.map(block => {
+        const titleHtml = `<h3>${block.title}</h3>`;
+        const contentHtml = (block.content || '').split('\n').filter(line => line.trim()).map(line => `<p>${line.trim()}</p>`).join('\n');
+        return `${titleHtml}\n${contentHtml}`;
+      }).join('\n\n<hr />\n\n');
+
+      const newBriefing = {
+        ...emptyBriefingData,
+        baseText: newBaseText,
+        template: userTemplate,
+      };
+      setBriefingData(newBriefing);
+      setOriginalBriefingData(newBriefing);
+      setWizardOpen(true);
+      setSelectedBriefingId(null);
+      // Remove the query param after use
+      setSearchParams({}, { replace: true });
+    } else if (!createNew && selectedBriefingId) {
+      const selected = briefings.find(b => b.id === selectedBriefingId);
+      if (selected) {
+        setBriefingData(selected.briefing_data);
+        setOriginalBriefingData(selected.briefing_data);
+        setWizardOpen(true);
+      }
+    } else {
+      setWizardOpen(false);
+      setBriefingData(null);
+      setOriginalBriefingData(null);
+    }
+  }, [selectedBriefingId, briefings, searchParams, isTemplateLoading, userTemplate, setSearchParams, setSelectedBriefingId]);
+
+  useEffect(() => {
+    if (briefingData && originalBriefingData) {
+      setIsBriefingDirty(!isEqual(briefingData, originalBriefingData));
     } else {
       setIsBriefingDirty(false);
     }
-  }, [briefingFormData, selectedBriefing]);
-
-  useEffect(() => {
-    if (!selectedBriefing && onNoBriefingSelected) onNoBriefingSelected();
-  }, [selectedBriefing]);
-
-  useEffect(() => {
-    // Wait for the template to be loaded before entering create mode
-    if (startInCreateMode && !isTemplateLoading) {
-      handleNewBriefing();
-    }
-  }, [startInCreateMode, isTemplateLoading]);
-
-  // --- Core logic ---------------------------------------------------------
-  const fetchBriefings = async () => {
-    setBriefingsLoading(true);
-    try {
-      const data = await getBriefings();
-      setBriefingList(data);
-    } catch (err) {
-      setBriefingsError(err.message);
-    } finally {
-      setBriefingsLoading(false);
-    }
-  };
-
-  const handleSelectBriefing = (briefing) => {
-    if (briefing.briefing_data?.type !== 'text') {
-      toast.error(
-        `O briefing "${briefing.name}" foi criado com um formato antigo e não pode ser aberto. Por favor, crie um novo briefing.`
-      );
-      return;
-    }
-    setSelectedBriefing(briefing);
-    // Use the template stored with the briefing itself
-    setBriefingFormData(briefing.briefing_data);
-    setWizardOpen(true);
-    if (isMobile) setBriefingDrawerOpen(false);
-  };
-
-  const handleNewBriefing = (mode) => {
-    if (isTemplateLoading || !userTemplate) {
-        toast.error("Aguarde, o modelo de briefing está carregando.");
-        return;
-    }
-    setCreationMode(mode);
-    setSelectedBriefing(null);
-
-    let newBriefingData;
-
-    if (mode === 'text') {
-        const newBaseText = userTemplate.blocks.map(block => {
-            const titleHtml = `<h3>${block.title}</h3>`;
-            const contentHtml = (block.content || '')
-                .split('\n')
-                .filter(line => line.trim())
-                .map(line => `<p>${line.trim()}</p>`)
-                .join('\n');
-            return `${titleHtml}\n${contentHtml}`;
-        }).join('\n\n<hr />\n\n'); // Add horizontal lines between sections
-
-        newBriefingData = {
-            ...emptyBriefingData,
-            baseText: newBaseText,
-            template: userTemplate,
-        };
-    } else { // 'sections' mode
-        const initialSections = {};
-        userTemplate.blocks.forEach(block => {
-            initialSections[block.title] = block.content ? `<p>${block.content.replace(/\n/g, '</p><p>')}</p>` : '';
-        });
-
-        newBriefingData = {
-            ...emptyBriefingData,
-            baseText: '', // No base text initially for section mode
-            sections: initialSections,
-            template: userTemplate,
-        };
-    }
-
-    setBriefingFormData(newBriefingData);
-    setWizardOpen(true);
-    if (isMobile) setBriefingDrawerOpen(false);
-};
+  }, [briefingData, originalBriefingData]);
 
   const handleSaveBriefing = async () => {
-    if (!briefingFormData?.name) {
+    if (!briefingData?.name) {
       toast.error('O nome do briefing é obrigatório.');
       return false;
     }
 
     try {
-      const isNew = !selectedBriefing?.id;
-      // Ensure the saved data includes the template that was used
-      const briefingToSave = {
-        name: briefingFormData.name,
-        briefing_data: { ...briefingFormData, template: userTemplate },
+      const templateToSave = isNewBriefing ? userTemplate : (briefingData.template || userTemplate);
+      const dataToSave = {
+        ...briefingData,
+        template: templateToSave,
       };
 
-      const saved = isNew
-        ? await saveBriefing(briefingToSave.name, briefingToSave.briefing_data)
-        : await updateBriefing(selectedBriefing.id, briefingToSave.name, briefingToSave.briefing_data);
+      const saved = isNewBriefing
+        ? await saveBriefing(briefingData.name, dataToSave)
+        : await updateBriefing(selectedBriefingId, briefingData.name, dataToSave);
 
-      toast.success(`Briefing ${isNew ? 'criado' : 'atualizado'} com sucesso!`);
+      toast.success(`Briefing ${isNewBriefing ? 'criado' : 'atualizado'} com sucesso!`);
+      await fetchBriefings(); // Refresh the list in the layout
 
-      if (isNew && onBriefingCreated) onBriefingCreated(saved);
-      await fetchBriefings();
-      if (onUpdate) onUpdate();
+      // After saving, select the briefing (new or updated)
+      setSelectedBriefingId(saved.id);
+      setIsNewBriefing(false); // It's no longer a "new" briefing
+      setBriefingData(saved.briefing_data);
+      setOriginalBriefingData(saved.briefing_data);
+      setWizardOpen(true);
 
-      setWizardOpen(false);
-      setSelectedBriefing(null);
-      setBriefingFormData(null);
       return true;
     } catch (err) {
       toast.error(`Erro ao salvar briefing: ${err.message}`);
@@ -223,104 +139,89 @@ const BriefingPage = ({
     }
   };
 
-  const handleNavigation = (targetAction) => {
+  const handleCloseWizard = () => {
     if (isBriefingDirty) {
-      setNavigationTarget(() => targetAction);
       setShowUnsavedDialog(true);
     } else {
-      targetAction();
+      setWizardOpen(false);
+      setSelectedBriefingId(null);
     }
   };
 
-  const handleConfirmDelete = async (briefingId) => {
-    try {
-      await deleteBriefing(briefingId);
-      toast.success('Briefing excluído com sucesso!');
-      fetchBriefings();
-      if (onUpdate) onUpdate();
-      setSelectedBriefing(null);
-    } catch (error) {
-      toast.error('Erro ao excluir briefing');
+  const onConfirmDiscard = () => {
+    setShowUnsavedDialog(false);
+    setIsBriefingDirty(false);
+    setWizardOpen(false);
+    setSelectedBriefingId(null);
+  };
+
+  const onConfirmSave = async () => {
+    const success = await handleSaveBriefing();
+    if (success) {
+      setShowUnsavedDialog(false);
     }
   };
 
-  // --- Render --------------------------------------------------------------
-  return (
-    <Box sx={{ display: 'flex', height: '100%', width: '100%' }}>
-      <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          p: 3,
-          backgroundColor: theme.palette.background.default,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          minHeight: '100vh',
-        }}
-      >
-        {!isWizardOpen && (
-          <Paper
-            elevation={3}
-            sx={{
-              p: 5,
-              borderRadius: 3,
-              textAlign: 'center',
-              maxWidth: 480,
-              width: '100%',
-            }}
-          >
-            <Typography variant="h6" gutterBottom>
-              Nenhum briefing selecionado
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              Selecione um briefing existente ou crie um novo para começar.
-            </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <Button variant="contained" onClick={() => handleNewBriefing('text')} disabled={isTemplateLoading}>
-                Criar por Texto
-                {isTemplateLoading && <CircularProgress size={24} sx={{ position: 'absolute' }} />}
-              </Button>
-              <Button variant="outlined" onClick={() => handleNewBriefing('sections')} disabled={isTemplateLoading}>
-                Criar por Seções
-              </Button>
-            </Box>
-          </Paper>
-        )}
+  const handleDelete = async () => {
+    if (!selectedBriefingId) return;
+
+    // Simple confirmation dialog
+    if (window.confirm(`Tem certeza que deseja excluir o briefing "${briefingData?.name}"?`)) {
+      try {
+        await deleteBriefing(selectedBriefingId);
+        toast.success('Briefing excluído com sucesso!');
+        await fetchBriefings();
+        setSelectedBriefingId(null);
+        setWizardOpen(false);
+      } catch (error) {
+        toast.error('Erro ao excluir briefing.');
+      }
+    }
+  };
+
+
+  if (isTemplateLoading && searchParams.get('create') === 'true') {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+        <CircularProgress />
+        <Typography sx={{ ml: 2 }}>Carregando modelo para novo briefing...</Typography>
       </Box>
+    );
+  }
 
-      {isWizardOpen && briefingFormData && (
-        <BriefingWizard
-          open={isWizardOpen}
-          onClose={() =>
-            handleNavigation(() => {
-              setWizardOpen(false);
-              if (startInCreateMode && onCreationCancelled) onCreationCancelled();
-            })
-          }
-          onSave={handleSaveBriefing}
-          briefingData={briefingFormData}
-          onBriefingDataChange={setBriefingFormData}
-          creationMode={creationMode}
-        />
-      )}
+  if (!isWizardOpen || !briefingData) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
+        <Paper elevation={0} sx={{ p: 5, textAlign: 'center', backgroundColor: 'transparent' }}>
+          <Typography variant="h6" gutterBottom>
+            Nenhum briefing selecionado
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Selecione um briefing na barra lateral ou crie um novo para começar.
+          </Typography>
+        </Paper>
+      </Box>
+    );
+  }
 
+  return (
+    <>
+      <BriefingWizard
+        open={isWizardOpen}
+        onClose={handleCloseWizard}
+        onSave={handleSaveBriefing}
+        onDelete={!isNewBriefing ? handleDelete : null}
+        briefingData={briefingData}
+        onBriefingDataChange={setBriefingData}
+        isNewBriefing={isNewBriefing}
+      />
       <UnsavedChangesDialog
         open={showUnsavedDialog}
         onClose={() => setShowUnsavedDialog(false)}
-        onConfirmDiscard={() => {
-          setShowUnsavedDialog(false);
-          setIsBriefingDirty(false);
-          if (navigationTarget) navigationTarget();
-          setNavigationTarget(null);
-        }}
-        onConfirmSave={async () => {
-          const success = await handleSaveBriefing();
-          if (success && navigationTarget) navigationTarget();
-          setShowUnsavedDialog(false);
-        }}
+        onConfirmDiscard={onConfirmDiscard}
+        onConfirmSave={onConfirmSave}
       />
-    </Box>
+    </>
   );
 };
 
