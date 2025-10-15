@@ -10,15 +10,13 @@ import {
   IconButton,
   Toolbar,
   Divider,
-  Drawer,
   List,
   ListItem,
   ListItemButton,
   ListItemText,
   CircularProgress,
-  Fab,
 } from '@mui/material';
-import { Add, Delete as DeleteIcon, Menu as MenuIcon } from '@mui/icons-material';
+import { Add, Delete as DeleteIcon } from '@mui/icons-material';
 import { toast } from 'sonner';
 import isEqual from 'lodash.isequal';
 import { getBriefings, saveBriefing, updateBriefing, deleteBriefing } from '../utils/briefingState';
@@ -26,8 +24,6 @@ import BriefingWizard from '../components/BriefingWizard';
 import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
 import { defaultBriefingTemplate } from '../utils/defaultBriefingTemplate';
 import { useLayout } from '../context/LayoutContext';
-
-const drawerWidth = 320;
 
 // This initial text is now a fallback, the primary source will be the fetched template
 const initialBaseText = defaultBriefingTemplate.blocks.map(block => block.content).join('\n');
@@ -52,7 +48,7 @@ const BriefingPage = ({
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const { briefingDrawerOpen, setBriefingDrawerOpen } = useLayout();
+  const { setBriefingDrawerOpen } = useLayout();
 
   const [briefingList, setBriefingList] = useState([]);
   const [selectedBriefing, setSelectedBriefing] = useState(null);
@@ -248,105 +244,15 @@ const BriefingPage = ({
     }
   };
 
-  // --- Drawer content ------------------------------------------------------
-  const briefingDrawerContent = (
-    <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-        <Typography variant="h6" sx={{ fontWeight: 600 }}>Briefings</Typography>
-        {isMobile && (
-          <IconButton onClick={() => setBriefingDrawerOpen(false)}>
-            <MenuIcon />
-          </IconButton>
-        )}
-      </Box>
-
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={() => handleNewBriefing('text')}
-          fullWidth
-          sx={{ borderRadius: 2 }}
-          disabled={isTemplateLoading}
-        >
-          Novo Briefing (Texto)
-          {isTemplateLoading && <CircularProgress size={20} color="inherit" sx={{ ml: 1 }} />}
-        </Button>
-        <Button
-          variant="outlined"
-          startIcon={<Add />}
-          onClick={() => handleNewBriefing('sections')}
-          fullWidth
-          sx={{ borderRadius: 2 }}
-          disabled={isTemplateLoading}
-        >
-          Novo Briefing (Seções)
-        </Button>
-      </Box>
-
-      <Divider />
-
-      <Box sx={{ mt: 2, flexGrow: 1, overflowY: 'auto' }}>
-        {briefingsLoading && <CircularProgress />}
-        {briefingsError && <Alert severity="error">{briefingsError}</Alert>}
-        {!briefingsLoading && !briefingsError && (
-          <List dense>
-            {briefingList.map((p) => (
-              <ListItem
-                key={p.id}
-                disablePadding
-                secondaryAction={
-                  <IconButton edge="end" onClick={() => handleConfirmDelete(p.id)}>
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                }
-              >
-                <ListItemButton
-                  selected={selectedBriefing?.id === p.id && isWizardOpen}
-                  onClick={() => handleNavigation(() => handleSelectBriefing(p))}
-                  disabled={isTemplateLoading}
-                >
-                  <ListItemText primary={p.name} />
-                </ListItemButton>
-              </ListItem>
-            ))}
-          </List>
-        )}
-      </Box>
-    </Box>
-  );
-
   // --- Render --------------------------------------------------------------
   return (
     <Box sx={{ display: 'flex', height: '100%', width: '100%' }}>
-      <Drawer
-        variant={isMobile ? 'temporary' : 'persistent'}
-        anchor="left"
-        open={briefingDrawerOpen}
-        onClose={() => handleNavigation(() => setBriefingDrawerOpen(false))}
-        sx={{
-          width: drawerWidth,
-          flexShrink: 0,
-          '& .MuiDrawer-paper': {
-            width: drawerWidth,
-            boxSizing: 'border-box',
-            backgroundColor: theme.palette.background.paper,
-            borderRight: `1px solid ${theme.palette.divider}`,
-          },
-        }}
-      >
-        <Toolbar />
-        {briefingDrawerContent}
-      </Drawer>
-
       <Box
         component="main"
         sx={{
           flexGrow: 1,
           p: 3,
           backgroundColor: theme.palette.background.default,
-          transition: theme.transitions.create('margin'),
-          marginLeft: isMobile ? 0 : (briefingDrawerOpen ? `${drawerWidth}px` : 0),
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
@@ -414,18 +320,6 @@ const BriefingPage = ({
           setShowUnsavedDialog(false);
         }}
       />
-
-      {/* Botão flutuante no mobile */}
-      {isMobile && !briefingDrawerOpen && (
-        <Fab
-          color="primary"
-          sx={{ position: 'fixed', bottom: 24, right: 24, boxShadow: 4 }}
-          onClick={handleNewBriefing}
-          disabled={isTemplateLoading}
-        >
-          <Add />
-        </Fab>
-      )}
     </Box>
   );
 };
