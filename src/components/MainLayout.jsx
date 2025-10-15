@@ -1,25 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import {
-  Box,
-  AppBar as MuiAppBar,
-  Toolbar,
-  IconButton,
-  Typography,
-  Menu,
-  MenuItem,
-  Drawer as MuiDrawer,
-  List,
-  ListItem,
-  ListItemText,
-  CssBaseline,
-  Divider,
-  ListItemIcon,
-  ListItemButton,
-  useTheme,
-  styled,
-  Button,
-  useMediaQuery,
+  Box, AppBar, Toolbar, IconButton, Typography, Button, Menu, MenuItem, Drawer, List, ListItem, ListItemText, CssBaseline, useTheme, useMediaQuery
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import AccountCircle from '@mui/icons-material/AccountCircle';
@@ -30,6 +12,7 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import ArticleIcon from '@mui/icons-material/Article';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 
 import { useUserAuth } from '../context/UserAuthContext';
 import { useLayout } from '../context/LayoutContext';
@@ -104,23 +87,14 @@ const DesktopDrawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== 
 );
 
 const MainLayout = () => {
+  const { logout } = useUserAuth();
+  const location = useLocation();
   const theme = useTheme();
   const { mode, toggleTheme } = useAppTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const navigate = useNavigate();
-  const { logout } = useUserAuth();
-  const {
-    briefings,
-    fetchBriefings,
-    setSelectedBriefingId,
-    selectedBriefingId,
-    isDrawerOpen,
-    setDrawerOpen,
-  } = useLayout();
-
   const [setupModalOpen, setSetupModalOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [open, setOpen] = useState(!isMobile);
 
   useEffect(() => {
     fetchBriefings();
@@ -147,66 +121,33 @@ const MainLayout = () => {
     logout();
   };
 
-  const handleNewBriefing = () => {
-    setSelectedBriefingId(null);
-    navigate('/');
-    if (isMobile) setMobileOpen(false);
+  const handleDrawerOpen = () => {
+    setOpen(true);
   };
 
-  const handleSelectBriefing = (id) => {
-    setSelectedBriefingId(id);
-    navigate('/');
-    if (isMobile) setMobileOpen(false);
+  const handleDrawerClose = () => {
+    setOpen(false);
   };
 
   const drawerContent = (
     <div>
-      <DrawerHeader>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleNewBriefing}
-          sx={{
-            margin: 'auto',
-            flexGrow: 1,
-            mr: 1,
-            ml: 1,
-            opacity: isMobile || isDrawerOpen ? 1 : 0,
-            transition: 'opacity 0.2s',
-          }}
-        >
-          Novo Briefing
-        </Button>
-        <IconButton onClick={() => isMobile ? setMobileOpen(false) : setDrawerOpen(false)}>
+      <Toolbar
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          px: [1],
+        }}
+      >
+        <IconButton onClick={handleDrawerClose}>
           <ChevronLeftIcon />
         </IconButton>
-      </DrawerHeader>
+      </Toolbar>
       <Divider />
       <List>
-        {briefings.map((briefing) => (
-          <ListItem key={briefing.id} disablePadding sx={{ display: 'block' }}>
-            <ListItemButton
-              selected={selectedBriefingId === briefing.id}
-              onClick={() => handleSelectBriefing(briefing.id)}
-              sx={{
-                minHeight: 48,
-                justifyContent: (isDrawerOpen || isMobile) ? 'initial' : 'center',
-                px: 2.5,
-              }}
-            >
-              <ListItemIcon
-                sx={{
-                  minWidth: 0,
-                  mr: (isDrawerOpen || isMobile) ? 3 : 'auto',
-                  justifyContent: 'center',
-                }}
-              >
-                <DescriptionIcon />
-              </ListItemIcon>
-              <ListItemText primary={briefing.name} sx={{ opacity: (isDrawerOpen || isMobile) ? 1 : 0 }} />
-            </ListItemButton>
-          </ListItem>
-        ))}
+        <ListItem button component={RouterLink} to="/">
+          <ListItemText primary="Briefings" />
+        </ListItem>
       </List>
     </div>
   );
@@ -215,16 +156,16 @@ const MainLayout = () => {
     <>
       <Box sx={{ display: 'flex' }}>
         <CssBaseline />
-        <AppBar position="fixed" open={!isMobile && isDrawerOpen} isMobile={isMobile}>
+        <AppBar position="fixed" open={open}>
           <Toolbar>
             <IconButton
               color="inherit"
               aria-label="open drawer"
-              onClick={handleDrawerToggle}
+              onClick={handleDrawerOpen}
               edge="start"
               sx={{
-                marginRight: 2,
-                ...((!isMobile && isDrawerOpen) && { display: 'none' }),
+                marginRight: '36px',
+                ...(open && { display: 'none' }),
               }}
             >
               <MenuIcon />
@@ -232,6 +173,9 @@ const MainLayout = () => {
             <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
               M.I.D.I.A.T.O.R
             </Typography>
+            <Button color="inherit" component={RouterLink} to="/briefing-template">
+              Templates
+            </Button>
             <IconButton
               color="inherit"
               onClick={() => navigate('/briefing-template')}
@@ -274,29 +218,43 @@ const MainLayout = () => {
             </div>
           </Toolbar>
         </AppBar>
-        <Box
-          component="nav"
-          sx={{ width: { sm: isDrawerOpen ? drawerWidth : `calc(${theme.spacing(7)} + 1px)` }, flexShrink: { sm: 0 } }}
+        <Drawer
+          variant="permanent"
+          open={open}
+          sx={{
+            '& .MuiDrawer-paper': {
+              position: 'relative',
+              whiteSpace: 'nowrap',
+              width: drawerWidth,
+              transition: theme.transitions.create('width', {
+                easing: theme.transitions.easing.sharp,
+                duration: theme.transitions.duration.enteringScreen,
+              }),
+              boxSizing: 'border-box',
+              ...(!open && {
+                overflowX: 'hidden',
+                transition: theme.transitions.create('width', {
+                  easing: theme.transitions.easing.sharp,
+                  duration: theme.transitions.duration.leavingScreen,
+                }),
+                width: theme.spacing(7),
+                [theme.breakpoints.up('sm')]: {
+                  width: theme.spacing(9),
+                },
+              }),
+            },
+          }}
         >
-          {isMobile ? (
-            <MuiDrawer
-              variant="temporary"
-              open={mobileOpen}
-              onClose={handleDrawerToggle}
-              ModalProps={{ keepMounted: true }}
-              sx={{
-                '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
-              }}
-            >
-              {drawerContent}
-            </MuiDrawer>
-          ) : (
-            <DesktopDrawer variant="permanent" open={isDrawerOpen}>
-              {drawerContent}
-            </DesktopDrawer>
-          )}
-        </Box>
-        <Box component="main" sx={{ flexGrow: 1, p: 3, minHeight: '100vh' }}>
+          {drawer}
+        </Drawer>
+        <Box
+          component="main"
+          sx={{
+            flexGrow: 1,
+            height: '100vh',
+            overflow: 'auto',
+          }}
+        >
           <Toolbar />
           <Outlet />
         </Box>
