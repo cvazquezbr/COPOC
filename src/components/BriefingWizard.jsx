@@ -653,10 +653,6 @@ const FinalizationStep = ({ briefingData, onBriefingDataChange }) => {
                     )}
                 </DialogActions>
             </Dialog>
-            <Backdrop sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 100 }} open={isLoading}>
-                <CircularProgress color="inherit" />
-                <Typography sx={{ ml: 2 }}>{loadingMessage}</Typography>
-            </Backdrop>
             <Drawer
                 anchor="right"
                 open={isNotesDrawerOpen}
