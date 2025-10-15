@@ -268,7 +268,7 @@ const BriefingTemplatePage = () => {
   });
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+    <Box sx={{ p: 3 }}>
         <Paper elevation={3} sx={{ p: { xs: 2, md: 4 } }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
                 <Typography variant="h4" component="h1">
@@ -409,7 +409,7 @@ const BriefingTemplatePage = () => {
                 </DialogActions>
             </Dialog>
         )}
-    </Container>
+    </Box>
   );
 };
 
