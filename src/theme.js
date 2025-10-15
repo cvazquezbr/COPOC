@@ -15,8 +15,8 @@ export const lightTheme = createTheme({
       paper: 'rgba(248, 250, 252, 0.85)', // Fundo do card mais opaco (slate-50)
     },
     text: {
-      primary: '#1e293b', // Cor de texto mais escura (slate-800)
-      secondary: '#475569', // Cor de texto secundária mais escura (slate-600)
+      primary: '#020617', // Quase preto para contraste máximo (slate-950)
+      secondary: '#334155', // Cinza bem escuro (slate-700)
     }
   },
   typography: {
