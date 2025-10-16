@@ -212,6 +212,7 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
 
     const wordInputRef = useRef(null);
     const pdfInputRef = useRef(null);
+    const editorPaneRef = useRef(null);
 
     useEffect(() => {
         if (open) {
@@ -233,6 +234,13 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
         }
     }, [activeStep, steps.length, briefingData.sections, briefingData.template, onBriefingDataChange]);
 
+    useEffect(() => {
+        if (isMobile && activeSuggestion && editorPaneRef.current) {
+            setTimeout(() => {
+                editorPaneRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100); // A small delay to ensure the editor is rendered
+        }
+    }, [activeSuggestion, isMobile]);
 
     const handleNext = async () => {
         const currentStepLabel = steps[activeStep];
@@ -458,7 +466,7 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
                             );
                         })}
                     </Grid>
-                    <Grid item xs={12} md={7} sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                    <Grid item xs={12} md={7} sx={{ display: 'flex', flexDirection: 'column', height: '100%' }} ref={editorPaneRef}>
                         {activeSuggestion ? (
                             <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                                 <Typography variant="h6" gutterBottom>{`Editando: "${activeSuggestion}"`}</Typography>
