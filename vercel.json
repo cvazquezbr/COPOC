@@ -6,8 +6,8 @@
     }
   ],
   "functions": {
-    "api/gemini.js": {
-      "maxDuration": 45
+    "api/**/*.js": {
+      "maxDuration": 60
     }
   }
 }
