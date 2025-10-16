@@ -283,18 +283,29 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
         try {
             setLoadingMessage('Exportando para Word...');
             setIsLoading(true);
-            const htmlToDocx = (await import('html-to-docx')).default;
-            const docxBuffer = await htmlToDocx(briefingData.finalText, null, {
-                table: { row: { cantSplit: true } },
-                footer: true,
-                header: true
+
+            const response = await fetch('/api/export-word', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    htmlContent: briefingData.finalText,
+                    fileName: briefingData.name || 'briefing',
+                }),
             });
-            const blob = new Blob([docxBuffer], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido no servidor.' }));
+                throw new Error(errorData.error || `Falha na exportação: ${response.statusText}`);
+            }
+
+            const blob = await response.blob();
             saveAs(blob, `${briefingData.name || 'briefing'}.docx`);
             toast.success('Briefing exportado para Word com sucesso!');
         } catch (error) {
             console.error('Erro ao exportar para Word:', error);
-            toast.error('Falha ao exportar para Word.');
+            toast.error(`Falha ao exportar para Word: ${error.message}`);
         } finally {
             setIsLoading(false);
         }
