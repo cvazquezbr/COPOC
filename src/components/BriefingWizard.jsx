@@ -236,6 +236,13 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
         }
     }, [activeSuggestion, isMobile]);
 
+    useEffect(() => {
+        if (activeStep === steps.length - 1) {
+            const finalHtml = sectionsToHtml(briefingData.sections, briefingData.template?.blocks?.map(b => b.title) || []);
+            onBriefingDataChange(prev => ({ ...prev, finalText: finalHtml }));
+        }
+    }, [activeStep, briefingData.sections, briefingData.template, onBriefingDataChange, steps.length]);
+
     const handleNext = async () => {
         const currentStepLabel = steps[activeStep];
         const nextStep = activeStep + 1;
@@ -245,11 +252,9 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
             onBriefingDataChange(prev => ({ ...prev, baseText: baseTextFromSections }));
         } else if (currentStepLabel === 'Revisão') {
             const updatedSections = htmlToSections(briefingData.revisedText);
-            const finalHtml = sectionsToHtml(updatedSections, briefingData.template?.blocks?.map(b => b.title) || []);
             onBriefingDataChange(prev => ({
                 ...prev,
                 sections: updatedSections,
-                finalText: finalHtml,
             }));
         }
         setActiveStep(nextStep);
@@ -284,7 +289,8 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
                 footer: true,
                 header: true
             });
-            saveAs(docxBuffer, `${briefingData.name || 'briefing'}.docx`);
+            const blob = new Blob([docxBuffer], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+            saveAs(blob, `${briefingData.name || 'briefing'}.docx`);
             toast.success('Briefing exportado para Word com sucesso!');
         } catch (error) {
             console.error('Erro ao exportar para Word:', error);
