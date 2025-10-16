@@ -188,6 +188,7 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
     const [isNotesDrawerOpen, setNotesDrawerOpen] = useState(false);
     const [focusModeTarget, setFocusModeTarget] = useState(null);
     const [activeSuggestion, setActiveSuggestion] = useState(null);
+    const [editingContent, setEditingContent] = useState('');
     const [revisionError, setRevisionError] = useState(null);
     const [isRevised, setIsRevised] = useState(false);
 
@@ -361,16 +362,15 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
                 campaignInfo: briefingData.sections['Sobre a campanha'] || '',
             };
             const suggestion = await geminiAPI.generateBlockSuggestion(title, context);
-            setActiveSuggestion({
-                title,
-                content: suggestion || ''
-            });
+            setEditingContent(suggestion || '');
+            setActiveSuggestion(title);
             if (!suggestion) {
                 toast.info('A IA não conseguiu gerar uma sugestão. Tente editar manualmente.');
             }
         } catch (error) {
             toast.error(`Erro ao gerar sugestão: ${error.message}`);
-            setActiveSuggestion({ title, content: `Falha ao gerar sugestão: ${error.message}` });
+            setEditingContent(`Falha ao gerar sugestão: ${error.message}`);
+            setActiveSuggestion(title);
         } finally {
             setIsLoading(false);
         }
@@ -378,9 +378,10 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
 
     const handleAcceptSuggestion = () => {
         if (!activeSuggestion) return;
-        handleSectionChange(activeSuggestion.title, activeSuggestion.content);
-        toast.success(`Bloco "${activeSuggestion.title}" atualizado!`);
+        handleSectionChange(activeSuggestion, editingContent);
+        toast.success(`Bloco "${activeSuggestion}" atualizado!`);
         setActiveSuggestion(null);
+        setEditingContent('');
     };
 
     const renderStep0_Edit = () => (
@@ -447,7 +448,10 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
                                         )}
                                     </CardContent>
                                     <CardActions>
-                                        <Button size="small" startIcon={<Edit />} onClick={() => setActiveSuggestion({ title, content: content || '<p></p>' })}>Editar</Button>
+                                        <Button size="small" startIcon={<Edit />} onClick={() => {
+                                            setActiveSuggestion(title);
+                                            setEditingContent(content || '<p></p>');
+                                        }}>Editar</Button>
                                         {isEmpty && <Button size="small" onClick={() => handleGenerateSuggestion(title)}>Sugerir</Button>}
                                     </CardActions>
                                 </Card>
@@ -457,9 +461,9 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
                     <Grid item xs={12} md={7} sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                         {activeSuggestion ? (
                             <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                                <Typography variant="h6" gutterBottom>{`Editando: "${activeSuggestion.title}"`}</Typography>
+                                <Typography variant="h6" gutterBottom>{`Editando: "${activeSuggestion}"`}</Typography>
                                 <Box sx={{ flexGrow: 1, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
-                                    <TextEditor value={activeSuggestion.content} onChange={(val) => setActiveSuggestion(prev => ({ ...prev, content: val }))} html={true} />
+                                    <TextEditor value={editingContent} onChange={setEditingContent} html={true} />
                                 </Box>
                                 <Button onClick={handleAcceptSuggestion} variant="contained" startIcon={<Check />} sx={{ mt: 2 }}>Confirmar Texto</Button>
                             </Box>
