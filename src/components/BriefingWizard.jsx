@@ -187,7 +187,7 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
     const [loadingMessage, setLoadingMessage] = useState('');
     const [isNotesDrawerOpen, setNotesDrawerOpen] = useState(false);
     const [focusModeTarget, setFocusModeTarget] = useState(null);
-    const [activeSuggestion, setActiveSuggestion] = useState({ title: null, content: '' });
+    const [activeSuggestion, setActiveSuggestion] = useState(null);
     const [revisionError, setRevisionError] = useState(null);
     const [isRevised, setIsRevised] = useState(false);
 
@@ -361,11 +361,12 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
                 campaignInfo: briefingData.sections['Sobre a campanha'] || '',
             };
             const suggestion = await geminiAPI.generateBlockSuggestion(title, context);
-            if (suggestion && suggestion.trim() !== '') {
-                setActiveSuggestion({ title, content: suggestion });
-            } else {
-                setActiveSuggestion({ title, content: '' });
-                toast.info('A IA não conseguiu gerar uma sugestão para este bloco. Tente editar manualmente.');
+            setActiveSuggestion({
+                title,
+                content: suggestion || ''
+            });
+            if (!suggestion) {
+                toast.info('A IA não conseguiu gerar uma sugestão. Tente editar manualmente.');
             }
         } catch (error) {
             toast.error(`Erro ao gerar sugestão: ${error.message}`);
@@ -376,10 +377,10 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
     };
 
     const handleAcceptSuggestion = () => {
-        if (!activeSuggestion.title) return;
+        if (!activeSuggestion) return;
         handleSectionChange(activeSuggestion.title, activeSuggestion.content);
         toast.success(`Bloco "${activeSuggestion.title}" atualizado!`);
-        setActiveSuggestion({ title: null, content: '' });
+        setActiveSuggestion(null);
     };
 
     const renderStep0_Edit = () => (
@@ -446,7 +447,7 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
                                         )}
                                     </CardContent>
                                     <CardActions>
-                                        <Button size="small" startIcon={<Edit />} onClick={() => setActiveSuggestion({ title, content: content || '' })}>Editar</Button>
+                                        <Button size="small" startIcon={<Edit />} onClick={() => setActiveSuggestion({ title, content: content || '<p></p>' })}>Editar</Button>
                                         {isEmpty && <Button size="small" onClick={() => handleGenerateSuggestion(title)}>Sugerir</Button>}
                                     </CardActions>
                                 </Card>
@@ -454,7 +455,7 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
                         })}
                     </Grid>
                     <Grid item xs={12} md={7} sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                        {activeSuggestion.title ? (
+                        {activeSuggestion ? (
                             <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                                 <Typography variant="h6" gutterBottom>{`Editando: "${activeSuggestion.title}"`}</Typography>
                                 <Box sx={{ flexGrow: 1, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
