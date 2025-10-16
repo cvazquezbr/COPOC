@@ -12,6 +12,7 @@ import { defaultBriefingTemplate } from '../utils/defaultBriefingTemplate';
 import { parseWordDocument, parsePdfDocument } from '../utils/fileImport';
 import geminiAPI from '../utils/geminiAPI';
 import { useUserAuth } from '../context/UserAuthContext';
+import html2canvas from 'html2canvas';
 
 const sectionsToHtml = (sections, blockOrder = []) => {
     let htmlContent = '';
@@ -551,9 +552,21 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
 
 const FinalizationStep = ({ briefingData, onBriefingDataChange }) => {
     const [tabIndex, setTabIndex] = useState(0);
+    const exportRef = useRef(null);
 
     const handleTabChange = (event, newValue) => {
         setTabIndex(newValue);
+    };
+
+    const handleExport = () => {
+        if (exportRef.current) {
+            html2canvas(exportRef.current).then(canvas => {
+                const link = document.createElement('a');
+                link.download = `${briefingData.name || 'briefing'}-dos-donts.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            });
+        }
     };
 
     const dosContent = briefingData.sections['DOs'] || '<p>Nenhum DO definido.</p>';
@@ -574,18 +587,25 @@ const FinalizationStep = ({ briefingData, onBriefingDataChange }) => {
                 required
                 sx={{ mb: 2, flexShrink: 0 }}
             />
-            <Box sx={{ borderBottom: 1, borderColor: 'divider', flexShrink: 0 }}>
+            <Box sx={{ borderBottom: 1, borderColor: 'divider', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Tabs value={tabIndex} onChange={handleTabChange} aria-label="abas de finalização">
                     <Tab label="Documento" />
                     <Tab label="DOs & DON'Ts" />
                 </Tabs>
+                {tabIndex === 1 && (
+                    <Tooltip title="Exportar como PNG">
+                        <IconButton onClick={handleExport}>
+                            <Download />
+                        </IconButton>
+                    </Tooltip>
+                )}
             </Box>
             <Box sx={{ flexGrow: 1, overflowY: 'auto', p: tabIndex === 1 ? 2 : 0, minHeight: 0 }}>
                 {tabIndex === 0 && (
                     <HtmlDisplay htmlContent={briefingData.finalText} />
                 )}
                 {tabIndex === 1 && (
-                    <Grid container spacing={2}>
+                    <Grid container spacing={2} ref={exportRef} sx={{ p: 2, backgroundColor: (theme) => theme.palette.background.paper }}>
                         <Grid item xs={12} md={6}>
                             <Card variant="outlined" sx={{ height: '100%' }}>
                                 <CardContent>
