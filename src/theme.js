@@ -5,18 +5,20 @@ export const lightTheme = createTheme({
   palette: {
     mode: 'light',
     primary: {
-      main: '#6d28d9', // Roxo mais escuro para melhor contraste
+      main: '#6366f1', // Indigo-500
+      light: '#818cf8', // Indigo-400
+      dark: '#4f46e5', // Indigo-600
     },
     secondary: {
-      main: '#be185d', // Rosa mais escuro
+      main: '#ec4899', // Pink-500
     },
     background: {
-      default: 'transparent',
-      paper: 'rgba(248, 250, 252, 0.85)', // Fundo do card mais opaco (slate-50)
+      default: '#f1f5f9', // Slate-100 (um fundo sólido suave)
+      paper: 'rgba(255, 255, 255, 0.9)', // Papel branco com alta transparência
     },
     text: {
-      primary: '#020617', // Quase preto para contraste máximo (slate-950)
-      secondary: '#334155', // Cinza bem escuro (slate-700)
+      primary: '#1e293b', // Slate-800
+      secondary: '#475569', // Slate-600
     }
   },
   typography: {
@@ -33,6 +35,7 @@ export const lightTheme = createTheme({
           backdropFilter: 'blur(12px)',
           boxShadow: 'none',
           borderBottom: '1px solid rgba(226, 232, 240, 0.8)', // Borda mais sutil (slate-200)
+          color: '#020617', // Cor do texto primário (slate-950) para garantir legibilidade
         }
       }
     },
@@ -98,18 +101,20 @@ export const darkTheme = createTheme({
   palette: {
     mode: 'dark',
     primary: {
-      main: '#a78bfa',
+      main: '#818cf8', // Indigo-400
+      light: '#a5b4fc', // Indigo-300
+      dark: '#6366f1', // Indigo-500
     },
     secondary: {
-      main: '#f472b6',
+      main: '#f472b6', // Pink-400
     },
     background: {
-      default: 'transparent', // Fundo principal transparente
-      paper: 'rgba(30, 41, 59, 0.7)', // Cor do 'paper' antigo com alpha
+      default: '#0f172a', // Slate-900 (fundo sólido escuro)
+      paper: 'rgba(30, 41, 59, 0.75)', // Slate-800 com alpha
     },
     text: {
-      primary: '#f1f5f9',
-      secondary: '#cbd5e1',
+      primary: '#e2e8f0', // Slate-200
+      secondary: '#94a3b8', // Slate-400
     }
   },
   typography: {
