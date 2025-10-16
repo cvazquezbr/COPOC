@@ -13,6 +13,7 @@ import { parseWordDocument, parsePdfDocument } from '../utils/fileImport';
 import geminiAPI from '../utils/geminiAPI';
 import { useUserAuth } from '../context/UserAuthContext';
 import html2canvas from 'html2canvas';
+import LoadingDialog from './LoadingDialog';
 
 const sectionsToHtml = (sections, blockOrder = []) => {
     let htmlContent = '';
@@ -356,6 +357,7 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
             toast.error(error.toString());
         } finally {
             setIsLoading(false);
+            setLoadingMessage('');
             event.target.value = null;
         }
     };
@@ -651,6 +653,7 @@ const FinalizationStep = ({ briefingData, onBriefingDataChange }) => {
 
     return (
         <>
+            <LoadingDialog open={isLoading} title={loadingMessage} />
             <Dialog open={open} onClose={onClose} fullWidth maxWidth="xl" fullScreen={isMobile} PaperProps={{ sx: { height: isMobile ? '100%' : '90vh' } }}>
                 <DialogTitle>
                     {isNewBriefing ? `Novo Briefing (${creationMode === 'text' ? 'Texto' : 'Seções'})` : `Editando: ${briefingData?.name || ''}`}
