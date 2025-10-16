@@ -298,7 +298,7 @@ const BriefingTemplatePage = () => {
                                     <Typography variant="subtitle2" gutterBottom>Conteúdo do Exemplo</Typography>
                                     <Paper
                                         variant="outlined"
-                                        sx={{ p: 2, backgroundColor: 'grey.100', minHeight: '100px', maxHeight: '200px', overflowY: 'auto' }}
+                                        sx={{ p: 2, backgroundColor: theme.palette.mode === 'dark' ? 'grey.900' : 'grey.100', minHeight: '100px', maxHeight: '200px', overflowY: 'auto' }}
                                         dangerouslySetInnerHTML={{ __html: block.content.replace(/\n/g, '<br />') || '<i>Vazio</i>' }}
                                     />
                                 </Grid>
@@ -306,7 +306,7 @@ const BriefingTemplatePage = () => {
                                     <Typography variant="subtitle2" gutterBottom>Instruções para a IA</Typography>
                                     <Paper
                                         variant="outlined"
-                                        sx={{ p: 2, backgroundColor: 'grey.100', minHeight: '100px', maxHeight: '200px', overflowY: 'auto' }}
+                                        sx={{ p: 2, backgroundColor: theme.palette.mode === 'dark' ? 'grey.900' : 'grey.100', minHeight: '100px', maxHeight: '200px', overflowY: 'auto' }}
                                         dangerouslySetInnerHTML={{ __html: block.rules.replace(/\n/g, '<br />') || '<i>Vazio</i>' }}
                                     />
                                 </Grid>
