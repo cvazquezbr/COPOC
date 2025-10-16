@@ -34,10 +34,10 @@ async def main():
             await expect(secoes_button).to_be_visible(timeout=60000)
             await secoes_button.click()
 
-            # Click the "Sugerir" button on an empty section
-            sugerir_button = page.get_by_role("button", name="Sugerir").first
-            await expect(sugerir_button).to_be_visible(timeout=60000)
-            await sugerir_button.click()
+            # Click the "Editar" button on a section
+            edit_button = page.get_by_role("button", name="Editar").first
+            await expect(edit_button).to_be_visible(timeout=60000)
+            await edit_button.click()
 
             # Wait for the editor to be visible
             editor_locator = page.get_by_role("textbox")
