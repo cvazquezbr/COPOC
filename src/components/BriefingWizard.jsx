@@ -744,7 +744,7 @@ const FinalizationStep = ({ briefingData, onBriefingDataChange, onExportWord, on
                 }}
             >
                 <Typography variant="h6" gutterBottom>Notas da Revisão (Editável)</Typography>
-                <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0, border: '1px solid', borderColor: 'divider', borderRadius: 1, backgroundColor: 'grey.50' }}>
+                <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0, border: '1px solid', borderColor: 'divider', borderRadius: 1, backgroundColor: 'background.paper' }}>
                     <TextEditor value={briefingData.revisionNotes} onChange={(val) => handleBriefingDataChange('revisionNotes', val)} html={true} />
                 </Box>
                 <Button onClick={() => setNotesDrawerOpen(false)} sx={{ mt: 2 }}>
@@ -785,6 +785,32 @@ const FinalizationStep = ({ briefingData, onBriefingDataChange, onExportWord, on
                 onBriefingDataChange={handleBriefingDataChange}
                 isNewBriefing={isNewBriefing}
             />
+            <Dialog open={Boolean(focusModeTarget)} onClose={() => setFocusModeTarget(null)} fullScreen>
+                <DialogTitle>
+                    Edição Focada
+                    <IconButton
+                        aria-label="close"
+                        onClick={() => setFocusModeTarget(null)}
+                        sx={{
+                            position: 'absolute',
+                            right: 8,
+                            top: 8,
+                            color: (theme) => theme.palette.grey[500],
+                        }}
+                    >
+                        <FullscreenExit />
+                    </IconButton>
+                </DialogTitle>
+                <DialogContent sx={{ p: 0, m: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                    {focusModeTarget && (
+                        <TextEditor
+                            value={briefingData[focusModeTarget]}
+                            onChange={(val) => handleBriefingDataChange(focusModeTarget, val)}
+                            html={true}
+                        />
+                    )}
+                </DialogContent>
+            </Dialog>
         </>
     );
 }
