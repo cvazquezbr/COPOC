@@ -52,6 +52,7 @@
     "gapi-script": "^1.2.0",
     "google-auth-library": "^10.2.1",
     "html-react-parser": "^5.2.6",
+    "html-to-docx": "^1.8.0",
     "html2canvas": "^1.4.1",
     "ioredis": "^5.7.0",
     "jose": "^6.0.12",
