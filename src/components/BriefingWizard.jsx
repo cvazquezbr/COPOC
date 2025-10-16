@@ -181,9 +181,9 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
 
     const steps = useMemo(() => {
         if (creationMode === 'sections') {
-            return ['Preencher Seções', 'Revisão'];
+            return ['Preencher Seções', 'Revisão', 'Finalização'];
         }
-        return ['Edição', 'Revisão'];
+        return ['Edição', 'Revisão', 'Finalização'];
     }, [creationMode]);
 
     const [activeStep, setActiveStep] = useState(0);
@@ -227,6 +227,17 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
         }
     }, [open]);
 
+    useEffect(() => {
+        if (activeStep === steps.length - 1) {
+            setLoadingMessage('Gerando texto final...');
+            setIsLoading(true);
+            setTimeout(() => {
+                const finalHtml = sectionsToHtml(briefingData.sections, briefingData.template?.blocks?.map(b => b.title) || []);
+                onBriefingDataChange(prev => ({ ...prev, finalText: finalHtml }));
+                setIsLoading(false);
+            }, 100);
+        }
+    }, [activeStep, steps.length, briefingData.sections, briefingData.template, onBriefingDataChange]);
 
     useEffect(() => {
         if (isMobile && activeSuggestion && editorPaneRef.current) {
@@ -243,14 +254,14 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
         if (currentStepLabel === 'Preencher Seções') {
             const baseTextFromSections = sectionsToHtml(briefingData.sections, briefingData.template?.blocks?.map(b => b.title) || []);
             onBriefingDataChange(prev => ({ ...prev, baseText: baseTextFromSections }));
-        } else if (currentStepLabel === 'Edição') {
-            // When moving from Edit to Review, the baseText is already set.
-            // No action needed here unless there's a specific transformation required.
+        } else if (currentStepLabel === 'Revisão') {
+            const updatedSections = htmlToSections(briefingData.revisedText);
+            onBriefingDataChange(prev => ({
+                ...prev,
+                sections: updatedSections,
+            }));
         }
-
-        if (nextStep < steps.length) {
-            setActiveStep(nextStep);
-        }
+        setActiveStep(nextStep);
     };
 
     const handleBack = () => {
@@ -266,17 +277,6 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
             ...prev,
             sections: { ...prev.sections, [title]: content }
         }));
-    };
-
-    const handleSave = () => {
-        const updatedSections = htmlToSections(briefingData.revisedText);
-        const finalHtml = sectionsToHtml(updatedSections, briefingData.template?.blocks?.map(b => b.title) || []);
-        onBriefingDataChange(prev => ({
-            ...prev,
-            finalText: finalHtml,
-            sections: updatedSections,
-        }));
-        setSaveModalOpen(true);
     };
 
     const handleExportWord = async () => {
@@ -568,16 +568,6 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
                                         Ver Notas
                                     </Button>
                                 </Tooltip>
-                                <Tooltip title="Exportar para Word">
-                                    <IconButton onClick={handleExportWord} disabled={isLoading}>
-                                        <Download />
-                                    </IconButton>
-                                </Tooltip>
-                                <Tooltip title="Edição Focada">
-                                    <IconButton onClick={() => setFocusModeTarget('revisedText')}>
-                                        <Fullscreen />
-                                    </IconButton>
-                                </Tooltip>
                             </Box>
                         </Box>
                         <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
@@ -589,6 +579,91 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
         );
     };
 
+const FinalizationStep = ({ briefingData, onBriefingDataChange, onExportWord, onFocus }) => {
+    const [tabIndex, setTabIndex] = useState(0);
+    const exportRef = useRef(null);
+
+    const handleTabChange = (event, newValue) => {
+        setTabIndex(newValue);
+    };
+
+    const handleExport = () => {
+        if (exportRef.current) {
+            html2canvas(exportRef.current).then(canvas => {
+                const link = document.createElement('a');
+                link.download = `${briefingData.name || 'briefing'}-dos-donts.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            });
+        }
+    };
+
+    const dosContent = briefingData.sections['DOs'] || '<p>Nenhum DO definido.</p>';
+    const dontsContent = briefingData.sections["DON'Ts"] || "<p>Nenhum DON'T definido.</p>";
+
+    return (
+        <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <Typography variant="h6" gutterBottom>Finalização</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Revise o documento final. Para fazer ajustes, volte às etapas anteriores.
+            </Typography>
+            <Box sx={{ borderBottom: 1, borderColor: 'divider', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Tabs value={tabIndex} onChange={handleTabChange} aria-label="abas de finalização">
+                    <Tab label="Documento" />
+                    <Tab label="DOs & DON'Ts" />
+                </Tabs>
+                <Box>
+                    <Tooltip title="Edição Focada">
+                        <IconButton onClick={() => onFocus('finalText')}>
+                            <Fullscreen />
+                        </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Exportar para Word">
+                        <IconButton onClick={onExportWord}>
+                            <Download />
+                        </IconButton>
+                    </Tooltip>
+                    {tabIndex === 1 && (
+                        <Tooltip title="Exportar como PNG">
+                            <IconButton onClick={handleExport}>
+                                <Download />
+                            </IconButton>
+                        </Tooltip>
+                    )}
+                </Box>
+            </Box>
+            <Box sx={{ flexGrow: 1, overflowY: 'auto', p: tabIndex === 1 ? 2 : 0, minHeight: 0 }}>
+                {tabIndex === 0 && (
+                    <HtmlDisplay htmlContent={briefingData.finalText} />
+                )}
+                {tabIndex === 1 && (
+                    <Grid container spacing={2} ref={exportRef} sx={{ p: 2, backgroundColor: (theme) => theme.palette.background.paper }}>
+                        <Grid item xs={12} md={6}>
+                            <Card variant="outlined" sx={{ height: '100%' }}>
+                                <CardContent>
+                                    <Typography variant="h5" component="div" sx={{ mb: 1.5 }}>
+                                        DOs
+                                    </Typography>
+                                    <HtmlDisplay htmlContent={dosContent} />
+                                </CardContent>
+                            </Card>
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                            <Card variant="outlined" sx={{ height: '100%' }}>
+                                <CardContent>
+                                    <Typography variant="h5" component="div" sx={{ mb: 1.5 }}>
+                                        DON'Ts
+                                    </Typography>
+                                    <HtmlDisplay htmlContent={dontsContent} />
+                                </CardContent>
+                            </Card>
+                        </Grid>
+                    </Grid>
+                )}
+            </Box>
+        </Box>
+    );
+};
 
     const renderContent = () => {
         const currentStepLabel = steps[activeStep];
@@ -599,6 +674,8 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
                 return renderStep0_Sections();
             case 'Revisão':
                 return renderStep1_Review();
+            case 'Finalização':
+                return <FinalizationStep briefingData={briefingData} onBriefingDataChange={handleBriefingDataChange} onExportWord={handleExportWord} onFocus={setFocusModeTarget} />;
             default:
                 return null;
         }
@@ -631,12 +708,12 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
                     <Box sx={{ flexGrow: 1 }} />
                     <Button disabled={activeStep === 0} onClick={handleBack}>Anterior</Button>
                     {activeStep === steps.length - 1 ? (
-                        <Button onClick={handleSave} variant="contained" color="primary">Salvar Briefing</Button>
+                        <Button onClick={() => setSaveModalOpen(true)} variant="contained" color="primary">Salvar Briefing</Button>
                     ) : (
                         <Button
                             onClick={handleNext}
                             endIcon={<ArrowForward />}
-                            disabled={isLoading || (activeStep === 1 && !isRevised)}
+                            disabled={isLoading}
                         >
                             Próximo
                         </Button>
