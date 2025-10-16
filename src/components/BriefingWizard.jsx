@@ -364,6 +364,7 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
             if (suggestion && suggestion.trim() !== '') {
                 setActiveSuggestion({ title, content: suggestion });
             } else {
+                setActiveSuggestion({ title, content: '' });
                 toast.info('A IA não conseguiu gerar uma sugestão para este bloco. Tente editar manualmente.');
             }
         } catch (error) {
