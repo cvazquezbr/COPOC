@@ -1,107 +1,74 @@
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType,BorderStyle } from 'docx';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType, BorderStyle } from 'docx';
 import { parse } from 'node-html-parser';
 
 // Helper function to convert HTML nodes to docx elements
 const htmlToDocxElements = (htmlNode) => {
-    const elements = [];
-
     if (htmlNode.nodeType === 3) { // Text node
-        if (htmlNode.text.trim()) {
-            elements.push(new TextRun(htmlNode.text));
-        }
-        return elements;
+        // Only return a TextRun if the text is not just whitespace
+        return htmlNode.text.trim() ? [new TextRun(htmlNode.text)] : [];
     }
 
     if (htmlNode.nodeType !== 1) { // Not an element node
-        return elements;
+        return [];
     }
 
-    let children = [];
-    if (htmlNode.childNodes.length > 0) {
-        children = htmlNode.childNodes.flatMap(child => htmlToDocxElements(child));
-    }
+    const children = htmlNode.childNodes.flatMap(child => htmlToDocxElements(child));
 
     switch (htmlNode.tagName.toLowerCase()) {
         case 'h2':
-            elements.push(new Paragraph({ children, heading: HeadingLevel.HEADING_2 }));
-            break;
+            return [new Paragraph({ children, heading: HeadingLevel.HEADING_2 })];
         case 'h3':
-            elements.push(new Paragraph({ children, heading: HeadingLevel.HEADING_3 }));
-            break;
+            return [new Paragraph({ children, heading: HeadingLevel.HEADING_3 })];
         case 'p':
-            if (children.length > 0) {
-                 elements.push(new Paragraph({ children }));
-            }
-            break;
+            // Return a paragraph only if it has meaningful content
+            return children.length > 0 ? [new Paragraph({ children })] : [];
         case 'ul':
         case 'ol':
-            children.forEach(child => {
-                if (child instanceof Paragraph) { // list items are parsed as paragraphs
-                    child.properties.bullet = { level: 0 };
-                    elements.push(child);
-                }
-            });
-            break;
-        case 'li': // `li` content is handled inside `ul`/`ol`
-             if (children.length > 0) {
-                elements.push(new Paragraph({ children, bullet: { level: 0 } }));
-            }
-            break;
-         case 'hr':
-            elements.push(new Paragraph({
-                thematicBreak: true,
-            }));
-            break;
+            // The children are already paragraphs with bullet points from the 'li' case
+            return children;
+        case 'li':
+            // Create a paragraph with a bullet point for the list item content
+            return children.length > 0 ? [new Paragraph({ children, bullet: { level: 0 } })] : [];
+        case 'hr':
+            return [new Paragraph({ thematicBreak: true })];
         case 'table':
-            const rows = [];
-            const tableNode = htmlNode;
-            const trs = tableNode.querySelectorAll('tr');
+            const rows = htmlNode.querySelectorAll('tr').map(tr => {
+                const cells = tr.querySelectorAll('th, td').map(tc => {
+                    const cellContent = tc.childNodes.flatMap(child => htmlToDocxElements(child));
+                    const isHeader = tc.tagName.toLowerCase() === 'th';
 
-            trs.forEach(tr => {
-                const cells = [];
-                const ths = tr.querySelectorAll('th');
-                const tds = tr.querySelectorAll('td');
+                    // Ensure there's at least one paragraph in the cell, even if empty
+                    const paragraphs = cellContent.length > 0 ? cellContent : [new Paragraph('')];
 
-                ths.forEach(th => {
-                    const cellContent = th.childNodes.flatMap(child => htmlToDocxElements(child));
-                    cells.push(new TableCell({
-                        children: [new Paragraph({ children: cellContent, style: "strong" })],
-                        shading: { fill: "auto", val: "clear", color: "auto" },
-                    }));
+                    return new TableCell({
+                        children: paragraphs.map(p => {
+                            if (p instanceof Paragraph && isHeader) {
+                                p.properties.style = "strong";
+                            }
+                            return p;
+                        }),
+                    });
                 });
-
-                tds.forEach(td => {
-                     const cellContent = td.childNodes.flatMap(child => htmlToDocxElements(child));
-                     cells.push(new TableCell({ children: cellContent.length > 0 ? [new Paragraph({children: cellContent})] : [new Paragraph('')] }));
-                });
-
-                rows.push(new TableRow({ children: cells }));
+                return new TableRow({ children: cells });
             });
 
-            if (rows.length > 0) {
-                elements.push(new Table({
-                    rows: rows,
-                    width: { size: 100, type: WidthType.PERCENTAGE },
-                    borders: {
-                        top: { style: BorderStyle.SINGLE, size: 1, color: "dddddd" },
-                        bottom: { style: BorderStyle.SINGLE, size: 1, color: "dddddd" },
-                        left: { style: BorderStyle.NONE, size: 0, color: "auto" },
-                        right: { style: BorderStyle.NONE, size: 0, color: "auto" },
-                        insideHorizontal: { style: BorderStyle.SINGLE, size: 1, color: "dddddd" },
-                        insideVertical: { style: BorderStyle.NONE, size: 0, color: "auto" },
-                    },
-                }));
-            }
-            break;
-
+            return rows.length > 0 ? [new Table({
+                rows,
+                width: { size: 100, type: WidthType.PERCENTAGE },
+                borders: {
+                    top: { style: BorderStyle.SINGLE, size: 1, color: "dddddd" },
+                    bottom: { style: BorderStyle.SINGLE, size: 1, color: "dddddd" },
+                    left: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                    right: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                    insideHorizontal: { style: BorderStyle.SINGLE, size: 1, color: "dddddd" },
+                    insideVertical: { style: BorderStyle.NONE, size: 0, color: "auto" },
+                },
+            })] : [];
         default:
-            // For other tags like <div>, <span>, <strong>, just process their children
+            // For other tags (div, span, strong, etc.), just process their children
             return children;
     }
-
-    return elements;
 };
-
 
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
@@ -120,18 +87,14 @@ export default async function handler(req, res) {
         const docxElements = root.childNodes.flatMap(node => htmlToDocxElements(node));
 
         const doc = new Document({
-             styles: {
-                paragraphStyles: [
-                    {
-                        id: "strong",
-                        name: "Strong",
-                        basedOn: "Normal",
-                        next: "Normal",
-                        run: {
-                            bold: true,
-                        },
-                    },
-                ],
+            styles: {
+                paragraphStyles: [{
+                    id: "strong",
+                    name: "Strong",
+                    basedOn: "Normal",
+                    next: "Normal",
+                    run: { bold: true },
+                }],
             },
             sections: [{
                 children: docxElements,
@@ -144,7 +107,8 @@ export default async function handler(req, res) {
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
         res.setHeader('Content-Disposition', `attachment; filename=${safeFileName}.docx`);
 
-        return res.send(Buffer.from(docxBuffer));
+        // CRITICAL FIX: Do NOT re-wrap the buffer. Packer.toBuffer already returns a Buffer.
+        return res.send(docxBuffer);
 
     } catch (error) {
         console.error('Error generating DOCX:', error);
