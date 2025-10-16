@@ -227,20 +227,6 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
         }
     }, [open]);
 
-    useEffect(() => {
-        if (activeStep === steps.length - 1) {
-            setLoadingMessage('Gerando texto final...');
-            setIsLoading(true);
-            const updatedSections = htmlToSections(briefingData.revisedText);
-            const finalHtml = sectionsToHtml(updatedSections, briefingData.template?.blocks?.map(b => b.title) || []);
-            onBriefingDataChange(prev => ({
-                ...prev,
-                finalText: finalHtml,
-                sections: updatedSections
-            }));
-            setIsLoading(false);
-        }
-    }, [activeStep]);
 
     useEffect(() => {
         if (isMobile && activeSuggestion && editorPaneRef.current) {
@@ -259,9 +245,11 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
             onBriefingDataChange(prev => ({ ...prev, baseText: baseTextFromSections }));
         } else if (currentStepLabel === 'Revisão') {
             const updatedSections = htmlToSections(briefingData.revisedText);
+            const finalHtml = sectionsToHtml(updatedSections, briefingData.template?.blocks?.map(b => b.title) || []);
             onBriefingDataChange(prev => ({
                 ...prev,
                 sections: updatedSections,
+                finalText: finalHtml,
             }));
         }
         setActiveStep(nextStep);
