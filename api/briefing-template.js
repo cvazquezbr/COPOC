@@ -21,16 +21,17 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'GET') {
-      const { rows } = await query('SELECT * FROM briefing_templates WHERE user_id = (SELECT id FROM users WHERE uuid = $1)', [userUuid]);
+      const { rows } = await query('SELECT * FROM briefing_templates WHERE user_id = $1', [userUuid]);
       if (rows.length === 0) {
         return res.status(404).json({ message: 'Template not found' });
       }
-      res.status(200).json(rows);
+      // Retornar o primeiro template encontrado, pois a relação é 1:1
+      res.status(200).json(rows[0]);
     } else if (req.method === 'PUT') {
       const { template_data } = req.body;
       const { rows } = await query(
         `INSERT INTO briefing_templates (user_id, template_data)
-         VALUES ((SELECT id FROM users WHERE uuid = $1), $2)
+         VALUES ($1, $2)
          ON CONFLICT (user_id)
          DO UPDATE SET template_data = $2, updated_at = NOW()
          RETURNING *`,
