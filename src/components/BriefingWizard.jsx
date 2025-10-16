@@ -231,13 +231,16 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
         if (activeStep === steps.length - 1) {
             setLoadingMessage('Gerando texto final...');
             setIsLoading(true);
-            setTimeout(() => {
-                const finalHtml = sectionsToHtml(briefingData.sections, briefingData.template?.blocks?.map(b => b.title) || []);
-                onBriefingDataChange(prev => ({ ...prev, finalText: finalHtml }));
-                setIsLoading(false);
-            }, 100);
+            const updatedSections = htmlToSections(briefingData.revisedText);
+            const finalHtml = sectionsToHtml(updatedSections, briefingData.template?.blocks?.map(b => b.title) || []);
+            onBriefingDataChange(prev => ({
+                ...prev,
+                finalText: finalHtml,
+                sections: updatedSections
+            }));
+            setIsLoading(false);
         }
-    }, [activeStep, steps.length, briefingData.sections, briefingData.template, onBriefingDataChange]);
+    }, [activeStep]);
 
     useEffect(() => {
         if (isMobile && activeSuggestion && editorPaneRef.current) {
