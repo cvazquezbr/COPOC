@@ -4,7 +4,6 @@ import { parse } from 'node-html-parser';
 // Helper function to convert HTML nodes to docx elements
 const htmlToDocxElements = (htmlNode) => {
     if (htmlNode.nodeType === 3) { // Text node
-        // Only return a TextRun if the text is not just whitespace
         return htmlNode.text.trim() ? [new TextRun(htmlNode.text)] : [];
     }
 
@@ -20,14 +19,11 @@ const htmlToDocxElements = (htmlNode) => {
         case 'h3':
             return [new Paragraph({ children, heading: HeadingLevel.HEADING_3 })];
         case 'p':
-            // Return a paragraph only if it has meaningful content
             return children.length > 0 ? [new Paragraph({ children })] : [];
         case 'ul':
         case 'ol':
-            // The children are already paragraphs with bullet points from the 'li' case
             return children;
         case 'li':
-            // Create a paragraph with a bullet point for the list item content
             return children.length > 0 ? [new Paragraph({ children, bullet: { level: 0 } })] : [];
         case 'hr':
             return [new Paragraph({ thematicBreak: true })];
@@ -37,7 +33,6 @@ const htmlToDocxElements = (htmlNode) => {
                     const cellContent = tc.childNodes.flatMap(child => htmlToDocxElements(child));
                     const isHeader = tc.tagName.toLowerCase() === 'th';
 
-                    // Ensure there's at least one paragraph in the cell, even if empty
                     const paragraphs = cellContent.length > 0 ? cellContent : [new Paragraph('')];
 
                     return new TableCell({
@@ -65,7 +60,6 @@ const htmlToDocxElements = (htmlNode) => {
                 },
             })] : [];
         default:
-            // For other tags (div, span, strong, etc.), just process their children
             return children;
     }
 };
@@ -107,7 +101,6 @@ export default async function handler(req, res) {
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
         res.setHeader('Content-Disposition', `attachment; filename=${safeFileName}.docx`);
 
-        // CRITICAL FIX: Do NOT re-wrap the buffer. Packer.toBuffer already returns a Buffer.
         return res.send(docxBuffer);
 
     } catch (error) {
