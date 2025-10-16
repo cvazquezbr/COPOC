@@ -227,17 +227,6 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
         }
     }, [open]);
 
-    useEffect(() => {
-        if (activeStep === steps.length - 1) {
-            setLoadingMessage('Gerando texto final...');
-            setIsLoading(true);
-            setTimeout(() => {
-                const finalHtml = sectionsToHtml(briefingData.sections, briefingData.template?.blocks?.map(b => b.title) || []);
-                onBriefingDataChange(prev => ({ ...prev, finalText: finalHtml }));
-                setIsLoading(false);
-            }, 100);
-        }
-    }, [activeStep, steps.length, briefingData.sections, briefingData.template, onBriefingDataChange]);
 
     useEffect(() => {
         if (isMobile && activeSuggestion && editorPaneRef.current) {
@@ -246,6 +235,13 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
             }, 100); // A small delay to ensure the editor is rendered
         }
     }, [activeSuggestion, isMobile]);
+
+    useEffect(() => {
+        if (activeStep === steps.length - 1) {
+            const finalHtml = sectionsToHtml(briefingData.sections, briefingData.template?.blocks?.map(b => b.title) || []);
+            onBriefingDataChange(prev => ({ ...prev, finalText: finalHtml }));
+        }
+    }, [activeStep, briefingData.sections, briefingData.template, onBriefingDataChange, steps.length]);
 
     const handleNext = async () => {
         const currentStepLabel = steps[activeStep];
@@ -293,7 +289,8 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
                 footer: true,
                 header: true
             });
-            saveAs(docxBuffer, `${briefingData.name || 'briefing'}.docx`);
+            const blob = new Blob([docxBuffer], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+            saveAs(blob, `${briefingData.name || 'briefing'}.docx`);
             toast.success('Briefing exportado para Word com sucesso!');
         } catch (error) {
             console.error('Erro ao exportar para Word:', error);
