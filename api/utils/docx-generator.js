@@ -1,150 +1,14 @@
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType, BorderStyle, AlignmentType, UnderlineType } from 'docx';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType, BorderStyle, AlignmentType, UnderlineType, PageBreak } from 'docx';
 import { parse } from 'node-html-parser';
 
-const convertToInches = (value) => {
-    if (typeof value === 'string' && value.endsWith('px')) {
-        const pixels = parseInt(value, 10);
-        return pixels / 96; // Assume 96 DPI
-    }
-    return 1; // Default size
-};
-
-const mapTextAlign = (align) => {
-    switch (align) {
-        case 'center':
-            return AlignmentType.CENTER;
-        case 'right':
-            return AlignmentType.RIGHT;
-        case 'justify':
-            return AlignmentType.JUSTIFY;
-        default:
-            return AlignmentType.LEFT;
-    }
-};
-
-const processNode = (node) => {
-    if (node.nodeType === 3) { // Text node
-        return new TextRun(node.text);
-    }
-
-    if (node.nodeType !== 1) { // Not an element node
-        return null;
-    }
-
-    const children = node.childNodes.map(processNode).filter(Boolean);
-
-    const style = {};
-    if (node.getAttribute('style')) {
-        node.getAttribute('style').split(';').forEach(rule => {
-            const [key, value] = rule.split(':').map(s => s.trim());
-            if (key && value) style[key] = value;
-        });
-    }
-
-    let textRunOptions = {};
-    if (style['font-weight'] === 'bold' || node.tagName === 'B' || node.tagName === 'STRONG') {
-        textRunOptions.bold = true;
-    }
-    if (style['font-style'] === 'italic' || node.tagName === 'I' || node.tagName === 'EM') {
-        textRunOptions.italics = true;
-    }
-    if (style['text-decoration'] === 'underline' || node.tagName === 'U') {
-        textRunOptions.underline = { type: UnderlineType.SINGLE };
-    }
-    if (style['color']) {
-        textRunOptions.color = style['color'].replace('#', '');
-    }
-    if (style['font-size']) {
-        textRunOptions.size = convertToInches(style['font-size']) * 24; // Convert inches to half-points
-    }
-
-
-    const applyOptions = (run) => {
-        if (run instanceof TextRun) {
-            run.options = { ...run.options, ...textRunOptions };
-        } else if (run instanceof Paragraph) {
-            run.root.forEach(p => {
-                if (p instanceof TextRun) {
-                    p.options = { ...p.options, ...textRunOptions };
-                }
-            });
-        }
-        return run;
-    };
-
-    const paragraphOptions = {};
-    if (style['text-align']) {
-        paragraphOptions.alignment = mapTextAlign(style['text-align']);
-    }
-
-    switch (node.tagName.toLowerCase()) {
-        case 'h1': return new Paragraph({ children: children.map(applyOptions), heading: HeadingLevel.HEADING_1, ...paragraphOptions });
-        case 'h2': return new Paragraph({ children: children.map(applyOptions), heading: HeadingLevel.HEADING_2, ...paragraphOptions });
-        case 'h3': return new Paragraph({ children: children.map(applyOptions), heading: HeadingLevel.HEADING_3, ...paragraphOptions });
-        case 'h4': return new Paragraph({ children: children.map(applyOptions), heading: HeadingLevel.HEADING_4, ...paragraphOptions });
-        case 'h5': return new Paragraph({ children: children.map(applyOptions), heading: HeadingLevel.HEADING_5, ...paragraphOptions });
-        case 'h6': return new Paragraph({ children: children.map(applyOptions), heading: HeadingLevel.HEADING_6, ...paragraphOptions });
-        case 'p': return new Paragraph({ children: children.map(applyOptions), ...paragraphOptions });
-        case 'div': return new Paragraph({ children: children.map(applyOptions), ...paragraphOptions });
-        case 'br': return new Paragraph(""); // Represents a line break
-        case 'ul':
-        case 'ol':
-            return children.filter(c => c instanceof Paragraph);
-        case 'li': {
-            const paragraph = new Paragraph({ children: children.map(applyOptions), bullet: { level: 0 }, ...paragraphOptions });
-            return paragraph;
-        }
-        case 'hr': return new Paragraph({ thematicBreak: true });
-        case 'table':
-            const rows = node.querySelectorAll('tr').map(tr => {
-                const cells = tr.querySelectorAll('th, td').map(tc => {
-                    const cellContent = tc.childNodes.flatMap(processNode).filter(Boolean);
-                    const paragraphs = cellContent.length > 0 ? cellContent : [new Paragraph('')];
-                    return new TableCell({
-                        children: paragraphs,
-                        borders: {
-                            top: { style: BorderStyle.SINGLE, size: 1, color: "auto" },
-                            bottom: { style: BorderStyle.SINGLE, size: 1, color: "auto" },
-                            left: { style: BorderStyle.SINGLE, size: 1, color: "auto" },
-                            right: { style: BorderStyle.SINGLE, size: 1, color: "auto" },
-                        },
-                    });
-                });
-                return new TableRow({ children: cells });
-            });
-            return new Table({
-                rows,
-                width: { size: 100, type: WidthType.PERCENTAGE },
-            });
-
-        case 'b':
-        case 'strong':
-        case 'i':
-        case 'em':
-        case 'u':
-        case 'span':
-        case 'font':
-            return children.map(applyOptions);
-
-        default:
-            return children;
-    }
-};
-
-export const generateDocx = async (htmlContent) => {
+const generateDocx = async (htmlContent) => {
     if (!htmlContent) {
         throw new Error('htmlContent is required');
     }
 
-    const root = parse(htmlContent, {
-        blockTextElements: {
-            script: false,
-            noscript: false,
-            style: false,
-        },
-    });
+    const root = parse(htmlContent);
 
-    const docxElements = root.childNodes.flatMap(processNode).filter(Boolean);
+    const docxElements = convertNodesToDocxObjects(root.childNodes);
 
     const doc = new Document({
         sections: [{
@@ -154,3 +18,122 @@ export const generateDocx = async (htmlContent) => {
 
     return Packer.toBuffer(doc);
 };
+
+function convertNodesToDocxObjects(nodes) {
+    let elements = [];
+    for (const node of nodes) {
+        if (node.nodeType === 1) { // ELEMENT_NODE
+            elements.push(...convertElementToDocx(node));
+        }
+    }
+    return elements;
+}
+
+function convertElementToDocx(element) {
+    const tagName = element.tagName.toLowerCase();
+    switch (tagName) {
+        case 'h1':
+        case 'h2':
+        case 'h3':
+        case 'h4':
+        case 'h5':
+        case 'h6':
+            const level = `HEADING_${tagName.charAt(1)}`;
+            return [new Paragraph({
+                children: processInlines(element.childNodes),
+                heading: HeadingLevel[level],
+            })];
+        case 'p':
+        case 'div':
+            return [new Paragraph({ children: processInlines(element.childNodes) })];
+        case 'ul':
+        case 'ol':
+            let listItems = [];
+            for (const child of element.childNodes) {
+                if (child.tagName && child.tagName.toLowerCase() === 'li') {
+                    listItems.push(
+                        new Paragraph({
+                            children: processInlines(child.childNodes),
+                            bullet: { level: 0 },
+                        })
+                    );
+                }
+            }
+            return listItems;
+        case 'br':
+            return [new Paragraph({ children: [new TextRun({ text: '', break: 1 })] })];
+        case 'hr':
+            return [new Paragraph({ thematicBreak: true })];
+        case 'table':
+            return [createTable(element)];
+        default:
+             // For unhandled block tags, just process their children as paragraphs
+            const children = processInlines(element.childNodes);
+            if (children.length > 0) {
+                return [new Paragraph({ children })];
+            }
+            return [];
+    }
+}
+
+function processInlines(nodes, style = {}) {
+    let inlines = [];
+    for (const node of nodes) {
+        if (node.nodeType === 3) { // TEXT_NODE
+            if(node.text.trim()){
+                 inlines.push(new TextRun({ text: node.text, ...style }));
+            }
+        } else if (node.nodeType === 1) { // ELEMENT_NODE
+            let newStyle = { ...style };
+            const tagName = node.tagName.toLowerCase();
+            switch (tagName) {
+                case 'strong':
+                case 'b':
+                    newStyle.bold = true;
+                    break;
+                case 'em':
+                case 'i':
+                    newStyle.italics = true;
+                    break;
+                case 'u':
+                    newStyle.underline = { type: UnderlineType.SINGLE };
+                    break;
+                case 'br':
+                    inlines.push(new TextRun({ text: '', break: 1 }));
+                    continue;
+            }
+            inlines.push(...processInlines(node.childNodes, newStyle));
+        }
+    }
+    return inlines;
+}
+
+function createTable(tableNode) {
+    const rows = [];
+    for (const rowNode of tableNode.querySelectorAll('tr')) {
+        const cells = [];
+        for (const cellNode of rowNode.querySelectorAll('th, td')) {
+            let cellChildren = convertNodesToDocxObjects(cellNode.childNodes);
+            // A TableCell must contain at least one Paragraph.
+            if (cellChildren.length === 0 || !(cellChildren[0] instanceof Paragraph)) {
+                cellChildren = [new Paragraph({ children: processInlines(cellNode.childNodes) })];
+            }
+            cells.push(new TableCell({
+                children: cellChildren,
+                 borders: {
+                    top: { style: BorderStyle.SINGLE, size: 1, color: "auto" },
+                    bottom: { style: BorderStyle.SINGLE, size: 1, color: "auto" },
+                    left: { style: BorderStyle.SINGLE, size: 1, color: "auto" },
+                    right: { style: BorderStyle.SINGLE, size: 1, color: "auto" },
+                },
+            }));
+        }
+        rows.push(new TableRow({ children: cells }));
+    }
+    return new Table({
+        rows,
+        width: { size: 100, type: WidthType.PERCENTAGE },
+    });
+}
+
+export { generateDocx };
