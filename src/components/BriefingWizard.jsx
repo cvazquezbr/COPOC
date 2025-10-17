@@ -284,12 +284,13 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
             setLoadingMessage('Exportando para Word...');
             setIsLoading(true);
 
-            const response = await fetch('/api/export-word', {
+            const response = await fetch('/api/export', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
+                    exportType: 'briefing',
                     htmlContent: briefingData.finalText,
                     fileName: briefingData.name || 'briefing',
                 }),

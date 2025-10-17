@@ -204,31 +204,39 @@ const BriefingTemplatePage = () => {
     };
 
 
-    const handleExportToWord = () => {
-        if (!template) return;
-        const doc = new Document({
-            sections: [{
-                children: [
-                    new Paragraph({ text: "Modelo de Briefing", heading: HeadingLevel.TITLE }),
-                    new Paragraph({ text: "Regras Gerais para a IA:", heading: HeadingLevel.HEADING_1, spacing: { before: 400 } }),
-                    new Paragraph({ text: template.generalRules, style: "Normal" }),
-                    ...template.blocks.flatMap(block => [
-                        new Paragraph({ text: block.title, heading: HeadingLevel.HEADING_2, spacing: { before: 400 } }),
-                        new Paragraph({ text: "Conteúdo do Exemplo:", style: "Normal" }),
-                        ...block.content.split('\n').map(line => new Paragraph({ text: line })),
-                        new Paragraph({ text: "Instruções para a IA:", style: "Normal", spacing: { before: 200 } }),
-                        ...block.rules.split('\n').map(line => new Paragraph({ children: [new TextRun({ text: line, italics: true, color: "000080", size: 20 })] })),
-                    ]),
-                ],
-            }],
-        });
+    const handleExportToWord = async () => {
+        if (!template || !template.id) {
+            toast.error('O modelo precisa ser salvo antes de ser exportado.');
+            return;
+        }
 
-        Packer.toBlob(doc).then(blob => {
-            saveAs(blob, "modelo_de_briefing.docx");
-            toast.success("Modelo exportado para Word com sucesso!");
-        }).catch(err => {
-            toast.error(`Erro ao exportar para Word: ${err.message}`);
-        });
+        setIsSaving(true); // Re-use saving indicator for export
+        try {
+            const response = await fetch('/api/export', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    exportType: 'template',
+                    templateId: template.id
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }));
+                throw new Error(errorData.error || `Falha na exportação: ${response.statusText}`);
+            }
+
+            const blob = await response.blob();
+            saveAs(blob, `${template.name || 'template'}.docx`);
+            toast.success('Modelo exportado para Word com sucesso!');
+        } catch (error) {
+            console.error('Erro ao exportar modelo para Word:', error);
+            toast.error(`Falha ao exportar modelo: ${error.message}`);
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     if (isLoading || !template) {
