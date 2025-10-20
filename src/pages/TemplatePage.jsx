@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  Box, Button, Typography, Dialog, DialogTitle, DialogContent, DialogActions, Grid, CircularProgress, TextField, Paper, Accordion, AccordionSummary, AccordionDetails, IconButton, useTheme, useMediaQuery
+  Box, Button, Typography, Dialog, DialogTitle, DialogContent, DialogActions, Grid, CircularProgress, TextField, Paper, Accordion, AccordionSummary, AccordionDetails, IconButton, useTheme, useMediaQuery, Chip
 } from '@mui/material';
 import { Edit, Save, Download, ExpandMore as ExpandMoreIcon, Add, Delete } from '@mui/icons-material';
 import { toast } from 'sonner';
@@ -48,6 +48,7 @@ const BriefingTemplatePage = () => {
     const [editingBlock, setEditingBlock] = useState(null);
     const [focusModeTarget, setFocusModeTarget] = useState(null);
     const isInitialMount = useRef(true);
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
     const [debouncedTemplate] = useDebounce(template, 2000);
 
@@ -77,6 +78,16 @@ const BriefingTemplatePage = () => {
         }
         saveTemplate(debouncedTemplate);
     }, [debouncedTemplate, saveTemplate]);
+
+    useEffect(() => {
+        if (!isInitialMount.current) {
+            setHasUnsavedChanges(true);
+        }
+    }, [template]);
+
+    useEffect(() => {
+        setHasUnsavedChanges(false);
+    }, [debouncedTemplate]);
 
 
     const syncBlocksWithRules = useCallback((currentTemplate) => {
@@ -123,8 +134,9 @@ const BriefingTemplatePage = () => {
                     }
                 } else {
                     const result = await response.json();
-                    if (result && result.length > 0 && result[0].template_data) {
-                        const rawData = result[0].template_data;
+                    // O backend retorna um único objeto, não um array.
+                    if (result && result.template_data) {
+                        const rawData = result.template_data;
                         templateData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
                         toast.info('Seu modelo de briefing foi carregado.');
                     } else {
@@ -267,6 +279,7 @@ const BriefingTemplatePage = () => {
                     </Typography>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         {isSaving && <CircularProgress size={24} />}
+                        {hasUnsavedChanges && <Chip label="Salvando..." size="small" />}
                         <Button
                             startIcon={<Download />}
                             onClick={handleExportToWord}
