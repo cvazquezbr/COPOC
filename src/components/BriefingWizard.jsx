@@ -196,6 +196,7 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
     const [revisionError, setRevisionError] = useState(null);
     const [isRevised, setIsRevised] = useState(false);
     const [isSaveModalOpen, setSaveModalOpen] = useState(false);
+    const [userTemplate, setUserTemplate] = useState(null);
 
     const formattedBaseText = useMemo(() => {
         if (!briefingData.baseText) return '';
@@ -224,6 +225,21 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
             setActiveStep(0);
             setIsRevised(false);
             setRevisionError(null);
+
+            const fetchUserTemplate = async () => {
+                try {
+                    const response = await fetch('/api/briefing-template');
+                    if (response.ok) {
+                        const savedTemplate = await response.json();
+                        if (savedTemplate && savedTemplate.template_data) {
+                            setUserTemplate(savedTemplate.template_data);
+                        }
+                    }
+                } catch (error) {
+                    toast.error(`Error loading your briefing template: ${error.message}`);
+                }
+            };
+            fetchUserTemplate();
         }
     }, [open]);
 
@@ -317,8 +333,8 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
             toast.error('O texto base é obrigatório.');
             return;
         }
-        if (!briefingData.template) {
-            toast.error('O modelo de referência é obrigatório.');
+        if (!userTemplate) {
+            toast.error('Aguarde, o modelo de briefing do usuário está carregando.');
             return;
         }
 
@@ -336,7 +352,7 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
 
         try {
             setLoadingMessage('Analisando e reestruturando o briefing...');
-            const result = await geminiAPI.reviseBriefing(briefingData.baseText, briefingData.template, user.gemini_model);
+            const result = await geminiAPI.reviseBriefing(briefingData.baseText, userTemplate, user.gemini_model);
 
             if (!result || typeof result.sections !== 'object' || result.sections === null) {
                 throw new Error("A resposta da IA não continha a estrutura de seções esperada.");
