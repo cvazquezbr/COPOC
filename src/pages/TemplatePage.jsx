@@ -74,11 +74,6 @@ const BriefingTemplatePage = () => {
         }
     };
 
-    useEffect(() => {
-        if (!isInitialMount.current) {
-            setHasUnsavedChanges(true);
-        }
-    }, [template]);
 
 
     const syncBlocksWithRules = useCallback((currentTemplate) => {
@@ -161,6 +156,7 @@ const BriefingTemplatePage = () => {
 
     const handleTemplateChange = (field, value) => {
         setTemplate(prev => (prev ? { ...prev, [field]: value } : null));
+        setHasUnsavedChanges(true);
     };
 
     const handleBlockChange = (blockId, field, value) => {
@@ -171,6 +167,7 @@ const BriefingTemplatePage = () => {
         );
         return { ...prev, blocks: newBlocks };
       });
+      setHasUnsavedChanges(true);
     };
 
     const handleUpdateAndCloseEditDialog = () => {
@@ -195,6 +192,7 @@ const BriefingTemplatePage = () => {
             blocks: [...prev.blocks, newBlock]
         }));
         setEditingBlock(newBlock); // Open editor for the new block immediately
+        setHasUnsavedChanges(true);
         toast.success('Novo bloco adicionado. Edite os detalhes abaixo.');
     };
 
@@ -203,6 +201,7 @@ const BriefingTemplatePage = () => {
             ...prev,
             blocks: prev.blocks.filter(b => b.id !== blockId)
         }));
+        setHasUnsavedChanges(true);
         toast.success('Bloco removido.');
     };
 
