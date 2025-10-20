@@ -13,6 +13,7 @@ import { useDebounce } from 'use-debounce';
 import { defaultBriefingTemplate } from '../utils/defaultBriefingTemplate';
 import TextEditor from '../components/TextEditor';
 import LoadingDialog from '../components/LoadingDialog';
+import SavingModal from '../components/SavingModal';
 import { parseBlockOrderFromRules } from '../utils/templateUtils';
 
 const highlightOrderRule = (text) => {
@@ -49,45 +50,35 @@ const BriefingTemplatePage = () => {
     const [focusModeTarget, setFocusModeTarget] = useState(null);
     const isInitialMount = useRef(true);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const [isSaveModalOpen, setSaveModalOpen] = useState(false);
 
     const [debouncedTemplate] = useDebounce(template, 2000);
 
-    const saveTemplate = useCallback(async (templateToSave) => {
-      if (!templateToSave) return;
-      setIsSaving(true);
-      try {
-        const response = await fetch('/api/briefing-template', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ template_data: templateToSave }),
-        });
-        if (!response.ok) throw new Error('Falha ao salvar o modelo.');
-        // Subtle feedback for auto-save
-        console.log("Template auto-saved successfully.");
-      } catch (error) {
-        toast.error(`Erro ao salvar o modelo: ${error.message}`);
-        setError(error.message);
-      } finally {
-        setIsSaving(false);
-      }
-    }, []);
-
-    useEffect(() => {
-        if (isInitialMount.current || !debouncedTemplate) {
-            return;
+    const handleManualSave = async () => {
+        if (!template) return;
+        setSaveModalOpen(true);
+        try {
+            const response = await fetch('/api/briefing-template', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ template_data: template }),
+            });
+            if (!response.ok) throw new Error('Falha ao salvar o modelo.');
+            toast.success('Modelo salvo com sucesso!');
+            setHasUnsavedChanges(false);
+        } catch (error) {
+            toast.error(`Erro ao salvar o modelo: ${error.message}`);
+            setError(error.message);
+        } finally {
+            setSaveModalOpen(false);
         }
-        saveTemplate(debouncedTemplate);
-    }, [debouncedTemplate, saveTemplate]);
+    };
 
     useEffect(() => {
         if (!isInitialMount.current) {
             setHasUnsavedChanges(true);
         }
     }, [template]);
-
-    useEffect(() => {
-        setHasUnsavedChanges(false);
-    }, [debouncedTemplate]);
 
 
     const syncBlocksWithRules = useCallback((currentTemplate) => {
@@ -278,8 +269,15 @@ const BriefingTemplatePage = () => {
                         Editor de Modelo de Briefing
                     </Typography>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        {isSaving && <CircularProgress size={24} />}
-                        {hasUnsavedChanges && <Chip label="Salvando..." size="small" />}
+                        {hasUnsavedChanges && <Chip label="Alterações não salvas" size="small" color="warning" />}
+                        <Button
+                            startIcon={<Save />}
+                            onClick={handleManualSave}
+                            variant="contained"
+                            disabled={!hasUnsavedChanges}
+                        >
+                            {!isMobile && 'Salvar'}
+                        </Button>
                         <Button
                             startIcon={<Download />}
                             onClick={handleExportToWord}
@@ -411,6 +409,8 @@ const BriefingTemplatePage = () => {
                     </DialogActions>
                 </Dialog>
             )}
+
+            <SavingModal open={isSaveModalOpen} title="Salvando alterações..." />
         </Box>
     );
 };
