@@ -37,24 +37,33 @@ const BriefingPage = () => {
   const fetchUserTemplate = useCallback(async () => {
     setIsTemplateLoading(true);
     try {
-      const response = await fetch('/api/briefing-template');
-      if (response.ok) {
-        const savedTemplates = await response.json();
-        if (savedTemplates && savedTemplates.length > 0 && savedTemplates[0].template_data) {
-          setUserTemplate(savedTemplates[0].template_data);
+        const response = await fetch('/api/briefing-template');
+        if (!response.ok) {
+            if (response.status === 404) {
+                toast.info('Nenhum modelo salvo encontrado, usando o padrão.');
+                setUserTemplate(defaultBriefingTemplate);
+            } else {
+                throw new Error(`Failed to fetch template: ${response.statusText}`);
+            }
         } else {
-          setUserTemplate(defaultBriefingTemplate);
+            const result = await response.json();
+            if (result && result.template_data) {
+                const rawData = result.template_data;
+                const templateData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
+                setUserTemplate(templateData);
+                toast.info('Seu modelo de briefing foi carregado.');
+            } else {
+                setUserTemplate(defaultBriefingTemplate);
+                toast.info('Usando modelo de briefing padrão.');
+            }
         }
-      } else {
-        setUserTemplate(defaultBriefingTemplate);
-      }
     } catch (error) {
-      toast.error(`Error loading your briefing template: ${error.message}`);
-      setUserTemplate(defaultBriefingTemplate);
+        toast.error(`Error loading your briefing template: ${error.message}`);
+        setUserTemplate(defaultBriefingTemplate);
     } finally {
-      setIsTemplateLoading(false);
+        setIsTemplateLoading(false);
     }
-  }, []);
+}, []);
 
   useEffect(() => {
     fetchUserTemplate();
