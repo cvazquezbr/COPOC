@@ -3,7 +3,7 @@ import {
     Box, Button, Typography, Stepper, Step, StepLabel, Dialog, DialogTitle, DialogContent, Grid, CircularProgress, TextField, useMediaQuery, Backdrop, DialogActions, Paper, Card, CardContent, CardActions, Alert, Drawer, Tooltip, IconButton, Tabs, Tab
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { ArrowBack, ArrowForward, UploadFile, Edit, Check, Notes as NotesIcon, Fullscreen, FullscreenExit, Download, Delete as DeleteIcon } from '@mui/icons-material';
+import { ArrowBack, ArrowForward, UploadFile, Edit, Check, Notes as NotesIcon, Fullscreen, FullscreenExit, Download, Delete as DeleteIcon, ContentCopy } from '@mui/icons-material';
 import { toast } from 'sonner';
 
 import TextEditor from './TextEditor';
@@ -623,6 +623,21 @@ const FinalizationStep = ({ briefingData, onBriefingDataChange, onExportWord, on
         }
     };
 
+    const handleCopyToClipboard = () => {
+        const sectionsToCopy = Object.entries(briefingData.sections)
+            .filter(([title]) => title.toLowerCase() !== 'dos' && title.toLowerCase() !== "don'ts");
+
+        const htmlToCopy = sectionsToHtml(Object.fromEntries(sectionsToCopy), briefingData.template?.blocks?.map(b => b.title) || [], false);
+
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlToCopy;
+        const textToCopy = tempDiv.innerText;
+
+        navigator.clipboard.writeText(textToCopy)
+            .then(() => toast.success('Briefing copiado para a área de transferência!'))
+            .catch(err => toast.error('Erro ao copiar briefing.'));
+    };
+
     const dosContent = briefingData.sections['DOs'] || '<p>Nenhum DO definido.</p>';
     const dontsContent = briefingData.sections["DON'Ts"] || "<p>Nenhum DON'T definido.</p>";
 
@@ -646,6 +661,11 @@ const FinalizationStep = ({ briefingData, onBriefingDataChange, onExportWord, on
                     <Tooltip title="Exportar para Word">
                         <IconButton onClick={onExportWord}>
                             <Download />
+                        </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Copiar para Área de Transferência">
+                        <IconButton onClick={handleCopyToClipboard}>
+                            <ContentCopy />
                         </IconButton>
                     </Tooltip>
                     {tabIndex === 1 && (

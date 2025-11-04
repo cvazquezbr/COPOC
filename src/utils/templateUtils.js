@@ -1,6 +1,7 @@
 export const defaultBlockOrder = [
     'Título da Missão',
     'Saudação',
+    'Premiação',
     'Entregas',
     'Mensagem Principal',
     'CTA',
@@ -8,7 +9,6 @@ export const defaultBlockOrder = [
     "DON'Ts",
     'Hashtags',
     'Inspirações',
-    'Premiação',
     'Próximos Passos'
 ];
 

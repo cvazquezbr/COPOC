@@ -188,11 +188,9 @@ const BriefingPage = () => {
       toast.success(`Briefing ${isNewBriefing ? 'criado' : 'atualizado'} com sucesso!`);
       await fetchBriefings();
 
-      setSelectedBriefingId(saved.id);
+      setSelectedBriefingId(null);
       setIsNewBriefing(false);
-      setBriefingData(saved.briefing_data);
-      setOriginalBriefingData(saved.briefing_data);
-      setWizardOpen(true);
+      setWizardOpen(false);
 
       return true;
     } catch (err) {
