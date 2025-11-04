@@ -7,6 +7,7 @@ import isEqual from 'lodash.isequal';
 import { saveBriefing, updateBriefing, deleteBriefing } from '../utils/briefingState';
 import BriefingWizard from '../components/BriefingWizard';
 import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
+import EditModeDialog from '../components/EditModeDialog';
 import { defaultBriefingTemplate } from '../utils/defaultBriefingTemplate';
 import { useLayout } from '../context/LayoutContext';
 
@@ -33,6 +34,8 @@ const BriefingPage = () => {
   const [isTemplateLoading, setIsTemplateLoading] = useState(true);
   const [isNewBriefing, setIsNewBriefing] = useState(false);
   const [creationMode, setCreationMode] = useState('text');
+  const [editMode, setEditMode] = useState({ open: false, onStartOver: null, onDirectEdit: null });
+  const [wizardProps, setWizardProps] = useState({});
 
   const fetchUserTemplate = useCallback(async () => {
     setIsTemplateLoading(true);
@@ -73,18 +76,43 @@ const BriefingPage = () => {
     if (selectedBriefingId) {
       const selected = briefings.find(b => b.id === selectedBriefingId);
       if (selected) {
-        setBriefingData(selected.briefing_data);
-        setOriginalBriefingData(selected.briefing_data);
-        setCreationMode(selected.briefing_data.type || 'text');
+        const data = selected.briefing_data;
+        setBriefingData(data);
+        setOriginalBriefingData(data);
+        setCreationMode(data.type || 'text');
         setIsNewBriefing(false);
-        setWizardOpen(true);
+
+        if (data.revisedText) {
+          setEditMode({
+            open: true,
+            onStartOver: () => handleStartOver(data),
+            onDirectEdit: () => handleDirectEdit(data),
+          });
+        } else {
+          setWizardProps({ initialStep: 0, isDirectEdit: false });
+          setWizardOpen(true);
+        }
       }
     } else {
       setWizardOpen(false);
       setBriefingData(null);
       setOriginalBriefingData(null);
+      setEditMode({ open: false, onStartOver: null, onDirectEdit: null });
     }
   }, [selectedBriefingId, briefings]);
+
+  const handleStartOver = (data) => {
+    setWizardProps({ initialStep: 0, isDirectEdit: false });
+    setBriefingData(prev => ({ ...prev, revisedText: '', revisionNotes: '', sections: htmlToSections(data.baseText) }));
+    setEditMode({ open: false, onStartOver: null, onDirectEdit: null });
+    setWizardOpen(true);
+  };
+
+  const handleDirectEdit = (data) => {
+    setWizardProps({ initialStep: 1, isDirectEdit: true });
+    setEditMode({ open: false, onStartOver: null, onDirectEdit: null });
+    setWizardOpen(true);
+  };
 
 
   useEffect(() => {
@@ -249,21 +277,30 @@ const BriefingPage = () => {
 
   return (
     <>
-      <BriefingWizard
-        open={isWizardOpen}
-        onClose={handleCloseWizard}
-        onSave={handleSaveBriefing}
-        onDelete={!isNewBriefing ? handleDelete : null}
-        briefingData={briefingData}
-        onBriefingDataChange={setBriefingData}
-        isNewBriefing={isNewBriefing}
-        creationMode={creationMode}
-      />
+      {isWizardOpen && briefingData && (
+        <BriefingWizard
+          open={isWizardOpen}
+          onClose={handleCloseWizard}
+          onSave={handleSaveBriefing}
+          onDelete={!isNewBriefing ? handleDelete : null}
+          briefingData={briefingData}
+          onBriefingDataChange={setBriefingData}
+          isNewBriefing={isNewBriefing}
+          creationMode={creationMode}
+          {...wizardProps}
+        />
+      )}
       <UnsavedChangesDialog
         open={showUnsavedDialog}
         onClose={() => setShowUnsavedDialog(false)}
         onConfirmDiscard={onConfirmDiscard}
         onConfirmSave={onConfirmSave}
+      />
+      <EditModeDialog
+        open={editMode.open}
+        onClose={() => setEditMode({ ...editMode, open: false })}
+        onStartOver={editMode.onStartOver}
+        onDirectEdit={editMode.onDirectEdit}
       />
     </>
   );
