@@ -9,6 +9,7 @@ import BriefingWizard from '../components/BriefingWizard';
 import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
 import EditModeDialog from '../components/EditModeDialog';
 import { defaultBriefingTemplate } from '../utils/defaultBriefingTemplate';
+import { htmlToSections } from '../utils/templateUtils';
 import { useLayout } from '../context/LayoutContext';
 
 const emptyBriefingData = {
