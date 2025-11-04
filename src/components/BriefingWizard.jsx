@@ -174,7 +174,7 @@ const isEditorEmpty = (htmlString) => {
     return tempDiv.textContent.trim() === '' && !tempDiv.querySelector('img');
 };
 
-const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBriefingDataChange, isNewBriefing, creationMode = 'text' }) => {
+const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBriefingDataChange, isNewBriefing, creationMode = 'text', initialStep = 0, isDirectEdit = false }) => {
     const { user } = useUserAuth();
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -186,7 +186,7 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
         return ['Edição', 'Revisão', 'Finalização'];
     }, [creationMode]);
 
-    const [activeStep, setActiveStep] = useState(0);
+    const [activeStep, setActiveStep] = useState(initialStep);
     const [isLoading, setIsLoading] = useState(false);
     const [loadingMessage, setLoadingMessage] = useState('');
     const [isNotesDrawerOpen, setNotesDrawerOpen] = useState(false);
@@ -194,7 +194,7 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
     const [activeSuggestion, setActiveSuggestion] = useState(null);
     const [editingContent, setEditingContent] = useState('');
     const [revisionError, setRevisionError] = useState(null);
-    const [isRevised, setIsRevised] = useState(false);
+    const [isRevised, setIsRevised] = useState(isDirectEdit);
     const [isSaveModalOpen, setSaveModalOpen] = useState(false);
     const [userTemplate, setUserTemplate] = useState(null);
 
@@ -222,8 +222,8 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
 
     useEffect(() => {
         if (open) {
-            setActiveStep(0);
-            setIsRevised(false);
+            setActiveStep(initialStep);
+            setIsRevised(isDirectEdit);
             setRevisionError(null);
 
             const fetchUserTemplate = async () => {
