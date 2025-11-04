@@ -60,15 +60,17 @@ export const updateBriefing = async (id, name, briefingData) => {
 };
 
 export const deleteBriefing = async (id) => {
-  try {
-    const res = await fetchWithAuth(`/api/briefings/${id}`, { method: 'DELETE' });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      toast.error(err.error || 'Failed to delete briefing.');
-      throw new Error(err.error || 'Failed to delete briefing.');
+    try {
+        const res = await fetchWithAuth(`/api/briefings/${id}`, {
+            method: 'DELETE',
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || 'Failed to delete briefing.');
+        }
+        return res.json();
+    } catch (error) {
+        toast.error(`Delete failed: ${error.message}`);
+        throw error;
     }
-    return res.json();
-  } catch (error) {
-    throw error;
-  }
 };
