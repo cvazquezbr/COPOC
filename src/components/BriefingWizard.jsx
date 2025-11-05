@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
-    Box, Button, Typography, Stepper, Step, StepLabel, Dialog, DialogTitle, DialogContent, Grid, CircularProgress, TextField, useMediaQuery, Backdrop, DialogActions, Paper, Card, CardContent, CardActions, Alert, Drawer, Tooltip, IconButton, Tabs, Tab
+    Box, Button, Typography, Stepper, Step, StepLabel, Dialog, DialogTitle, DialogContent, Grid, CircularProgress, TextField, useMediaQuery, Backdrop, DialogActions, Paper, Card, CardContent, CardActions, Alert, Drawer, Tooltip, IconButton, Tabs, Tab, Select, MenuItem, FormControl, InputLabel
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { ArrowBack, ArrowForward, UploadFile, Edit, Check, Notes as NotesIcon, Fullscreen, FullscreenExit, Download, Delete as DeleteIcon, ContentCopy } from '@mui/icons-material';
@@ -136,9 +136,9 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
 
     const steps = useMemo(() => {
         if (creationMode === 'sections') {
-            return ['Preencher Seções', 'Revisão', 'Finalização'];
+            return ['Preencher Seções', 'Revisão', 'Tradução'];
         }
-        return ['Edição', 'Revisão', 'Finalização'];
+        return ['Edição', 'Revisão', 'Tradução'];
     }, [creationMode]);
 
     const [activeStep, setActiveStep] = useState(initialStep);
@@ -152,6 +152,9 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
     const [isRevised, setIsRevised] = useState(isDirectEdit);
     const [isSaveModalOpen, setSaveModalOpen] = useState(false);
     const [userTemplate, setUserTemplate] = useState(null);
+    const [targetLanguage, setTargetLanguage] = useState('');
+    const [originalFinalText, setOriginalFinalText] = useState(null);
+    const [originalSections, setOriginalSections] = useState(null);
 
     const formattedBaseText = useMemo(() => {
         if (!briefingData.baseText) return '';
@@ -180,6 +183,9 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
             setActiveStep(initialStep);
             setIsRevised(isDirectEdit);
             setRevisionError(null);
+            setTargetLanguage(''); // Reset language
+            setOriginalFinalText(null); // Reset original text
+            setOriginalSections(null); // Reset original sections
 
             const fetchUserTemplate = async () => {
                 try {
@@ -208,16 +214,80 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
     }, [activeSuggestion, isMobile]);
 
     useEffect(() => {
-        if (activeStep === steps.length - 1) {
-            const filteredSections = Object.fromEntries(
-                Object.entries(briefingData.sections).filter(
-                    ([title]) => title.toLowerCase() !== 'dos' && title.toLowerCase() !== "don'ts"
-                )
-            );
-            const finalHtml = sectionsToHtml(filteredSections, briefingData.template?.blocks?.map(b => b.title) || [], false);
-            onBriefingDataChange(prev => ({ ...prev, finalText: finalHtml }));
-        }
-    }, [activeStep, briefingData.sections, briefingData.template, onBriefingDataChange, steps.length]);
+        const translateContent = async () => {
+            if (activeStep !== steps.length - 1) return;
+
+            if (!targetLanguage) {
+                if (originalFinalText !== null && originalSections !== null) {
+                    onBriefingDataChange(prev => ({
+                        ...prev,
+                        finalText: originalFinalText,
+                        sections: originalSections
+                    }));
+                }
+                return;
+            }
+
+            const apiKey = user?.gemini_api_key;
+            if (!apiKey) {
+                toast.error('Chave de API do Gemini não configurada.');
+                return;
+            }
+            geminiAPI.initialize(apiKey);
+
+            setLoadingMessage(`Traduzindo para ${targetLanguage}...`);
+            setIsLoading(true);
+
+            try {
+                const textToTranslate = originalFinalText;
+                const sectionsToTranslate = originalSections;
+
+                if (!textToTranslate || !sectionsToTranslate) {
+                    toast.error("Conteúdo original não encontrado para tradução.");
+                    return;
+                }
+
+                const dosToTranslate = sectionsToTranslate['DOs'] || '';
+                const dontsToTranslate = sectionsToTranslate["DON'Ts"] || '';
+
+                const translatedData = await geminiAPI.translateBriefing(
+                    textToTranslate,
+                    dosToTranslate,
+                    dontsToTranslate,
+                    targetLanguage,
+                    user.gemini_model
+                );
+
+                onBriefingDataChange(prev => ({
+                    ...prev,
+                    finalText: translatedData.translatedDocument,
+                    sections: {
+                        ...prev.sections,
+                        'DOs': translatedData.translatedDos,
+                        "DON'Ts": translatedData.translatedDonts,
+                    }
+                }));
+
+                toast.success(`Briefing traduzido para ${targetLanguage}!`);
+            } catch (error) {
+                console.error('Erro na tradução:', error);
+                toast.error(`Falha na tradução: ${error.message}`);
+                if (originalFinalText !== null && originalSections !== null) {
+                    onBriefingDataChange(prev => ({
+                        ...prev,
+                        finalText: originalFinalText,
+                        sections: originalSections
+                    }));
+                }
+            } finally {
+                setIsLoading(false);
+                setLoadingMessage('');
+            }
+        };
+
+        translateContent();
+    }, [targetLanguage]);
+
 
     const handleNext = async () => {
         const currentStepLabel = steps[activeStep];
@@ -228,10 +298,25 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
             onBriefingDataChange(prev => ({ ...prev, baseText: baseTextFromSections }));
         } else if (currentStepLabel === 'Revisão') {
             const updatedSections = htmlToSections(briefingData.revisedText);
+            const finalHtml = sectionsToHtml(
+                Object.fromEntries(
+                    Object.entries(updatedSections).filter(
+                        ([title]) => title.toLowerCase() !== 'dos' && title.toLowerCase() !== "don'ts"
+                    )
+                ),
+                briefingData.template?.blocks?.map(b => b.title) || [],
+                false
+            );
+
             onBriefingDataChange(prev => ({
                 ...prev,
                 sections: updatedSections,
+                finalText: finalHtml
             }));
+
+            // Store original content for translation step
+            setOriginalFinalText(finalHtml);
+            setOriginalSections(updatedSections);
         }
         setActiveStep(nextStep);
     };
@@ -564,7 +649,7 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
         );
     };
 
-const FinalizationStep = ({ briefingData, onBriefingDataChange, onExportWord, onFocus }) => {
+const TranslationStep = ({ briefingData, onBriefingDataChange, onExportWord, onFocus, targetLanguage, setTargetLanguage }) => {
     const [tabIndex, setTabIndex] = useState(0);
     const exportRef = useRef(null);
 
@@ -603,10 +688,26 @@ const FinalizationStep = ({ briefingData, onBriefingDataChange, onExportWord, on
 
     return (
         <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <Typography variant="h6" gutterBottom>Finalização</Typography>
+            <Typography variant="h6" gutterBottom>Tradução</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Revise o documento final. Para fazer ajustes, volte às etapas anteriores.
+                Revise o documento final. Para traduzir, selecione um idioma alvo. Para fazer ajustes, volte às etapas anteriores.
             </Typography>
+
+            <FormControl fullWidth sx={{ mb: 2, maxWidth: 300 }}>
+                <InputLabel id="target-language-label">Idioma Alvo</InputLabel>
+                <Select
+                    labelId="target-language-label"
+                    id="target-language-select"
+                    value={targetLanguage}
+                    label="Idioma Alvo"
+                    onChange={(e) => setTargetLanguage(e.target.value)}
+                >
+                    <MenuItem value="">Português (Original)</MenuItem>
+                    <MenuItem value="inglês">Inglês</MenuItem>
+                    <MenuItem value="espanhol">Espanhol</MenuItem>
+                </Select>
+            </FormControl>
+
             <Box sx={{ borderBottom: 1, borderColor: 'divider', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Tabs value={tabIndex} onChange={handleTabChange} aria-label="abas de finalização">
                     <Tab label="Documento" />
@@ -639,7 +740,11 @@ const FinalizationStep = ({ briefingData, onBriefingDataChange, onExportWord, on
             </Box>
             <Box sx={{ flexGrow: 1, overflowY: 'auto', p: tabIndex === 1 ? 2 : 0, minHeight: 0 }}>
                 {tabIndex === 0 && (
-                    <HtmlDisplay htmlContent={briefingData.finalText} />
+                     <TextEditor
+                        value={briefingData.finalText}
+                        onChange={(val) => onBriefingDataChange(prev => ({ ...prev, finalText: val }))}
+                        html={true}
+                    />
                 )}
                 {tabIndex === 1 && (
                     <Grid container spacing={2} ref={exportRef} sx={{ p: 2, backgroundColor: (theme) => theme.palette.background.paper }}>
@@ -649,7 +754,11 @@ const FinalizationStep = ({ briefingData, onBriefingDataChange, onExportWord, on
                                     <Typography variant="h5" component="div" sx={{ mb: 1.5 }}>
                                         DOs
                                     </Typography>
-                                    <HtmlDisplay htmlContent={dosContent} />
+                                     <TextEditor
+                                        value={dosContent}
+                                        onChange={(val) => onBriefingDataChange(prev => ({ ...prev, sections: { ...prev.sections, 'DOs': val } }))}
+                                        html={true}
+                                    />
                                 </CardContent>
                             </Card>
                         </Grid>
@@ -659,7 +768,11 @@ const FinalizationStep = ({ briefingData, onBriefingDataChange, onExportWord, on
                                     <Typography variant="h5" component="div" sx={{ mb: 1.5 }}>
                                         DON'Ts
                                     </Typography>
-                                    <HtmlDisplay htmlContent={dontsContent} />
+                                    <TextEditor
+                                        value={dontsContent}
+                                        onChange={(val) => onBriefingDataChange(prev => ({ ...prev, sections: { ...prev.sections, "DON'Ts": val } }))}
+                                        html={true}
+                                    />
                                 </CardContent>
                             </Card>
                         </Grid>
@@ -679,8 +792,15 @@ const FinalizationStep = ({ briefingData, onBriefingDataChange, onExportWord, on
                 return renderStep0_Sections();
             case 'Revisão':
                 return renderStep1_Review();
-            case 'Finalização':
-                return <FinalizationStep briefingData={briefingData} onBriefingDataChange={handleBriefingDataChange} onExportWord={handleExportWord} onFocus={setFocusModeTarget} />;
+            case 'Tradução':
+                return <TranslationStep
+                    briefingData={briefingData}
+                    onBriefingDataChange={handleBriefingDataChange}
+                    onExportWord={handleExportWord}
+                    onFocus={setFocusModeTarget}
+                    targetLanguage={targetLanguage}
+                    setTargetLanguage={setTargetLanguage}
+                />;
             default:
                 return null;
         }
