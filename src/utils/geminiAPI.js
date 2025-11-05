@@ -142,6 +142,9 @@ class GeminiAPI {
         ---
         **T2. REGRAS ESPECÍFICAS (Instruções detalhadas por bloco):**
         Use estas regras para guiar o preenchimento de cada bloco.
+
+        **ATENÇÃO ESPECIAL:** Os títulos "DOs" e "DON'Ts" no TEXTO BASE podem aparecer com variações como "DO'S", "DONT'S" ou em minúsculas. Você DEVE reconhecer essas variações e mapear o conteúdo para as chaves "DOs" e "DON'Ts" corretas no JSON final.
+
         ${specificRules}
         ---
         **T3. TEXTO BASE (Fornecido pelo usuário, pode estar em HTML ou texto simples):**
