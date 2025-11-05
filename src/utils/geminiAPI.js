@@ -201,6 +201,67 @@ class GeminiAPI {
 
     return this.generateContent(prompt, model, purpose);
   }
+
+  async translateBriefing(documentContent, dosContent, dontsContent, targetLanguage, model) {
+    const purpose = `Tradução de Briefing para ${targetLanguage}`;
+    const prompt = `
+      **TAREFA:** Traduzir o seguinte conteúdo de um briefing de marketing para o idioma **${targetLanguage}**.
+
+      **DIRETRIZES CRÍTICAS PARA A RESPOSTA:**
+      - Sua resposta DEVE ser um objeto JSON válido e completo, sem nenhum texto ou formatação adicional.
+      - A estrutura do JSON DEVE ser EXATAMENTE a seguinte:
+      {
+        "translatedDocument": "...",
+        "translatedDos": "...",
+        "translatedDonts": "..."
+      }
+      - Mantenha a formatação HTML original (tags como <p>, <h3>, <ul>, <li>) no conteúdo traduzido.
+      - A tradução deve ser precisa e manter o tom profissional do original.
+
+      ---
+      **CONTEÚDO PARA TRADUZIR:**
+
+      **1. Documento Principal (em HTML):**
+      \`\`\`html
+      ${documentContent}
+      \`\`\`
+
+      **2. Seção "DOs" (em HTML):**
+      \`\`\`html
+      ${dosContent}
+      \`\`\`
+
+      **3. Seção "DON'Ts" (em HTML):**
+      \`\`\`html
+      ${dontsContent}
+      \`\`\`
+    `;
+
+    try {
+      const responseText = await this.generateContent(prompt, model, purpose);
+      let jsonString = responseText;
+      const codeBlockMatch = responseText.match(/```json\n([\s\S]*?)\n```/);
+      if (codeBlockMatch && codeBlockMatch[1]) {
+        jsonString = codeBlockMatch[1];
+      } else {
+        const firstBrace = responseText.indexOf("{");
+        const lastBrace = responseText.lastIndexOf("}");
+        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+          jsonString = responseText.substring(firstBrace, lastBrace + 1);
+        }
+      }
+
+      const parsed = JSON.parse(jsonString);
+      if (typeof parsed.translatedDocument !== 'string' || typeof parsed.translatedDos !== 'string' || typeof parsed.translatedDonts !== 'string') {
+        throw new Error('A resposta da IA está faltando campos traduzidos essenciais.');
+      }
+      return parsed;
+
+    } catch (error) {
+      console.error(`[${purpose}] Erro ao traduzir briefing:`, error);
+      throw new Error(`A tradução da IA falhou. Motivo: ${error.message}`);
+    }
+  }
 }
 
 const geminiAPI = new GeminiAPI();
