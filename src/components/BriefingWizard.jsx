@@ -209,7 +209,12 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
 
     useEffect(() => {
         if (activeStep === steps.length - 1) {
-            const finalHtml = sectionsToHtml(briefingData.sections, briefingData.template?.blocks?.map(b => b.title) || [], false);
+            const filteredSections = Object.fromEntries(
+                Object.entries(briefingData.sections).filter(
+                    ([title]) => title.toLowerCase() !== 'dos' && title.toLowerCase() !== "don'ts"
+                )
+            );
+            const finalHtml = sectionsToHtml(filteredSections, briefingData.template?.blocks?.map(b => b.title) || [], false);
             onBriefingDataChange(prev => ({ ...prev, finalText: finalHtml }));
         }
     }, [activeStep, briefingData.sections, briefingData.template, onBriefingDataChange, steps.length]);
