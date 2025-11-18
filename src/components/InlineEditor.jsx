@@ -1,15 +1,11 @@
 import React from 'react';
-import { useEditor, EditorContent } from '@tiptap/react';
-import { BubbleMenu } from '@tiptap/extension-bubble-menu';
+import { useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import { Box, IconButton, Tooltip, Paper } from '@mui/material';
-import { FormatBold, FormatItalic, StrikethroughS } from '@mui/icons-material';
 
-const InlineEditor = ({ value, onChange }) => {
+const useInlineEditor = ({ value, onChange }) => {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        // Disable block-level nodes for a truly inline experience if needed
         heading: false,
         blockquote: false,
         codeBlock: false,
@@ -19,7 +15,9 @@ const InlineEditor = ({ value, onChange }) => {
     ],
     content: value,
     onUpdate: ({ editor }) => {
-      onChange(editor.getHTML());
+      if (onChange) {
+        onChange(editor.getHTML());
+      }
     },
   });
 
@@ -29,48 +27,7 @@ const InlineEditor = ({ value, onChange }) => {
     }
   }, [value, editor]);
 
-  if (!editor) {
-    return null;
-  }
-
-  return (
-    <>
-      {editor && (
-        <BubbleMenu editor={editor} tippyOptions={{ duration: 100 }}>
-          <Paper sx={{ display: 'flex', p: 0.5 }}>
-            <Tooltip title="Bold">
-              <IconButton onClick={() => editor.chain().focus().toggleBold().run()} color={editor.isActive('bold') ? 'primary' : 'default'} size="small">
-                <FormatBold />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Italic">
-              <IconButton onClick={() => editor.chain().focus().toggleItalic().run()} color={editor.isActive('italic') ? 'primary' : 'default'} size="small">
-                <FormatItalic />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Strike">
-              <IconButton onClick={() => editor.chain().focus().toggleStrike().run()} color={editor.isActive('strike') ? 'primary' : 'default'} size="small">
-                <StrikethroughS />
-              </IconButton>
-            </Tooltip>
-          </Paper>
-        </BubbleMenu>
-      )}
-      <Box
-        sx={{
-            border: '1px solid #ccc',
-            borderRadius: '4px',
-            p: 1,
-            minHeight: '40px',
-             '.ProseMirror': {
-                outline: 'none',
-            }
-        }}
-      >
-        <EditorContent editor={editor} />
-      </Box>
-    </>
-  );
+  return editor;
 };
 
-export default InlineEditor;
+export default useInlineEditor;
