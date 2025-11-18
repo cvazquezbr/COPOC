@@ -57,8 +57,6 @@ const InlineEditor = ({ value, onChange }) => {
         </BubbleMenu>
       )}
       <Box
-        component={EditorContent}
-        editor={editor}
         sx={{
             border: '1px solid #ccc',
             borderRadius: '4px',
@@ -68,7 +66,9 @@ const InlineEditor = ({ value, onChange }) => {
                 outline: 'none',
             }
         }}
-       />
+      >
+        <EditorContent editor={editor} />
+      </Box>
     </>
   );
 };
