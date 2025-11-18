@@ -758,6 +758,7 @@ const TranslationStep = ({ briefingData, onBriefingDataChange, onExportWord, onF
                                         value={dosContent}
                                         onChange={(val) => onBriefingDataChange(prev => ({ ...prev, sections: { ...prev.sections, 'DOs': val } }))}
                                         html={true}
+                                        variant="simple"
                                     />
                                 </CardContent>
                             </Card>
@@ -772,6 +773,7 @@ const TranslationStep = ({ briefingData, onBriefingDataChange, onExportWord, onF
                                         value={dontsContent}
                                         onChange={(val) => onBriefingDataChange(prev => ({ ...prev, sections: { ...prev.sections, "DON'Ts": val } }))}
                                         html={true}
+                                        variant="simple"
                                     />
                                 </CardContent>
                             </Card>
