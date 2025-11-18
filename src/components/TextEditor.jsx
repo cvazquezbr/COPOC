@@ -1,12 +1,33 @@
 import React from 'react';
+import { EditorContent } from '@tiptap/react';
+import { Box, TextField, Typography } from '@mui/material';
 import AdvancedEditor from './AdvancedEditor';
-import InlineEditor from './InlineEditor';
-import { TextField, Box, Typography } from '@mui/material';
+import useInlineEditor from './InlineEditor';
 
 const TextEditor = ({ value, onChange, html = false, variant = 'full', ...props }) => {
   if (html) {
     if (variant === 'simple') {
-      return <InlineEditor value={value} onChange={onChange} html={html} {...props} />;
+      const editor = useInlineEditor({ value, onChange });
+
+      if (!editor) {
+        return null;
+      }
+
+      return (
+        <Box
+          sx={{
+            border: '1px solid #ccc',
+            borderRadius: '4px',
+            p: 1,
+            minHeight: '40px',
+            '.ProseMirror': {
+              outline: 'none',
+            }
+          }}
+        >
+          <EditorContent editor={editor} />
+        </Box>
+      );
     }
     return <AdvancedEditor value={value} onChange={onChange} html={html} {...props} />;
   }
