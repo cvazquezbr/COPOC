@@ -81,8 +81,9 @@ export const UserAuthContextProvider = ({ children }) => {
       });
       const data = await res.json();
       if (res.ok) {
-        // The API returns the user object directly
-        setUser(data);
+        // The API returns the user object directly, but it's partial.
+        // We need to fetch the full user object to get all necessary data.
+        await fetchUser(); // <<< THIS IS THE FIX
         toast.success('Login bem-sucedido!');
         return true;
       } else {
