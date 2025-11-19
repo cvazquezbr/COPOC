@@ -1,17 +1,18 @@
 import { serialize } from 'cookie';
 
-export default async function handler(req, res) {
+export default function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
-    return res.status(405).json({ message: 'Method Not Allowed' });
+    return res.status(405).json({ message: `Method ${req.method} Not Allowed` });
   }
 
-  // To log out, we set the auth_token cookie to be expired.
+  // To log out, we instruct the browser to clear the auth_token cookie.
+  // This is done by setting the cookie with an empty value and an expiration date in the past.
   const cookie = serialize('auth_token', '', {
     httpOnly: true,
     secure: process.env.NODE_ENV !== 'development',
     sameSite: 'strict',
-    expires: new Date(0), // Set the expiry date to the past
+    maxAge: -1, // A value of -1 or 0 tells the browser to expire the cookie immediately.
     path: '/',
   });
 
