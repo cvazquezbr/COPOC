@@ -7,6 +7,7 @@ import {
   Paper,
   Container,
   CircularProgress,
+  LinearProgress,
   Alert
 } from '@mui/material';
 
@@ -122,10 +123,10 @@ const TranscriptionPage = () => {
 
         {isTranscribing && (
           <Box sx={{ my: 4 }}>
-            <Typography align="center" gutterBottom>Progresso: {progress.toFixed(2)}%</Typography>
+            <Typography align="center" gutterBottom>Progresso: {(typeof progress === 'number' ? progress : 0).toFixed(2)}%</Typography>
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 <Box sx={{ width: '100%', mr: 1 }}>
-                    <CircularProgress variant="determinate" value={progress} sx={{ width: '100%' }}/>
+                    <LinearProgress variant="determinate" value={progress || 0} />
                 </Box>
             </Box>
           </Box>

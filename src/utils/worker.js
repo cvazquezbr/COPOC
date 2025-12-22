@@ -13,11 +13,13 @@ self.addEventListener('message', async (event) => {
                 'Xenova/whisper-small',
                 {
                     progress_callback: (progress) => {
-                        // Post a progress message to the main thread
-                        self.postMessage({
-                            status: 'progress',
-                            progress: progress.progress,
-                        });
+                        // Post a progress message to the main thread, only if progress is a number
+                        if (typeof progress.progress === 'number') {
+                            self.postMessage({
+                                status: 'progress',
+                                progress: progress.progress,
+                            });
+                        }
                     },
                 }
             );
@@ -40,6 +42,15 @@ self.addEventListener('message', async (event) => {
             const output = await transcriber(audio, {
                 chunk_length_s: 30,
                 stride_length_s: 5,
+                progress_callback: (progress) => {
+                    // Post a progress message to the main thread, only if progress is a number
+                    if (typeof progress.progress === 'number') {
+                        self.postMessage({
+                            status: 'progress',
+                            progress: progress.progress,
+                        });
+                    }
+                },
             });
             // Post the completed transcription to the main thread
             self.postMessage({
