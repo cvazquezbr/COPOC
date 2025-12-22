@@ -119,7 +119,8 @@ const MainLayout = () => {
     setDrawerOpen,
   } = useLayout();
 
-  const isBriefingPage = location.pathname === '/briefings';
+  const isBriefingPage = location.pathname.startsWith('/briefings') || location.pathname.startsWith('/briefing-template');
+  const isTranscriptionPage = location.pathname.startsWith('/transcricoes');
 
   const [setupModalOpen, setSetupModalOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
@@ -162,7 +163,7 @@ const MainLayout = () => {
     if (isMobile) setMobileOpen(false);
   };
 
-  const drawerContent = isBriefingPage ? (
+  const drawerContent = (
     <div>
       <DrawerHeader>
         <Button
@@ -180,7 +181,7 @@ const MainLayout = () => {
         >
           Novo Briefing
         </Button>
-        <IconButton onClick={() => isMobile ? setMobileOpen(false) : setDrawerOpen(false)}>
+        <IconButton onClick={() => (isMobile ? setMobileOpen(false) : setDrawerOpen(false))}>
           <ChevronLeftIcon />
         </IconButton>
       </DrawerHeader>
@@ -193,26 +194,26 @@ const MainLayout = () => {
               onClick={() => handleSelectBriefing(briefing.id)}
               sx={{
                 minHeight: 48,
-                justifyContent: (isDrawerOpen || isMobile) ? 'initial' : 'center',
+                justifyContent: isDrawerOpen || isMobile ? 'initial' : 'center',
                 px: 2.5,
               }}
             >
               <ListItemIcon
                 sx={{
                   minWidth: 0,
-                  mr: (isDrawerOpen || isMobile) ? 3 : 'auto',
+                  mr: isDrawerOpen || isMobile ? 3 : 'auto',
                   justifyContent: 'center',
                 }}
               >
                 <DescriptionIcon />
               </ListItemIcon>
-              <ListItemText primary={briefing.name} sx={{ opacity: (isDrawerOpen || isMobile) ? 1 : 0 }} />
+              <ListItemText primary={briefing.name} sx={{ opacity: isDrawerOpen || isMobile ? 1 : 0 }} />
             </ListItemButton>
           </ListItem>
         ))}
       </List>
     </div>
-  ) : null;
+  );
 
   return (
     <>
@@ -234,14 +235,25 @@ const MainLayout = () => {
                 <MenuIcon />
               </IconButton>
             )}
+             {isTranscriptionPage && (
+              <Button
+                color="inherit"
+                onClick={() => navigate('/')}
+                startIcon={<ChevronLeftIcon />}
+              >
+                Voltar
+              </Button>
+            )}
             <Box sx={{ flexGrow: 1 }} />
-            <IconButton
-              color="inherit"
-              onClick={() => navigate('/briefing-template')}
-              aria-label="Edit Template"
-            >
-              <ArticleIcon />
-            </IconButton>
+            {isBriefingPage &&
+              <IconButton
+                color="inherit"
+                onClick={() => navigate('/briefing-template')}
+                aria-label="Edit Template"
+              >
+                <ArticleIcon />
+              </IconButton>
+            }
             <IconButton sx={{ ml: 1 }} onClick={toggleTheme} color="inherit" aria-label="Toggle theme">
               {mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
             </IconButton>
@@ -301,7 +313,7 @@ const MainLayout = () => {
             )}
           </Box>
         )}
-        <Box component="main" sx={{ flexGrow: 1, p: 3, minHeight: '100vh' }}>
+        <Box component="main" sx={{ flexGrow: 1, p: 3, minHeight: '100vh', width: '100%' }}>
           <Toolbar />
           <Outlet />
         </Box>
