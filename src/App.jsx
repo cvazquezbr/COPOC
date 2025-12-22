@@ -7,6 +7,8 @@ import SignupPage from './pages/SignupPage';
 import MainLayout from './components/MainLayout';
 import BriefingPage from './pages/BriefingPage';
 import TemplatePage from './pages/TemplatePage';
+import SelectionPage from './pages/SelectionPage';
+import TranscriptionPage from './pages/TranscriptionPage';
 
 // Context
 import { useUserAuth, UserAuthContextProvider } from './context/UserAuthContext';
@@ -42,7 +44,9 @@ function App() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<BriefingPage />} />
+        <Route index element={<SelectionPage />} />
+        <Route path="briefings" element={<BriefingPage />} />
+        <Route path="transcriptions" element={<TranscriptionPage />} />
         <Route path="briefing-template" element={<TemplatePage />} />
       </Route>
 

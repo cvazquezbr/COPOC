@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   Box,
   AppBar as MuiAppBar,
@@ -108,6 +108,7 @@ const MainLayout = () => {
   const { mode, toggleTheme } = useAppTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
+  const location = useLocation();
   const { logout } = useUserAuth();
   const {
     briefings,
@@ -117,6 +118,8 @@ const MainLayout = () => {
     isDrawerOpen,
     setDrawerOpen,
   } = useLayout();
+
+  const isBriefingPage = location.pathname === '/briefings';
 
   const [setupModalOpen, setSetupModalOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
@@ -149,17 +152,17 @@ const MainLayout = () => {
 
   const handleNewBriefing = () => {
     setSelectedBriefingId(null);
-    navigate('/');
+    navigate('/briefings');
     if (isMobile) setMobileOpen(false);
   };
 
   const handleSelectBriefing = (id) => {
     setSelectedBriefingId(id);
-    navigate('/');
+    navigate('/briefings');
     if (isMobile) setMobileOpen(false);
   };
 
-  const drawerContent = (
+  const drawerContent = isBriefingPage ? (
     <div>
       <DrawerHeader>
         <Button
@@ -209,7 +212,7 @@ const MainLayout = () => {
         ))}
       </List>
     </div>
-  );
+  ) : null;
 
   return (
     <>
@@ -217,18 +220,20 @@ const MainLayout = () => {
         <CssBaseline />
         <AppBar position="fixed" open={!isMobile && isDrawerOpen} isMobile={isMobile}>
           <Toolbar>
-            <IconButton
-              color="inherit"
-              aria-label="open drawer"
-              onClick={handleDrawerToggle}
-              edge="start"
-              sx={{
-                marginRight: 2,
-                ...((!isMobile && isDrawerOpen) && { display: 'none' }),
-              }}
-            >
-              <MenuIcon />
-            </IconButton>
+            {isBriefingPage && (
+              <IconButton
+                color="inherit"
+                aria-label="open drawer"
+                onClick={handleDrawerToggle}
+                edge="start"
+                sx={{
+                  marginRight: 2,
+                  ...((!isMobile && isDrawerOpen) && { display: 'none' }),
+                }}
+              >
+                <MenuIcon />
+              </IconButton>
+            )}
             <Box sx={{ flexGrow: 1 }} />
             <IconButton
               color="inherit"
@@ -272,28 +277,30 @@ const MainLayout = () => {
             </div>
           </Toolbar>
         </AppBar>
-        <Box
-          component="nav"
-          sx={{ width: { sm: isDrawerOpen ? drawerWidth : `calc(${theme.spacing(7)} + 1px)` }, flexShrink: { sm: 0 } }}
-        >
-          {isMobile ? (
-            <MuiDrawer
-              variant="temporary"
-              open={mobileOpen}
-              onClose={handleDrawerToggle}
-              ModalProps={{ keepMounted: true }}
-              sx={{
-                '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
-              }}
-            >
-              {drawerContent}
-            </MuiDrawer>
-          ) : (
-            <DesktopDrawer variant="permanent" open={isDrawerOpen}>
-              {drawerContent}
-            </DesktopDrawer>
-          )}
-        </Box>
+        {isBriefingPage && (
+          <Box
+            component="nav"
+            sx={{ width: { sm: isDrawerOpen ? drawerWidth : `calc(${theme.spacing(7)} + 1px)` }, flexShrink: { sm: 0 } }}
+          >
+            {isMobile ? (
+              <MuiDrawer
+                variant="temporary"
+                open={mobileOpen}
+                onClose={handleDrawerToggle}
+                ModalProps={{ keepMounted: true }}
+                sx={{
+                  '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+                }}
+              >
+                {drawerContent}
+              </MuiDrawer>
+            ) : (
+              <DesktopDrawer variant="permanent" open={isDrawerOpen}>
+                {drawerContent}
+              </DesktopDrawer>
+            )}
+          </Box>
+        )}
         <Box component="main" sx={{ flexGrow: 1, p: 3, minHeight: '100vh' }}>
           <Toolbar />
           <Outlet />
