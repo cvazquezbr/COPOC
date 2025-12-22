@@ -46,7 +46,7 @@ function App() {
       >
         <Route index element={<SelectionPage />} />
         <Route path="briefings" element={<BriefingPage />} />
-        <Route path="transcriptions" element={<TranscriptionPage />} />
+        <Route path="transcricoes" element={<TranscriptionPage />} />
         <Route path="briefing-template" element={<TemplatePage />} />
       </Route>
 

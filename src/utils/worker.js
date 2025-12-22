@@ -1,74 +1,37 @@
 import { pipeline } from '@xenova/transformers';
 
-// Create a singleton instance of the speech recognition pipeline
-let transcriber = null;
+class TranscriptionPipeline {
+    static instance = null;
 
-// Listen for messages from the main thread
-self.addEventListener('message', async (event) => {
-    // If the transcriber is not initialized, create it
-    if (transcriber === null) {
-        try {
-            transcriber = await pipeline(
-                'automatic-speech-recognition',
-                'Xenova/whisper-small',
-                {
-                    progress_callback: (progress) => {
-                        // Post a progress message to the main thread, only if progress is a number
-                        if (typeof progress.progress === 'number') {
-                            self.postMessage({
-                                status: 'progress',
-                                progress: progress.progress,
-                            });
-                        }
-                    },
-                }
-            );
-        } catch (error) {
-            // If there's an error during initialization, post an error message
-            self.postMessage({
-                status: 'error',
-                data: error,
+    static async getInstance(progress_callback = null) {
+        if (this.instance === null) {
+            this.instance = await pipeline('automatic-speech-recognition', 'Xenova/whisper-small', {
+                progress_callback,
             });
-            return;
         }
+        return this.instance;
     }
+}
 
-    // Extract the audio data from the message
-    const audio = event.data.audio;
+self.addEventListener('message', async (event) => {
+    try {
+        const transcriber = await TranscriptionPipeline.getInstance((progress) => {
+            self.postMessage({ status: 'progress', progress: progress.progress });
+        });
 
-    if (typeof audio === 'string') {
-        try {
-            // Perform the transcription
-            const output = await transcriber(audio, {
-                chunk_length_s: 30,
-                stride_length_s: 5,
-                progress_callback: (progress) => {
-                    // Post a progress message to the main thread, only if progress is a number
-                    if (typeof progress.progress === 'number') {
-                        self.postMessage({
-                            status: 'progress',
-                            progress: progress.progress,
-                        });
-                    }
-                },
-            });
-            // Post the completed transcription to the main thread
-            self.postMessage({
-                status: 'complete',
-                output: output.text,
-            });
-        } catch (error) {
-            // If there's an error during transcription, post an error message
-            self.postMessage({
-                status: 'error',
-                data: error,
-            });
-        }
-    } else {
-        // If the audio data is not a string, post an error message
+        const output = await transcriber(event.data.audio, {
+            language: event.data.language,
+            task: event.data.task,
+        });
+
+        self.postMessage({
+            status: 'complete',
+            output: output.text,
+        });
+    } catch (error) {
         self.postMessage({
             status: 'error',
-            data: { message: 'Invalid audio data format.' },
+            error: error.message,
         });
     }
 });
