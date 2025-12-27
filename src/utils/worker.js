@@ -1,15 +1,13 @@
 import { pipeline } from '@xenova/transformers';
 
+
 class TranscriptionPipeline {
     static instance = null;
 
     static async getInstance(progress_callback = null) {
         if (this.instance === null) {
-
-            const MODELS_URL = process.env.VITE_MODELS_URL;
-
             this.instance = await pipeline('automatic-speech-recognition', 'Xenova/whisper-small', {
-                model_file_path: MODELS_URL,
+
                 progress_callback,
             });
         }
