@@ -1,5 +1,9 @@
 import { pipeline } from '@xenova/transformers';
 
+// Configura a variável de ambiente que a biblioteca Xenova usa para o caminho base dos modelos
+if (process.env.VITE_MODELS_URL) {
+    self.XENOVA_MODELS_URL = process.env.VITE_MODELS_URL;
+}
 
 class TranscriptionPipeline {
     static instance = null;
@@ -7,7 +11,6 @@ class TranscriptionPipeline {
     static async getInstance(progress_callback = null) {
         if (this.instance === null) {
             this.instance = await pipeline('automatic-speech-recognition', 'Xenova/whisper-small', {
-
                 progress_callback,
             });
         }
