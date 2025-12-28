@@ -15,6 +15,15 @@ export default defineConfig({
   build: {
     outDir: 'dist',
   },
+  optimizeDeps: {
+    exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util']
+  },
+  worker: {
+    format: 'es'
+  },
+  define: {
+    global: 'globalThis'
+  },
   test: {
     globals: true,
     environment: 'jsdom',
