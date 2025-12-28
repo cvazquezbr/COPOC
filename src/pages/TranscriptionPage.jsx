@@ -6,7 +6,8 @@ const TranscriptionPage = () => {
   const navigate = useNavigate();
   const [videoUrl, setVideoUrl] = useState('');
   const [transcription, setTranscription] = useState('');
-  const [progress, setProgress] = useState(null);
+  const [progress, setProgress] = useState(0);
+  const [progressStatus, setProgressStatus] = useState('');
   const [isTranscribing, setIsTranscribing] = useState(false);
   const worker = useRef(null);
 
@@ -21,7 +22,8 @@ const TranscriptionPage = () => {
     }
     setIsTranscribing(true);
     setTranscription('');
-    setProgress(null);
+    setProgress(0);
+    setProgressStatus('Initializing...');
 
     worker.current = new Worker(new URL('../utils/worker.js', import.meta.url), {
         type: 'module'
@@ -31,18 +33,26 @@ const TranscriptionPage = () => {
         const message = event.data;
         switch (message.status) {
             case 'progress':
-                setProgress(message.progress);
+                if (typeof message.progress === 'string') {
+                    setProgressStatus(message.progress);
+                    setProgress(0);
+                } else {
+                    setProgress(message.progress.progress || 0);
+                    setProgressStatus(`Downloading model: ${message.progress.file}`);
+                }
                 break;
             case 'complete':
                 setTranscription(message.output);
                 setIsTranscribing(false);
                 setProgress(null);
+                setProgressStatus('');
                 worker.current.terminate();
                 break;
             case 'error':
                 alert('Ocorreu um erro durante a transcrição: ' + message.error);
                 setIsTranscribing(false);
                 setProgress(null);
+                setProgressStatus('');
                 worker.current.terminate();
                 break;
         }
@@ -50,7 +60,7 @@ const TranscriptionPage = () => {
 
     worker.current.postMessage({
       audio: videoUrl,
-      model: 'Xenova/whisper-small',
+      model: 'Xenova/whisper-tiny', // Changed to tiny
       language: 'portuguese',
       task: 'transcribe',
     });
@@ -91,7 +101,9 @@ const TranscriptionPage = () => {
 
         {isTranscribing && (
           <Box sx={{ width: '100%', my: 2 }}>
-            <Typography variant="body2" color="text.secondary">{`Progresso: ${progress ? progress.toFixed(2) : 0}%`}</Typography>
+            <Typography variant="body2" color="text.secondary">
+              {progressStatus} {progress > 0 && `(${progress.toFixed(2)}%)`}
+            </Typography>
             <LinearProgress variant="determinate" value={progress || 0} />
           </Box>
         )}

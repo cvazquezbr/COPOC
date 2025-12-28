@@ -1,64 +1,37 @@
-import { defineConfig, loadEnv } from 'vite'
-import react from '@vitejs/plugin-react'
-import { copy } from 'vite-plugin-copy'
-import apiMiddleware from './vite.api.js'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { copy } from 'vite-plugin-copy';
 
-export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '');
-  return {
-    plugins: [
-      react(),
-      copy({
-        targets: [
-          {
-            src: 'node_modules/pdfjs-dist/build/pdf.worker.mjs',
-            dest: 'public/',
-          },
-        ],
-        // This ensures the copy happens during development as well
-        hook: 'buildStart'
-      }),
-    ],
-    
-    server: {
-      middlewares: [apiMiddleware],
-      headers: {
-        'Cross-Origin-Opener-Policy': 'same-origin',
-        'Cross-Origin-Embedder-Policy': 'require-corp',
-      },
-    },
-    
-    build: {
-      target: 'esnext',
-      assetsInclude: ['**/*.wasm'],
-      rollupOptions: {
-        output: {
-          assetFileNames: (assetInfo) => {
-            if (assetInfo.name.endsWith('.wasm')) {
-              return 'assets/[name][extname]'
-            }
-            return 'assets/[name]-[hash][extname]'
-          }
+// https://vitejs.dev/config/
+export default defineConfig({
+  plugins: [
+    react(),
+    copy({
+      targets: [
+        {
+          src: 'node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.js',
+          dest: 'public'
+        },
+        {
+          src: 'node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.wasm',
+          dest: 'public'
         }
-      }
+      ],
+      hook: 'config' // Execute during the 'config' hook to ensure files are available for the dev server
+    })
+  ],
+  server: {
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
     },
-    
-    optimizeDeps: {
-      exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util']
-    },
-    
-    worker: {
-      format: 'es'
-    },
-    
-    define: {
-      global: 'globalThis',
-      'process.env.VITE_MODELS_URL': JSON.stringify(env.VITE_MODELS_URL),
-    },
-    test: {
-      globals: true,
-      environment: 'jsdom',
-      setupFiles: './src/setupTests.js',
-    },
-  }
-})
+  },
+  build: {
+    outDir: 'dist',
+  },
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: './src/setupTests.js',
+  },
+});
