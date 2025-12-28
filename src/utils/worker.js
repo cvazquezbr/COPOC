@@ -102,7 +102,7 @@ self.addEventListener('message', async (event) => {
         console.error(error);
         self.postMessage({
             status: 'error',
-            error: error.message,
+            error: String(error),
         });
     }
 });
