@@ -1,6 +1,7 @@
 import { pipeline } from '@xenova/transformers';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile } from '@ffmpeg/util';
+import { log } from 'console';
 
 // Environment variable for model path
 if (process.env.VITE_MODELS_URL) {
@@ -29,7 +30,7 @@ class FFmpegInstance {
         if (this.instance === null) {
             const ffmpeg = new FFmpeg();
             ffmpeg.on('log', ({ message }) => {
-                // console.log(message);
+                console.log(message);
             });
             ffmpeg.on('progress', ({ progress, time }) => {
                 if (progress_callback) {
@@ -37,11 +38,12 @@ class FFmpegInstance {
                 }
             });
 
-            // Use the copied assets at the root
+            // This path should now work correctly with the new Vite config
             await ffmpeg.load({
-                coreURL: '/ffmpeg-core.js',
-                wasmURL: '/ffmpeg-core.wasm',
+                coreURL: new URL('/node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.js', self.location.origin).href,
+                wasmURL: new URL('/node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.wasm', self.location.origin).href
             });
+
             this.instance = ffmpeg;
         }
         return this.instance;
