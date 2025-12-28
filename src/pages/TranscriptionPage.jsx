@@ -15,6 +15,8 @@ const TranscriptionPage = () => {
     navigate('/');
   };
 
+  // Main transcription handler
+
   const handleTranscribe = () => {
     if (!videoUrl) {
       alert('Por favor, insira a URL de um vídeo.');
