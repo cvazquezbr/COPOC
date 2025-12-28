@@ -40,8 +40,8 @@ class FFmpegInstance {
 
             // This path should now work correctly with the new Vite config
             await ffmpeg.load({
-                coreURL: new URL('/node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.js', self.location.origin).href,
-                wasmURL: new URL('/node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.wasm', self.location.origin).href
+                coreURL: '/ffmpeg-core.js',
+                wasmURL: '/ffmpeg-core.wasm'
             });
 
             this.instance = ffmpeg;
