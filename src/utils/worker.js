@@ -1,8 +1,6 @@
 import { pipeline } from '@xenova/transformers';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
-// ADICIONAR toBlobURL
-import { fetchFile, toBlobURL } from '@ffmpeg/util';
-import { log } from 'console';
+import { fetchFile } from '@ffmpeg/util';
 
 // Environment variable for model path
 if (process.env.VITE_MODELS_URL) {
