@@ -16,7 +16,7 @@
   ],
   "rewrites": [
     {
-      "source": "/((?!api/|_next/|favicon.ico|.*\\..*).*)",
+      "source": "/:path((?!api/|assets/).*)",
       "destination": "/index.html"
     }
   ],
