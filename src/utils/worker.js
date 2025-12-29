@@ -26,8 +26,6 @@ class TranscriptionPipeline {
 // Singleton for FFmpeg
 class FFmpegInstance {
     static instance = null;
-    // URL base do CDN para a versão instalada (@ffmpeg/core: ^0.12.6)
-    static baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm'; // NOVO CAMINHO CDN
 
     static async getInstance(progress_callback = null) {
         if (this.instance === null) {
@@ -41,27 +39,9 @@ class FFmpegInstance {
                 }
             });
 
-            // 1. Usar toBlobURL para carregar os assets de forma robusta
-            const coreURL = await toBlobURL(
-                `${FFmpegInstance.baseURL}/ffmpeg-core.js`,
-                'text/javascript'
-            );
-            const wasmURL = await toBlobURL(
-                `${FFmpegInstance.baseURL}/ffmpeg-core.wasm`,
-                'application/wasm'
-            );
-            // 2. O worker.js já está sendo carregado como módulo, mas é bom incluir o workerURL
-            // para garantir que o FFmpeg carregue seu próprio worker corretamente.
-            const workerURL = await toBlobURL(
-                `${FFmpegInstance.baseURL}/ffmpeg-core.worker.js`,
-                'text/javascript'
-            );
-
-            // 3. Carregar o FFmpeg com as URLs Blob
             await ffmpeg.load({
-                coreURL,
-                wasmURL,
-                workerURL, // Adicionar workerURL
+                coreURL: '/ffmpeg/ffmpeg-core.js',
+                wasmURL: '/ffmpeg/ffmpeg-core.wasm'
             });
 
             this.instance = ffmpeg;
