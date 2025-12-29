@@ -60,8 +60,10 @@ const TranscriptionPage = () => {
         }
     };
 
+    const proxyUrl = `/api/proxy-download?url=${encodeURIComponent(videoUrl)}`;
+
     worker.current.postMessage({
-      audio: videoUrl,
+      audio: proxyUrl,
       model: 'Xenova/whisper-tiny', // Changed to tiny
       language: 'portuguese',
       task: 'transcribe',
