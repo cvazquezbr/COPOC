@@ -16,7 +16,7 @@
   ],
   "rewrites": [
     {
-      "source": "/:path((?!api/|assets/).*)",
+      "source": "/:path((?!api/|assets/|ffmpeg-core.js|ffmpeg-core.wasm).*)",
       "destination": "/index.html"
     }
   ],
