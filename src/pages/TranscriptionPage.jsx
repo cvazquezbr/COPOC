@@ -128,4 +128,3 @@ const TranscriptionPage = () => {
 };
 
 export default TranscriptionPage;
-\n// Forcing a change for git
