@@ -1,6 +1,6 @@
 import { pipeline } from '@xenova/transformers';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile } from '@ffmpeg/util';
+import { fetchFile, toBlobURL } from '@ffmpeg/util';
 
 // Environment variable for model path
 if (process.env.VITE_MODELS_URL) {
@@ -36,10 +36,10 @@ class FFmpegInstance {
                     // Progress updates can be sent here
                 }
             });
-
+            const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
             await ffmpeg.load({
-                coreURL: '/ffmpeg/ffmpeg-core.js',
-                wasmURL: '/ffmpeg/ffmpeg-core.wasm'
+                coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+                wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
             });
 
             this.instance = ffmpeg;
