@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Container, TextField, Button, Typography, Box, Paper, CircularProgress, LinearProgress } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 
@@ -9,13 +9,46 @@ const TranscriptionPage = () => {
   const [progress, setProgress] = useState(0);
   const [progressStatus, setProgressStatus] = useState('');
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [ffmpegReady, setFfmpegReady] = useState(false);
   const worker = useRef(null);
+  const iframeRef = useRef(null);
+
+  useEffect(() => {
+    const handleMessage = (event) => {
+      const { type, detail, audioData } = event.data;
+      switch (type) {
+        case 'ffmpeg-loaded':
+          setFfmpegReady(true);
+          setProgressStatus('');
+          break;
+        case 'audio-extracted':
+          worker.current.postMessage({
+            audioData: audioData,
+            model: 'Xenova/whisper-tiny',
+            language: 'portuguese',
+            task: 'transcribe',
+          });
+          break;
+        case 'progress':
+          setProgressStatus(detail);
+          break;
+        case 'error':
+          alert(`An error occurred in the FFmpeg process: ${detail}`);
+          setIsTranscribing(false);
+          setProgressStatus('');
+          break;
+        default:
+          break;
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
 
   const handleBack = () => {
     navigate('/');
   };
-
-  // Main transcription handler
 
   const handleTranscribe = () => {
     if (!videoUrl) {
@@ -27,51 +60,46 @@ const TranscriptionPage = () => {
     setProgress(0);
     setProgressStatus('Initializing...');
 
+    // Setup transcription worker
     worker.current = new Worker(new URL('../utils/worker.js', import.meta.url), {
-        type: 'module'
+      type: 'module'
     });
 
     worker.current.onmessage = (event) => {
-        const message = event.data;
-        switch (message.status) {
-            case 'progress':
-                if (typeof message.progress === 'string') {
-                    setProgressStatus(message.progress);
-                    setProgress(0);
-                } else {
-                    setProgress(message.progress.progress || 0);
-                    setProgressStatus(`Downloading model: ${message.progress.file}`);
-                }
-                break;
-            case 'complete':
-                setTranscription(message.output);
-                setIsTranscribing(false);
-                setProgress(null);
-                setProgressStatus('');
-                worker.current.terminate();
-                break;
-            case 'error':
-                alert('Ocorreu um erro durante a transcrição: ' + message.error);
-                setIsTranscribing(false);
-                setProgress(null);
-                setProgressStatus('');
-                worker.current.terminate();
-                break;
-        }
+      const message = event.data;
+      switch (message.status) {
+        case 'progress':
+          setProgress(message.progress.progress || 0);
+          setProgressStatus(`Downloading model: ${message.progress.file}`);
+          break;
+        case 'complete':
+          setTranscription(message.output);
+          setIsTranscribing(false);
+          setProgressStatus('');
+          worker.current.terminate();
+          break;
+        case 'error':
+          alert('Ocorreu um erro durante a transcrição: ' + message.error);
+          setIsTranscribing(false);
+          setProgressStatus('');
+          worker.current.terminate();
+          break;
+      }
     };
 
+    // Send video to iframe for audio extraction
     const proxyUrl = `/api/proxy-download?url=${encodeURIComponent(videoUrl)}`;
-
-    worker.current.postMessage({
-      audio: proxyUrl,
-      model: 'Xenova/whisper-tiny', // Changed to tiny
-      language: 'portuguese',
-      task: 'transcribe',
-    });
+    iframeRef.current.contentWindow.postMessage({ type: 'extract-audio', videoUrl: proxyUrl }, '*');
   };
 
   return (
     <Container maxWidth="md">
+        <iframe
+            ref={iframeRef}
+            src="/ffmpeg-loader.html"
+            style={{ display: 'none' }}
+            title="FFmpeg Loader"
+        />
       <Box sx={{ my: 4 }}>
         <Button variant="outlined" onClick={handleBack} sx={{ mb: 2 }}>
           Voltar
@@ -95,7 +123,7 @@ const TranscriptionPage = () => {
           variant="contained"
           color="primary"
           onClick={handleTranscribe}
-          disabled={isTranscribing}
+          disabled={!ffmpegReady || isTranscribing}
           fullWidth
           size="large"
           sx={{ mb: 2 }}
