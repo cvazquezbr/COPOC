@@ -16,10 +16,6 @@
   ],
   "rewrites": [
     {
-      "source": "/ffmpeg/(.*)",
-      "destination": "/ffmpeg/$1"
-    },
-    {
       "source": "/((?!api/|assets/|ffmpeg/|.*\\.).*)",
       "destination": "/index.html"
     }
