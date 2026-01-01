@@ -1,17 +1,11 @@
 import { pipeline } from '@xenova/transformers';
+import { FFmpeg } from '@ffmpeg/ffmpeg';
+import { fetchFile } from '@ffmpeg/util';
 
 // Environment variable for model path
 if (process.env.VITE_MODELS_URL) {
     self.XENOVA_MODELS_URL = process.env.VITE_MODELS_URL;
 }
-// Use the new createFFmpeg import as requested
-import { createFFmpeg, fetchFile } from '@ffmpeg/ffmpeg';
-
-// Create the FFmpeg instance with the CDN core path
-const ffmpeg = createFFmpeg({
-  log: true,
-  corePath: 'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js',
-});
 
 // Singleton for the transcription pipeline
 class TranscriptionPipeline {
@@ -26,12 +20,32 @@ class TranscriptionPipeline {
     }
 }
 
+// Singleton for FFmpeg, using the correct v0.12 API
+class FFmpegInstance {
+    static instance = null;
+    static async getInstance() {
+        if (this.instance === null) {
+            const ffmpeg = new FFmpeg();
+            ffmpeg.on('log', ({ message }) => {
+                console.log(message);
+            });
+
+            const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+
+            await ffmpeg.load({
+                coreURL: `${baseURL}/ffmpeg-core.js`,
+                wasmURL: `${baseURL}/ffmpeg-core.wasm`,
+            });
+
+            this.instance = ffmpeg;
+        }
+        return this.instance;
+    }
+}
+
 self.addEventListener('message', async (event) => {
     try {
-        // Ensure FFmpeg is loaded
-        if (!ffmpeg.isLoaded()) {
-            await ffmpeg.load();
-        }
+        const ffmpeg = await FFmpegInstance.getInstance();
 
         const transcriber = await TranscriptionPipeline.getInstance((progress) => {
             self.postMessage({ status: 'progress', progress: progress.progress });
@@ -41,15 +55,16 @@ self.addEventListener('message', async (event) => {
 
         self.postMessage({ status: 'progress', progress: 'Downloading video...' });
         const videoData = await fetchFile(videoUrl);
+
         const inputFileName = 'input.video';
         const outputFileName = 'output.wav';
 
-        ffmpeg.FS('writeFile', inputFileName, videoData);
+        await ffmpeg.writeFile(inputFileName, videoData);
 
         self.postMessage({ status: 'progress', progress: 'Extracting audio...' });
-        await ffmpeg.run('-i', inputFileName, '-ar', '16000', '-ac', '1', '-c:a', 'pcm_s16le', outputFileName);
+        await ffmpeg.exec(['-i', inputFileName, '-ar', '16000', '-ac', '1', '-c:a', 'pcm_s16le', outputFileName]);
 
-        const audioData = ffmpeg.FS('readFile', outputFileName);
+        const audioData = await ffmpeg.readFile(outputFileName);
 
         // Convert audio data to Float32Array
         const pcmData = new Int16Array(audioData.buffer);
@@ -65,8 +80,8 @@ self.addEventListener('message', async (event) => {
         });
 
         // Cleanup
-        ffmpeg.FS('unlink', inputFileName);
-        ffmpeg.FS('unlink', outputFileName);
+        await ffmpeg.deleteFile(inputFileName);
+        await ffmpeg.deleteFile(outputFileName);
 
         self.postMessage({
             status: 'complete',
