@@ -89,7 +89,8 @@ class AudioTranscriptionService {
     });
 
     if (!response.ok) {
-      throw new Error(`Erro na API: ${response.status}`);
+      const errorData = await response.json().catch(() => ({ error: 'API returned non-JSON error' }));
+      throw new Error(errorData.error || `Erro na API: ${response.status}`);
     }
 
     const data = await response.json();
