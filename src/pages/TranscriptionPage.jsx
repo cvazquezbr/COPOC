@@ -1,21 +1,23 @@
-import React, { useState } from 'react';
+
+import React, { useState, useRef } from 'react';
 import { Container, TextField, Button, Typography, Box, Paper, CircularProgress, LinearProgress, Alert } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import audioTranscriptionService from '../services/audioTranscription';
 
 const TranscriptionPage = () => {
   const navigate = useNavigate();
   const [videoUrl, setVideoUrl] = useState('');
   const [transcription, setTranscription] = useState('');
+  const [progress, setProgress] = useState(0);
+  const [progressStatus, setProgressStatus] = useState('');
   const [isTranscribing, setIsTranscribing] = useState(false);
-  const [progress, setProgress] = useState({ message: '', percent: 0 });
   const [error, setError] = useState(null);
+  const worker = useRef(null);
 
   const handleBack = () => {
     navigate('/');
   };
 
-  const handleTranscribe = async () => {
+  const handleTranscribe = () => {
     if (!videoUrl) {
       alert('Por favor, insira a URL de um vídeo.');
       return;
@@ -23,21 +25,58 @@ const TranscriptionPage = () => {
     setIsTranscribing(true);
     setTranscription('');
     setError(null);
-    setProgress({ message: 'Initializing...', percent: 0 });
+    setProgress(0);
+    setProgressStatus('Initializing...');
 
-    try {
-      const result = await audioTranscriptionService.transcribeFromUrl(
-        videoUrl,
-        (message, percent) => setProgress({ message, percent })
-      );
-      setTranscription(result);
-    } catch (err) {
-      console.error('Erro na transcrição:', err);
-      setError(err.message || 'An unknown error occurred.');
-    } finally {
-      setIsTranscribing(false);
-      setProgress({ message: '', percent: 0 });
-    }
+    worker.current = new Worker(new URL('../utils/worker.js', import.meta.url), {
+        type: 'module'
+    });
+
+    worker.current.onmessage = (event) => {
+        const message = event.data;
+        switch (message.status) {
+            case 'progress':
+                if (typeof message.progress === 'string') {
+                    setProgressStatus(message.progress);
+                    if (message.progress === 'Downloading audio...') {
+                        setProgress(10);
+                    } else if (message.progress === 'Extracting audio...') {
+                        setProgress(20);
+                    } else {
+                        setProgress(0);
+                    }
+                } else if (message.progress) {
+                    // This is for model download progress
+                    const downloadProgress = message.progress.progress || 0;
+                    setProgress(20 + downloadProgress * 0.6); // Scale model download to be between 20% and 80%
+                    setProgressStatus(`Downloading model: ${message.progress.file}`);
+                }
+                break;
+            case 'complete':
+                setTranscription(message.output);
+                setIsTranscribing(false);
+                setProgress(0);
+                setProgressStatus('');
+                worker.current.terminate();
+                break;
+            case 'error':
+                setError(message.error);
+                setIsTranscribing(false);
+                setProgress(0);
+                setProgressStatus('');
+                worker.current.terminate();
+                break;
+        }
+    };
+
+    const proxyUrl = `/api/proxy-download?url=${encodeURIComponent(videoUrl)}`;
+
+    worker.current.postMessage({
+      audio: proxyUrl,
+      model: 'Xenova/whisper-tiny',
+      language: 'portuguese',
+      task: 'transcribe',
+    });
   };
 
   return (
@@ -76,14 +115,16 @@ const TranscriptionPage = () => {
         {isTranscribing && (
           <Box sx={{ width: '100%', my: 2 }}>
             <Typography variant="body2" color="text.secondary">
-              {progress.message} ({progress.percent}%)
+              {progressStatus} {progress > 0 && `(${progress.toFixed(2)}%)`}
             </Typography>
-            <LinearProgress variant="determinate" value={progress.percent} />
+            <LinearProgress variant="determinate" value={progress || 0} />
           </Box>
         )}
 
         {error && (
-            <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>
+          <Alert severity="error" sx={{ mt: 2 }}>
+            {error}
+          </Alert>
         )}
 
         {transcription && (
