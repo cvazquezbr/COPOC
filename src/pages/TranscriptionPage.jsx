@@ -1,73 +1,53 @@
-import React, { useState, useRef, useCallback } from 'react';
-import { Container, TextField, Button, Typography, Box, Paper, CircularProgress, LinearProgress } from '@mui/material';
+import React, { useState } from 'react';
+import { Container, TextField, Button, Typography, Box, Paper, CircularProgress } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 
 const TranscriptionPage = () => {
   const navigate = useNavigate();
   const [videoUrl, setVideoUrl] = useState('');
   const [transcription, setTranscription] = useState('');
-  const [progress, setProgress] = useState(0);
-  const [progressStatus, setProgressStatus] = useState('');
   const [isTranscribing, setIsTranscribing] = useState(false);
-  const worker = useRef(null);
+  const [error, setError] = useState(null);
 
   const handleBack = () => {
     navigate('/');
   };
 
-  // Main transcription handler
-
-  const handleTranscribe = () => {
+  const handleTranscribe = async () => {
     if (!videoUrl) {
       alert('Por favor, insira a URL de um vídeo.');
       return;
     }
     setIsTranscribing(true);
     setTranscription('');
-    setProgress(0);
-    setProgressStatus('Initializing...');
+    setError(null);
 
-    worker.current = new Worker(new URL('../utils/worker.js', import.meta.url), {
-        type: 'module'
-    });
+    try {
+      const response = await fetch('/api/transcribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ audioUrl: videoUrl }),
+      });
 
-    worker.current.onmessage = (event) => {
-        const message = event.data;
-        switch (message.status) {
-            case 'progress':
-                if (typeof message.progress === 'string') {
-                    setProgressStatus(message.progress);
-                    setProgress(0);
-                } else {
-                    setProgress(message.progress.progress || 0);
-                    setProgressStatus(`Downloading model: ${message.progress.file}`);
-                }
-                break;
-            case 'complete':
-                setTranscription(message.output);
-                setIsTranscribing(false);
-                setProgress(null);
-                setProgressStatus('');
-                worker.current.terminate();
-                break;
-            case 'error':
-                alert('Ocorreu um erro durante a transcrição: ' + message.error);
-                setIsTranscribing(false);
-                setProgress(null);
-                setProgressStatus('');
-                worker.current.terminate();
-                break;
-        }
-    };
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error(`Server returned an invalid response: ${response.statusText}`);
+      }
 
-    const proxyUrl = `/api/proxy-download?url=${encodeURIComponent(videoUrl)}`;
+      const data = await response.json();
 
-    worker.current.postMessage({
-      audio: proxyUrl,
-      model: 'Xenova/whisper-tiny', // Changed to tiny
-      language: 'portuguese',
-      task: 'transcribe',
-    });
+      if (!data.success) {
+        throw new Error(data.error || 'Transcription failed');
+      }
+
+      setTranscription(data.transcription);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsTranscribing(false);
+    }
   };
 
   return (
@@ -103,13 +83,15 @@ const TranscriptionPage = () => {
           {isTranscribing ? <CircularProgress size={24} color="inherit" /> : 'Transcrever'}
         </Button>
 
-        {isTranscribing && (
-          <Box sx={{ width: '100%', my: 2 }}>
-            <Typography variant="body2" color="text.secondary">
-              {progressStatus} {progress > 0 && `(${progress.toFixed(2)}%)`}
+        {error && (
+          <Paper elevation={3} sx={{ p: 2, mt: 4, backgroundColor: 'error.main', color: 'white' }}>
+            <Typography variant="h6" component="h2">
+              Error:
             </Typography>
-            <LinearProgress variant="determinate" value={progress || 0} />
-          </Box>
+            <Typography>
+              {error}
+            </Typography>
+          </Paper>
         )}
 
         {transcription && (
