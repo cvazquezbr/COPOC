@@ -17,8 +17,6 @@ export default async function handler(req) {
     }
 
     // Security check: Ensure the URL is from an allowed host.
-    // This is a basic check. For production, you might want a more robust solution,
-    // like a whitelist of domains stored in environment variables.
     const allowedHosts = ['public.blob.vercel-storage.com'];
     const parsedUrl = new URL(urlToProxy);
     if (!allowedHosts.includes(parsedUrl.host)) {
