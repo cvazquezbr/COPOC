@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { Container, TextField, Button, Typography, Box, Paper, CircularProgress } from '@mui/material';
+import { Container, TextField, Button, Typography, Box, Paper, CircularProgress, LinearProgress } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import audioTranscriptionService from '../services/audioTranscription';
 
 const TranscriptionPage = () => {
   const navigate = useNavigate();
   const [videoUrl, setVideoUrl] = useState('');
   const [transcription, setTranscription] = useState('');
   const [isTranscribing, setIsTranscribing] = useState(false);
-  const [error, setError] = useState(null);
+  const [progress, setProgress] = useState({ message: '', percent: 0 });
 
   const handleBack = () => {
     navigate('/');
@@ -20,33 +21,18 @@ const TranscriptionPage = () => {
     }
     setIsTranscribing(true);
     setTranscription('');
-    setError(null);
-
     try {
-      const response = await fetch('/api/transcribe', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ audioUrl: videoUrl }),
-      });
-
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        throw new Error(`Server returned an invalid response: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.error || 'Transcription failed');
-      }
-
-      setTranscription(data.transcription);
-    } catch (err) {
-      setError(err.message);
+      const result = await audioTranscriptionService.transcribeFromUrl(
+        videoUrl,
+        (message, percent) => setProgress({ message, percent })
+      );
+      setTranscription(result);
+    } catch (error) {
+      console.error('Erro na transcrição:', error);
+      alert('Erro ao transcrever: ' + error.message);
     } finally {
       setIsTranscribing(false);
+      setProgress({ message: '', percent: 0 });
     }
   };
 
@@ -83,15 +69,13 @@ const TranscriptionPage = () => {
           {isTranscribing ? <CircularProgress size={24} color="inherit" /> : 'Transcrever'}
         </Button>
 
-        {error && (
-          <Paper elevation={3} sx={{ p: 2, mt: 4, backgroundColor: 'error.main', color: 'white' }}>
-            <Typography variant="h6" component="h2">
-              Error:
+        {isTranscribing && (
+          <Box sx={{ width: '100%', my: 2 }}>
+            <Typography variant="body2" color="text.secondary">
+              {progress.message} ({progress.percent}%)
             </Typography>
-            <Typography>
-              {error}
-            </Typography>
-          </Paper>
+            <LinearProgress variant="determinate" value={progress.percent} />
+          </Box>
         )}
 
         {transcription && (
