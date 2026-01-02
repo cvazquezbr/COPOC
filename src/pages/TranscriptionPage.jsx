@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Container, TextField, Button, Typography, Box, Paper, CircularProgress, LinearProgress } from '@mui/material';
+import { Container, TextField, Button, Typography, Box, Paper, CircularProgress, LinearProgress, Alert } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import audioTranscriptionService from '../services/audioTranscription';
 
@@ -9,6 +9,7 @@ const TranscriptionPage = () => {
   const [transcription, setTranscription] = useState('');
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [progress, setProgress] = useState({ message: '', percent: 0 });
+  const [error, setError] = useState(null);
 
   const handleBack = () => {
     navigate('/');
@@ -21,15 +22,18 @@ const TranscriptionPage = () => {
     }
     setIsTranscribing(true);
     setTranscription('');
+    setError(null);
+    setProgress({ message: 'Initializing...', percent: 0 });
+
     try {
       const result = await audioTranscriptionService.transcribeFromUrl(
         videoUrl,
         (message, percent) => setProgress({ message, percent })
       );
       setTranscription(result);
-    } catch (error) {
-      console.error('Erro na transcrição:', error);
-      alert('Erro ao transcrever: ' + error.message);
+    } catch (err) {
+      console.error('Erro na transcrição:', err);
+      setError(err.message || 'An unknown error occurred.');
     } finally {
       setIsTranscribing(false);
       setProgress({ message: '', percent: 0 });
@@ -76,6 +80,10 @@ const TranscriptionPage = () => {
             </Typography>
             <LinearProgress variant="determinate" value={progress.percent} />
           </Box>
+        )}
+
+        {error && (
+            <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>
         )}
 
         {transcription && (
