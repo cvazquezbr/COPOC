@@ -38,17 +38,12 @@ const TranscriptionPage = () => {
             case 'progress':
                 if (typeof message.progress === 'string') {
                     setProgressStatus(message.progress);
-                    if (message.progress === 'Downloading audio...') {
-                        setProgress(10);
-                    } else if (message.progress === 'Extracting audio...') {
-                        setProgress(20);
-                    } else {
-                        setProgress(0);
-                    }
+                    if (message.progress.startsWith('Downloading')) setProgress(10);
+                    else if (message.progress.startsWith('Extracting')) setProgress(20);
+                    else setProgress(0);
                 } else if (message.progress) {
-                    // This is for model download progress
                     const downloadProgress = message.progress.progress || 0;
-                    setProgress(20 + downloadProgress * 0.6); // Scale model download to be between 20% and 80%
+                    setProgress(20 + downloadProgress * 0.6); // Scale model download to 20-80%
                     setProgressStatus(`Downloading model: ${message.progress.file}`);
                 }
                 break;
@@ -122,8 +117,8 @@ const TranscriptionPage = () => {
         )}
 
         {error && (
-          <Alert severity="error" sx={{ mt: 2 }}>
-            {error}
+          <Alert severity="error" sx={{ mt: 2, whiteSpace: 'pre-wrap', wordWrap: 'break-word' }}>
+            <pre>{error}</pre>
           </Alert>
         )}
 
