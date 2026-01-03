@@ -1,24 +1,7 @@
 
 import { pipeline } from '@xenova/transformers';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { toBlobURL } from '@ffmpeg/util';
-
-// Custom fetchFile function to handle potential HTML error responses
-async function fetchFileWithDiagnostics(url) {
-    const response = await fetch(url);
-    if (!response.ok) {
-        const responseText = await response.text();
-        throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}. Server response: ${responseText}`);
-    }
-    // Check content-type to ensure it's not HTML
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('text/html')) {
-        const responseText = await response.text();
-        throw new Error(`Expected audio file but received HTML. Server response: ${responseText}`);
-    }
-    return new Uint8Array(await response.arrayBuffer());
-}
-
+import { fetchFile, toBlobURL } from '@ffmpeg/util';
 
 // Environment variable for model path
 if (process.env.VITE_MODELS_URL) {
@@ -73,7 +56,7 @@ self.addEventListener('message', async (event) => {
         }, event.data.model);
 
         self.postMessage({ status: 'progress', progress: 'Downloading audio...' });
-        const videoData = await fetchFileWithDiagnostics(event.data.audio);
+        const videoData = await fetchFile(event.data.audio);
 
         const inputFileName = 'input.video';
         const outputFileName = 'output.wav';
