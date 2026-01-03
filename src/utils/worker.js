@@ -33,11 +33,12 @@ class FFmpegInstance {
                 if (progress_callback) progress_callback(message);
             });
 
-            const baseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm';
+            // Usar unpkg que é mais estável para o core do ffmpeg
+            const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
 
             await ffmpeg.load({
-                coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-                wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+                coreURL: `${baseURL}/ffmpeg-core.js`,
+                wasmURL: `${baseURL}/ffmpeg-core.wasm`,
             });
             this.instance = ffmpeg;
         }
