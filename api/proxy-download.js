@@ -26,9 +26,16 @@ export default async function handler(req) {
         'dai.ly'
     ];
     const parsedUrl = new URL(urlToProxy);
-    if (!allowedHosts.includes(parsedUrl.host)) {
-      return new Response(JSON.stringify({ error: 'URL host is not allowed' }), {
-        status: 403, // Forbidden
+    const isAllowedHost = allowedHosts.some(host =>
+        parsedUrl.host === host || parsedUrl.host.endsWith('.' + host)
+    );
+
+    if (!isAllowedHost) {
+      return new Response(JSON.stringify({
+        error: 'URL host is not allowed',
+        detectedHost: parsedUrl.host
+      }), {
+        status: 403,
         headers: { 'Content-Type': 'application/json' },
       });
     }
