@@ -18,16 +18,16 @@ export default async function handler(req) {
 
     // Security check: Ensure the URL is from an allowed host.
     const allowedHosts = [
-        'public.blob.vercel-storage.com',
-        'www.youtube.com',
+        'blob.vercel-storage.com',
+        'youtube.com',
         'youtu.be',
         'vimeo.com',
-        'www.dailymotion.com',
+        'dailymotion.com',
         'dai.ly'
     ];
     const parsedUrl = new URL(urlToProxy);
     const isAllowedHost = allowedHosts.some(host =>
-        parsedUrl.host === host || parsedUrl.host.endsWith('.' + host)
+        parsedUrl.hostname === host || parsedUrl.hostname.endsWith('.' + host)
     );
 
     if (!isAllowedHost) {
