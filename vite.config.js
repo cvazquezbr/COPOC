@@ -1,10 +1,18 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import apiMiddleware from './vite.api.js';
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
     react(),
+    // Custom plugin to handle API middleware
+    {
+      name: 'api-server',
+      configureServer(server) {
+        server.middlewares.use(apiMiddleware);
+      },
+    },
   ],
   server: {
     headers: {
