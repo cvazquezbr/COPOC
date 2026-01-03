@@ -26,8 +26,26 @@ class TranscriptionPipeline {
 
 class FFmpegInstance {
     static instance = null;
+    static loading = false;
+
     static async getInstance(progress_callback = null) {
-        if (this.instance === null) {
+        if (this.instance) return this.instance;
+        if (this.loading) {
+            // Wait for the existing loading process to complete
+            await new Promise(resolve => {
+                const check = () => {
+                    if (!this.loading) resolve();
+                    else setTimeout(check, 100);
+                };
+                check();
+            });
+            return this.instance;
+        }
+
+        this.loading = true;
+        self.postMessage({ status: 'ffmpeg_loading' });
+
+        try {
             const ffmpeg = new FFmpeg();
             ffmpeg.on('log', ({ message }) => {
                 if (progress_callback) progress_callback(message);
@@ -35,35 +53,41 @@ class FFmpegInstance {
 
             const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
 
-            try {
-                if (!crossOriginIsolated) {
-                    throw new Error('crossOriginIsolated is false. FFmpeg requires COOP/COEP headers.');
-                }
-
-                const coreURL = await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
-                const wasmURL = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
-
-                await ffmpeg.load({
-                    coreURL,
-                    wasmURL
-                });
-
-                this.instance = ffmpeg;
-            } catch (error) {
-                console.error('Failed to load FFmpeg in worker:', error);
-                throw error; // Re-throw to be caught by the event listener
+            if (!crossOriginIsolated) {
+                throw new Error('crossOriginIsolated is false. FFmpeg requires COOP/COEP headers.');
             }
+
+            const coreURL = await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
+            const wasmURL = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
+
+            await ffmpeg.load({ coreURL, wasmURL });
+
+            this.instance = ffmpeg;
+            self.postMessage({ status: 'ffmpeg_ready' });
+            return this.instance;
+        } catch (error) {
+            console.error('Failed to load FFmpeg in worker:', error);
+            self.postMessage({ status: 'ffmpeg_error', error: String(error) });
+            throw error;
+        } finally {
+            this.loading = false;
         }
-        return this.instance;
     }
 }
 
+// Initialize FFmpeg as soon as the worker is created
+FFmpegInstance.getInstance().catch(err => console.error("Initial FFmpeg load failed:", err));
 
 self.addEventListener('message', async (event) => {
     try {
         const ffmpeg = await FFmpegInstance.getInstance((message) => {
             self.postMessage({ status: 'progress', progress: message });
         });
+
+        // Ensure we handle the case where a transcription is requested before FFmpeg is ready
+        if (!ffmpeg) {
+            throw new Error("FFmpeg is not available.");
+        }
 
         const transcriber = await TranscriptionPipeline.getInstance((progress) => {
             self.postMessage({ status: 'progress', progress });
@@ -102,7 +126,7 @@ self.addEventListener('message', async (event) => {
         });
 
     } catch (error) {
-        console.error('Error in worker:', error);
+        console.error('Error in worker during transcription:', error);
         self.postMessage({
             status: 'error',
             error: String(error.message || error),
