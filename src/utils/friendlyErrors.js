@@ -13,7 +13,8 @@ const getFriendlyErrorMessage = (error) => {
       'CORS': 'Erro de CORS. O servidor não permite requisições desta origem.',
       'pre-flight check failed': 'Falha na verificação da URL. O servidor retornou um erro.',
       'Expected audio but received HTML': 'A URL aponta para uma página web, não para um arquivo de mídia.',
-      'crossOriginIsolated': 'O ambiente não está configurado para `crossOriginIsolated`. Siga as instruções de correção.'
+      'crossOriginIsolated': 'O ambiente não está configurado para `crossOriginIsolated`. Siga as instruções de correção.',
+      'URL host is not allowed': 'O host da URL fornecida não é permitido. Apenas links de plataformas de vídeo conhecidas e do armazenamento do Vercel são aceitos.'
     };
 
     for (const [pattern, message] of Object.entries(errorPatterns)) {

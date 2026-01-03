@@ -103,9 +103,19 @@ const TranscriptionPage = () => {
 
       // Handle non-OK responses (e.g., 404, 500)
       if (!preflightResponse.ok) {
-        const errorText = await preflightResponse.text();
-        const errorMessage = `pre-flight check failed: ${preflightResponse.status} ${errorText}`;
-        setUiStatus({ type: 'error', message: getFriendlyErrorMessage(errorMessage), progress: 0 });
+        let errorFromServer = `pre-flight check failed: ${preflightResponse.status}`;
+        try {
+          // Try to parse a JSON error from the proxy
+          const errorJson = await preflightResponse.json();
+          if (errorJson && errorJson.error) {
+            errorFromServer = errorJson.error;
+          }
+        } catch (e) {
+          // If JSON parsing fails, use the raw text
+          errorFromServer = await preflightResponse.text();
+        }
+
+        setUiStatus({ type: 'error', message: getFriendlyErrorMessage(errorFromServer), progress: 0 });
         return;
       }
 
