@@ -33,18 +33,31 @@ class FFmpegInstance {
                 if (progress_callback) progress_callback(message);
             });
 
-            // Usar unpkg que é mais estável para o core do ffmpeg
-            const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+            const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
 
-            await ffmpeg.load({
-                coreURL: `${baseURL}/ffmpeg-core.js`,
-                wasmURL: `${baseURL}/ffmpeg-core.wasm`,
-            });
-            this.instance = ffmpeg;
+            try {
+                if (!crossOriginIsolated) {
+                    throw new Error('crossOriginIsolated is false. FFmpeg requires COOP/COEP headers.');
+                }
+
+                const coreURL = await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
+                const wasmURL = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
+
+                await ffmpeg.load({
+                    coreURL,
+                    wasmURL
+                });
+
+                this.instance = ffmpeg;
+            } catch (error) {
+                console.error('Failed to load FFmpeg in worker:', error);
+                throw error; // Re-throw to be caught by the event listener
+            }
         }
         return this.instance;
     }
 }
+
 
 self.addEventListener('message', async (event) => {
     try {
@@ -89,10 +102,10 @@ self.addEventListener('message', async (event) => {
         });
 
     } catch (error) {
-        console.error(error);
+        console.error('Error in worker:', error);
         self.postMessage({
             status: 'error',
-            error: String(error),
+            error: String(error.message || error),
         });
     }
 });
