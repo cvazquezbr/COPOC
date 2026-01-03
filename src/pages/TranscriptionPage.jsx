@@ -17,7 +17,7 @@ const TranscriptionPage = () => {
     navigate('/');
   };
 
-  const handleTranscribe = () => {
+  const handleTranscribe = async () => {
     if (!videoUrl) {
       alert('Por favor, insira a URL de um vídeo.');
       return;
@@ -27,6 +27,28 @@ const TranscriptionPage = () => {
     setError(null);
     setProgress(0);
     setProgressStatus('Initializing...');
+
+    const proxyUrl = `/api/proxy-download?url=${encodeURIComponent(videoUrl)}`;
+
+    // --- Pre-flight Check ---
+    try {
+        const preflightResponse = await fetch(proxyUrl);
+        if (!preflightResponse.ok) {
+            const errorText = await preflightResponse.text();
+            throw new Error(`Proxy pre-flight check failed: ${preflightResponse.status} ${preflightResponse.statusText}. Server response: ${errorText}`);
+        }
+        const contentType = preflightResponse.headers.get('content-type');
+        if (contentType && contentType.includes('text/html')) {
+            const errorText = await preflightResponse.text();
+            throw new Error(`Expected audio but received HTML. Server error: ${errorText}`);
+        }
+    } catch (e) {
+        setError(e.message);
+        setIsTranscribing(false);
+        return;
+    }
+    // --- End Pre-flight Check ---
+
 
     worker.current = new Worker(new URL('../utils/worker.js', import.meta.url), {
         type: 'module'
@@ -63,8 +85,6 @@ const TranscriptionPage = () => {
                 break;
         }
     };
-
-    const proxyUrl = `/api/proxy-download?url=${encodeURIComponent(videoUrl)}`;
 
     worker.current.postMessage({
       audio: proxyUrl,
