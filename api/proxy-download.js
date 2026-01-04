@@ -23,7 +23,8 @@ export default async function handler(req) {
         'youtu.be',
         'vimeo.com',
         'dailymotion.com',
-        'dai.ly'
+        'dai.ly',
+        'cocreatorscollab.com.br'
     ];
     const parsedUrl = new URL(urlToProxy);
     const isAllowedHost = allowedHosts.some(host =>
