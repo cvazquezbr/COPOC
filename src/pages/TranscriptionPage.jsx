@@ -8,14 +8,21 @@ const TranscriptionPage = () => {
   const [videoUrl, setVideoUrl] = useState('');
   const [transcription, setTranscription] = useState('');
 
-  // Consolidated state for FFmpeg status
+  // State for FFmpeg status
   const [ffmpegStatus, setFfmpegStatus] = useState({
     ready: false,
     error: null,
-    message: 'Carregando FFmpeg...',
+    message: 'Aguardando FFmpeg...',
   });
 
-  // Consolidated state for the transcription process UI
+  // State for the AI transcriber model status
+  const [transcriberStatus, setTranscriberStatus] = useState({
+      ready: false,
+      error: null,
+      message: 'Aguardando modelo de IA...',
+  });
+
+  // State for the active transcription process UI
   const [uiStatus, setUiStatus] = useState({
     type: 'info', // 'info', 'loading', 'success', 'error'
     message: 'Aguardando URL do vídeo.',
@@ -23,7 +30,6 @@ const TranscriptionPage = () => {
   });
 
   const isTranscribing = uiStatus.type === 'loading';
-
   const worker = useRef(null);
 
   useEffect(() => {
@@ -31,9 +37,12 @@ const TranscriptionPage = () => {
       type: 'module'
     });
 
+    // --- Worker Message Handler ---
     worker.current.onmessage = (event) => {
-      const message = event.data;
-      switch (message.status) {
+      const msg = event.data;
+
+      switch (msg.status) {
+        // FFmpeg statuses
         case 'ffmpeg_loading':
           setFfmpegStatus({ ready: false, error: null, message: 'Carregando FFmpeg...' });
           break;
@@ -41,49 +50,56 @@ const TranscriptionPage = () => {
           setFfmpegStatus({ ready: true, error: null, message: 'FFmpeg pronto.' });
           break;
         case 'ffmpeg_error':
-          const friendlyFfmpegError = getFriendlyErrorMessage(message.error);
-          setFfmpegStatus({ ready: false, error: friendlyFfmpegError, message: 'Erro no FFmpeg.' });
+          setFfmpegStatus({ ready: false, error: getFriendlyErrorMessage(msg.error), message: 'Erro no FFmpeg.' });
           break;
-        case 'progress':
-            let progressPercentage = uiStatus.progress;
-            let progressMessage = uiStatus.message;
 
-            if (typeof message.progress === 'string') {
-                progressMessage = message.progress;
-                if (message.progress.startsWith('Downloading')) {
-                    progressPercentage = 25;
-                    progressMessage = 'Baixando arquivo de áudio...';
-                } else if (message.progress.startsWith('Extracting')) {
-                    progressPercentage = 35;
-                    progressMessage = 'Extraindo e convertendo áudio...';
-                }
-            } else if (message.progress && message.progress.file) {
-                // This handles the model download progress
-                progressPercentage = 40 + (message.progress.progress || 0) * 0.5; // Scale model download from 40% to 90%
-                progressMessage = `Baixando modelo de IA: ${message.progress.file} (${message.progress.progress.toFixed(2)}%)`;
-            }
-
-            setUiStatus({
-                type: 'loading',
-                message: progressMessage,
-                progress: progressPercentage,
-            });
+        // Transcriber statuses
+        case 'transcriber_loading':
+          setTranscriberStatus({ ready: false, error: null, message: 'Carregando modelo de IA...' });
+          break;
+        case 'transcriber_ready':
+          setTranscriberStatus({ ready: true, error: null, message: 'Modelo de IA pronto.' });
+          break;
+        case 'transcriber_error':
+            setTranscriberStatus({ ready: false, error: getFriendlyErrorMessage(msg.error), message: 'Erro no modelo de IA.' });
             break;
+
+        // Model download progress
+        case 'model_download_progress':
+          const { file, progress } = msg.progress;
+          setTranscriberStatus(prev => ({ ...prev, message: `Baixando modelo: ${file} (${progress.toFixed(2)}%)` }));
+          // Also update the main UI progress bar
+          setUiStatus({
+              type: 'loading',
+              message: `Baixando modelo de IA: ${file}`,
+              progress: progress
+          });
+          break;
+
+        // Transcription process statuses
+        case 'audio_downloading':
+          setUiStatus({ type: 'loading', message: 'Baixando e verificando áudio...', progress: 0 });
+          break;
+        case 'audio_converting':
+          setUiStatus({ type: 'loading', message: 'Convertendo áudio para o formato correto...', progress: 50 });
+          break;
+        case 'transcribing':
+          setUiStatus({ type: 'loading', message: 'Processando áudio e transcrevendo...', progress: 75 });
+          break;
+
+        // Final states
         case 'complete':
-            setUiStatus({ type: 'success', message: 'Transcrição concluída com sucesso!', progress: 100 });
-            setTranscription(message.output);
-            break;
+          setUiStatus({ type: 'success', message: 'Transcrição concluída com sucesso!', progress: 100 });
+          setTranscription(msg.output);
+          break;
         case 'error':
-            const friendlyError = getFriendlyErrorMessage(message.error);
-            setUiStatus({ type: 'error', message: friendlyError, progress: 0 });
-            break;
+          setUiStatus({ type: 'error', message: getFriendlyErrorMessage(msg.error), progress: 0 });
+          break;
       }
     };
 
-    return () => {
-      worker.current.terminate();
-    };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => worker.current.terminate();
+  }, []);
 
   const handleBack = () => navigate('/');
 
@@ -93,60 +109,43 @@ const TranscriptionPage = () => {
       return;
     }
     setTranscription('');
-    setUiStatus({ type: 'loading', message: 'Inicializando...', progress: 5 });
+    setUiStatus({ type: 'loading', message: 'Inicializando verificação...', progress: 0 });
 
     const proxyUrl = `/api/proxy-download?url=${encodeURIComponent(videoUrl)}`;
 
     try {
-      setUiStatus({ type: 'loading', message: 'Verificando a URL do vídeo...', progress: 10 });
-      const preflightResponse = await fetch(proxyUrl);
+      setUiStatus({ type: 'loading', message: 'Verificando a URL...', progress: 0 });
+      const preflight = await fetch(proxyUrl);
 
-      // Handle non-OK responses (e.g., 404, 500)
-      if (!preflightResponse.ok) {
-        let errorFromServer = `pre-flight check failed: ${preflightResponse.status}`;
+      if (!preflight.ok) {
+        let error = `Falha na verificação da URL: ${preflight.status}`;
         try {
-          // Try to parse a JSON error from the proxy
-          const errorJson = await preflightResponse.json();
-          if (errorJson && errorJson.error) {
-            errorFromServer = errorJson.error;
-          }
-        } catch (e) {
-          // If JSON parsing fails, use the raw text
-          errorFromServer = await preflightResponse.text();
-        }
-
-        setUiStatus({ type: 'error', message: getFriendlyErrorMessage(errorFromServer), progress: 0 });
-        return;
+          const errJson = await preflight.json();
+          if (errJson.error) error = errJson.error;
+        } catch (e) { /* ignore json parse error */ }
+        throw new Error(error);
       }
 
-      // Handle the specific error where the response is OK but the content is an HTML page
-      const contentType = preflightResponse.headers.get('content-type');
+      const contentType = preflight.headers.get('content-type');
       if (contentType && contentType.includes('text/html')) {
-        setUiStatus({ type: 'error', message: getFriendlyErrorMessage('Expected audio but received HTML'), progress: 0 });
-        return;
-      }
-
-      // Optional: Check for valid media types to provide clearer feedback
-      if (!contentType || (!contentType.startsWith('audio/') && !contentType.startsWith('video/') && !contentType.startsWith('application/octet-stream'))) {
-          setUiStatus({ type: 'error', message: `Erro: O tipo de arquivo (${contentType}) não parece ser um áudio ou vídeo válido.`, progress: 0 });
-          return;
+        throw new Error('Expected audio but received HTML');
       }
 
     } catch (e) {
-      // Handle network errors (e.g., DNS, CORS, no connection)
       setUiStatus({ type: 'error', message: getFriendlyErrorMessage(e), progress: 0 });
       return;
     }
 
-    setUiStatus({ type: 'loading', message: 'URL verificada. Enviando para o processador de áudio...', progress: 20 });
+    setUiStatus({ type: 'loading', message: 'URL verificada. Iniciando processo...', progress: 0 });
 
     worker.current.postMessage({
       audio: proxyUrl,
-      model: 'Xenova/whisper-tiny',
       language: 'portuguese',
       task: 'transcribe',
     });
   };
+
+  const systemReady = ffmpegStatus.ready && transcriberStatus.ready;
 
   return (
     <Container maxWidth="md">
@@ -154,6 +153,7 @@ const TranscriptionPage = () => {
         <Button variant="outlined" onClick={handleBack} sx={{ mb: 2 }}>Voltar</Button>
         <Typography variant="h4" component="h1" gutterBottom>Gestão de Transcrições</Typography>
 
+        {/* --- System Status Card --- */}
         <Card sx={{ my: 2, bgcolor: 'grey.50', border: '2px solid #ddd' }}>
           <CardContent>
             <Typography variant="h6" component="h3" gutterBottom>Status do Sistema</Typography>
@@ -164,50 +164,43 @@ const TranscriptionPage = () => {
                 <Typography component="span" color="red" fontWeight="bold">❌ Desabilitado</Typography>
               }
             </Box>
-            <Box>
-              <Typography component="span" fontWeight="bold">Status FFmpeg: </Typography>
-              {ffmpegStatus.error ? <Typography component="span" color="red" fontWeight="bold">❌ Erro</Typography> :
-               ffmpegStatus.ready ? <Typography component="span" color="green" fontWeight="bold">✅ Carregado e Pronto</Typography> :
-               <Typography component="span" color="orange" fontWeight="bold">⏳ Carregando...</Typography>
+            <Box sx={{ mb: 1 }}>
+              <Typography component="span" fontWeight="bold">FFmpeg: </Typography>
+              {ffmpegStatus.error ? <Typography component="span" color="red">❌ {ffmpegStatus.error}</Typography> :
+               ffmpegStatus.ready ? <Typography component="span" color="green">✅ Pronto</Typography> :
+               <Typography component="span" color="orange">⏳ Carregando...</Typography>
               }
             </Box>
-            {ffmpegStatus.error && (
-              <Alert severity="error" sx={{ mt: 2, whiteSpace: 'pre-wrap', wordWrap: 'break-word' }}>
-                <Typography fontWeight="bold">Erro:</Typography>
-                <Typography component="pre" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{ffmpegStatus.error}</Typography>
-                {ffmpegStatus.error.includes('crossOriginIsolated') && (
-                  <Box sx={{ mt: 1 }}>
-                    <Typography fontWeight="bold">Como corrigir:</Typography>
-                    <ol>
-                      <li>Verifique se vite.config.js tem os headers COOP/COEP</li>
-                      <li>Verifique se vercel.json tem os headers COOP/COEP</li>
-                      <li>Reinicie o servidor de desenvolvimento completamente</li>
-                      <li>Faça novo deploy no Vercel (se em produção)</li>
-                      <li>Limpe o cache do navegador (Ctrl+Shift+R)</li>
-                    </ol>
-                  </Box>
-                )}
-              </Alert>
-            )}
-            {!ffmpegStatus.error && ffmpegStatus.ready && <Alert severity="success" sx={{ mt: 1 }}>Tudo pronto para transcrever.</Alert>}
+            <Box>
+              <Typography component="span" fontWeight="bold">Modelo de IA: </Typography>
+              {transcriberStatus.error ? <Typography component="span" color="red">❌ {transcriberStatus.error}</Typography> :
+               transcriberStatus.ready ? <Typography component="span" color="green">✅ Pronto</Typography> :
+               <Typography component="span" color="orange">⏳ {transcriberStatus.message}</Typography>
+              }
+            </Box>
+
+            {(!systemReady && !ffmpegStatus.error && !transcriberStatus.error) && <Alert severity="info" sx={{ mt: 2 }}>O sistema está preparando as ferramentas. Isso pode levar um minuto na primeira vez.</Alert>}
+            {(ffmpegStatus.error || transcriberStatus.error) && <Alert severity="error" sx={{ mt: 2 }}>O sistema encontrou um erro e não pode continuar.</Alert>}
+            {systemReady && <Alert severity="success" sx={{ mt: 2 }}>Sistema pronto para transcrever.</Alert>}
+
           </CardContent>
         </Card>
 
-        <Typography variant="body1" gutterBottom sx={{ mt: 2 }}>Insira a URL do vídeo que você deseja transcrever. O áudio será extraído e transcrito para texto.</Typography>
+        <Typography variant="body1" gutterBottom sx={{ mt: 2 }}>Insira a URL do vídeo ou áudio. O sistema irá baixar, converter e transcrever o conteúdo.</Typography>
         <TextField
-          label="URL do Vídeo"
+          label="URL do Vídeo ou Áudio"
           variant="outlined"
           fullWidth
           value={videoUrl}
           onChange={(e) => setVideoUrl(e.target.value)}
           sx={{ my: 2 }}
-          disabled={isTranscribing || !ffmpegStatus.ready}
+          disabled={isTranscribing || !systemReady}
         />
         <Button
           variant="contained"
           color="primary"
           onClick={handleTranscribe}
-          disabled={isTranscribing || !ffmpegStatus.ready}
+          disabled={isTranscribing || !systemReady}
           fullWidth
           size="large"
           sx={{ mb: 2 }}
@@ -215,12 +208,13 @@ const TranscriptionPage = () => {
           {isTranscribing ? <CircularProgress size={24} color="inherit" /> : 'Transcrever'}
         </Button>
 
+        {/* --- Progress and Result Area --- */}
         {(isTranscribing || uiStatus.type === 'error' || uiStatus.type === 'success') && (
             <Box sx={{ width: '100%', my: 2 }}>
-                <Alert severity={uiStatus.type}>
+                <Alert severity={uiStatus.type} sx={{wordBreak: 'break-word'}}>
                     {uiStatus.message}
                 </Alert>
-                {isTranscribing && <LinearProgress variant="determinate" value={uiStatus.progress || 0} sx={{mt: 1}} />}
+                {isTranscribing && <LinearProgress variant="determinate" value={uiStatus.progress} sx={{mt: 1}} />}
             </Box>
         )}
 
