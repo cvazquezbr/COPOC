@@ -8,18 +8,10 @@ const TranscriptionPage = () => {
   const [videoUrl, setVideoUrl] = useState('');
   const [transcription, setTranscription] = useState('');
 
-  // State for FFmpeg status
-  const [ffmpegStatus, setFfmpegStatus] = useState({
-    ready: false,
-    error: null,
-    message: 'Aguardando FFmpeg...',
-  });
-
-  // State for the AI transcriber model status
-  const [transcriberStatus, setTranscriberStatus] = useState({
-      ready: false,
-      error: null,
-      message: 'Aguardando modelo de IA...',
+  // Unified system status
+  const [systemStatus, setSystemStatus] = useState({
+    status: 'initializing', // 'initializing', 'ready', 'error'
+    message: 'Iniciando sistema de transcrição...',
   });
 
   // State for the active transcription process UI
@@ -37,43 +29,46 @@ const TranscriptionPage = () => {
       type: 'module'
     });
 
+    // Handle unexpected worker errors
+    worker.current.onerror = (error) => {
+        console.error("Worker error:", error);
+        setSystemStatus({
+            status: 'error',
+            message: `Ocorreu um erro crítico no worker: ${error.message}`
+        });
+    };
+
     // --- Worker Message Handler ---
     worker.current.onmessage = (event) => {
       const msg = event.data;
 
       switch (msg.status) {
-        // FFmpeg statuses
+        // Initialization statuses
         case 'ffmpeg_loading':
-          setFfmpegStatus({ ready: false, error: null, message: 'Carregando FFmpeg...' });
+          setSystemStatus({ status: 'initializing', message: 'Carregando FFmpeg...' });
           break;
         case 'ffmpeg_ready':
-          setFfmpegStatus({ ready: true, error: null, message: 'FFmpeg pronto.' });
+          setSystemStatus({ status: 'initializing', message: 'FFmpeg pronto. Carregando modelo de IA...' });
           break;
-        case 'ffmpeg_error':
-          setFfmpegStatus({ ready: false, error: getFriendlyErrorMessage(msg.error), message: 'Erro no FFmpeg.' });
-          break;
-
-        // Transcriber statuses
         case 'transcriber_loading':
-          setTranscriberStatus({ ready: false, error: null, message: 'Carregando modelo de IA...' });
+          setSystemStatus({ status: 'initializing', message: 'Carregando modelo de IA...' });
           break;
-        case 'transcriber_ready':
-          setTranscriberStatus({ ready: true, error: null, message: 'Modelo de IA pronto.' });
-          break;
-        case 'transcriber_error':
-            setTranscriberStatus({ ready: false, error: getFriendlyErrorMessage(msg.error), message: 'Erro no modelo de IA.' });
-            break;
-
-        // Model download progress
         case 'model_download_progress':
           const { file, progress } = msg.progress;
-          setTranscriberStatus(prev => ({ ...prev, message: `Baixando modelo: ${file} (${progress.toFixed(2)}%)` }));
-          // Also update the main UI progress bar
-          setUiStatus({
-              type: 'loading',
-              message: `Baixando modelo de IA: ${file}`,
-              progress: progress
-          });
+          setSystemStatus(prev => ({ ...prev, message: `Baixando modelo: ${file} (${progress.toFixed(2)}%)` }));
+          break;
+        case 'transcriber_ready':
+            setSystemStatus({ status: 'initializing', message: 'Modelo de IA pronto. Finalizando...' });
+            break;
+        case 'INIT_COMPLETE':
+            setSystemStatus({ status: 'ready', message: 'Sistema pronto para transcrever.' });
+            break;
+
+        // Initialization or critical errors
+        case 'ERROR': // From worker's own catch block during init
+        case 'ffmpeg_error':
+        case 'transcriber_error':
+          setSystemStatus({ status: 'error', message: getFriendlyErrorMessage(msg.error) });
           break;
 
         // Transcription process statuses
@@ -92,11 +87,14 @@ const TranscriptionPage = () => {
           setUiStatus({ type: 'success', message: 'Transcrição concluída com sucesso!', progress: 100 });
           setTranscription(msg.output);
           break;
-        case 'error':
+        case 'error': // For transcription-specific errors
           setUiStatus({ type: 'error', message: getFriendlyErrorMessage(msg.error), progress: 0 });
           break;
       }
     };
+
+    // Start the initialization process
+    worker.current.postMessage({ type: 'INIT' });
 
     return () => worker.current.terminate();
   }, []);
@@ -116,28 +114,25 @@ const TranscriptionPage = () => {
     try {
       setUiStatus({ type: 'loading', message: 'Verificando a URL...', progress: 0 });
       const preflight = await fetch(proxyUrl);
-
       if (!preflight.ok) {
-        let error = `Falha na verificação da URL: ${preflight.status}`;
+        let errorText = `Falha na verificação da URL: ${preflight.status}`;
         try {
-          const errJson = await preflight.json();
-          if (errJson.error) error = errJson.error;
-        } catch (e) { /* ignore json parse error */ }
-        throw new Error(error);
+          const errBody = await preflight.text();
+          // Vercel might return HTML for some errors, let's show it.
+          errorText = errBody.includes('<') ? `Erro do servidor (HTML recebido)` : (await JSON.parse(errBody)).error || errorText;
+        } catch (e) { /* ignore parse error */ }
+        throw new Error(errorText);
       }
-
       const contentType = preflight.headers.get('content-type');
       if (contentType && contentType.includes('text/html')) {
-        throw new Error('Expected audio but received HTML');
+        throw new Error('A URL retornou uma página HTML em vez de um arquivo de mídia.');
       }
-
     } catch (e) {
       setUiStatus({ type: 'error', message: getFriendlyErrorMessage(e), progress: 0 });
       return;
     }
 
     setUiStatus({ type: 'loading', message: 'URL verificada. Iniciando processo...', progress: 0 });
-
     worker.current.postMessage({
       audio: proxyUrl,
       language: 'portuguese',
@@ -145,7 +140,7 @@ const TranscriptionPage = () => {
     });
   };
 
-  const systemReady = ffmpegStatus.ready && transcriberStatus.ready;
+  const systemReady = systemStatus.status === 'ready';
 
   return (
     <Container maxWidth="md">
@@ -153,7 +148,6 @@ const TranscriptionPage = () => {
         <Button variant="outlined" onClick={handleBack} sx={{ mb: 2 }}>Voltar</Button>
         <Typography variant="h4" component="h1" gutterBottom>Gestão de Transcrições</Typography>
 
-        {/* --- System Status Card --- */}
         <Card sx={{ my: 2, bgcolor: 'grey.50', border: '2px solid #ddd' }}>
           <CardContent>
             <Typography variant="h6" component="h3" gutterBottom>Status do Sistema</Typography>
@@ -164,25 +158,13 @@ const TranscriptionPage = () => {
                 <Typography component="span" color="red" fontWeight="bold">❌ Desabilitado</Typography>
               }
             </Box>
-            <Box sx={{ mb: 1 }}>
-              <Typography component="span" fontWeight="bold">FFmpeg: </Typography>
-              {ffmpegStatus.error ? <Typography component="span" color="red">❌ {ffmpegStatus.error}</Typography> :
-               ffmpegStatus.ready ? <Typography component="span" color="green">✅ Pronto</Typography> :
-               <Typography component="span" color="orange">⏳ Carregando...</Typography>
-              }
-            </Box>
             <Box>
-              <Typography component="span" fontWeight="bold">Modelo de IA: </Typography>
-              {transcriberStatus.error ? <Typography component="span" color="red">❌ {transcriberStatus.error}</Typography> :
-               transcriberStatus.ready ? <Typography component="span" color="green">✅ Pronto</Typography> :
-               <Typography component="span" color="orange">⏳ {transcriberStatus.message}</Typography>
-              }
+              <Typography component="span" fontWeight="bold">Status: </Typography>
+              {systemStatus.status === 'initializing' && <Typography component="span" color="orange">⏳ {systemStatus.message}</Typography>}
+              {systemStatus.status === 'ready' && <Typography component="span" color="green">✅ {systemStatus.message}</Typography>}
+              {systemStatus.status === 'error' && <Typography component="span" color="red">❌ {systemStatus.message}</Typography>}
             </Box>
-
-            {(!systemReady && !ffmpegStatus.error && !transcriberStatus.error) && <Alert severity="info" sx={{ mt: 2 }}>O sistema está preparando as ferramentas. Isso pode levar um minuto na primeira vez.</Alert>}
-            {(ffmpegStatus.error || transcriberStatus.error) && <Alert severity="error" sx={{ mt: 2 }}>O sistema encontrou um erro e não pode continuar.</Alert>}
-            {systemReady && <Alert severity="success" sx={{ mt: 2 }}>Sistema pronto para transcrever.</Alert>}
-
+            {systemStatus.status === 'error' && <Alert severity="error" sx={{ mt: 2 }}>O sistema encontrou um erro e não pode continuar. Verifique o console para detalhes.</Alert>}
           </CardContent>
         </Card>
 
@@ -208,7 +190,6 @@ const TranscriptionPage = () => {
           {isTranscribing ? <CircularProgress size={24} color="inherit" /> : 'Transcrever'}
         </Button>
 
-        {/* --- Progress and Result Area --- */}
         {(isTranscribing || uiStatus.type === 'error' || uiStatus.type === 'success') && (
             <Box sx={{ width: '100%', my: 2 }}>
                 <Alert severity={uiStatus.type} sx={{wordBreak: 'break-word'}}>
