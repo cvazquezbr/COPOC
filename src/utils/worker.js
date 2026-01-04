@@ -100,8 +100,14 @@ class TranscriptionService {
         await this.ffmpeg.exec(['-i', inputFileName, '-ar', '16000', '-ac', '1', '-c:a', 'pcm_s16le', outputFileName]);
         const wavData = await this.ffmpeg.readFile(outputFileName);
 
+        const pcmData = new Int16Array(wavData.buffer.slice(44));
+        const floatData = new Float32Array(pcmData.length);
+        for (let i = 0; i < pcmData.length; i++) {
+            floatData[i] = pcmData[i] / 32768.0;
+        }
+
         self.postMessage({ status: 'transcribing' });
-        const output = await this.transcriber(wavData, {
+        const output = await this.transcriber(floatData, {
             language: language,
             task: task,
         });
