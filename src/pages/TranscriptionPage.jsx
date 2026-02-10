@@ -7,6 +7,8 @@ import getFriendlyErrorMessage from '../utils/friendlyErrors';
 const TranscriptionPage = () => {
   const navigate = useNavigate();
   const [videoUrl, setVideoUrl] = useState('');
+  const [campaignBriefing, setCampaignBriefing] = useState('');
+  const [captionText, setCaptionText] = useState('');
   const [transcription, setTranscription] = useState('');
   const [status, setStatus] = useState('Aguardando...');
   const [workerReady, setWorkerReady] = useState(false);
@@ -157,6 +159,28 @@ const TranscriptionPage = () => {
           onChange={(e) => setVideoUrl(e.target.value)}
           sx={{ my: 2 }}
           disabled={isTranscribing || !workerReady}
+        />
+        <TextField
+          label="Briefing da Campanha"
+          variant="outlined"
+          fullWidth
+          multiline
+          rows={3}
+          value={campaignBriefing}
+          onChange={(e) => setCampaignBriefing(e.target.value)}
+          sx={{ mb: 2 }}
+          disabled={isTranscribing}
+        />
+        <TextField
+          label="Texto de Legenda"
+          variant="outlined"
+          fullWidth
+          multiline
+          rows={3}
+          value={captionText}
+          onChange={(e) => setCaptionText(e.target.value)}
+          sx={{ mb: 2 }}
+          disabled={isTranscribing}
         />
         <Button
           variant="contained"
