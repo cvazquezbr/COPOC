@@ -6,15 +6,25 @@ import {
   FormControl, InputLabel, Select, MenuItem, Grid
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import getFriendlyErrorMessage from '../utils/friendlyErrors';
 import { useUserAuth } from '../context/UserAuthContext';
 import { useLayout } from '../context/LayoutContext';
 import geminiAPI from '../utils/geminiAPI';
+import { saveTranscription, updateTranscription, deleteTranscription } from '../utils/transcriptionState';
 
 const TranscriptionPage = () => {
   const navigate = useNavigate();
   const { user } = useUserAuth();
-  const { briefings, fetchBriefings } = useLayout();
+  const {
+    briefings,
+    fetchBriefings,
+    transcriptions,
+    fetchTranscriptions,
+    selectedTranscriptionId,
+    setSelectedTranscriptionId
+  } = useLayout();
+  const [transcriptionName, setTranscriptionName] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
   const [selectedBriefingId, setSelectedBriefingId] = useState('');
   const [captionText, setCaptionText] = useState('');
@@ -30,7 +40,36 @@ const TranscriptionPage = () => {
 
   useEffect(() => {
     fetchBriefings();
-  }, [fetchBriefings]);
+    fetchTranscriptions();
+  }, [fetchBriefings, fetchTranscriptions]);
+
+  useEffect(() => {
+    if (selectedTranscriptionId) {
+      const selected = transcriptions.find(t => t.id === selectedTranscriptionId);
+      if (selected) {
+        setTranscriptionName(selected.name || '');
+        setVideoUrl(selected.video_url || '');
+        setSelectedBriefingId(selected.briefing_id || '');
+        const data = selected.transcription_data || {};
+        setCaptionText(data.captionText || '');
+        setTranscription(data.transcription || '');
+        setEvaluationResult(data.evaluationResult || null);
+        setUserEvaluation(data.userEvaluation || null);
+      }
+    } else {
+      setTranscriptionName('');
+      setVideoUrl('');
+      setSelectedBriefingId('');
+      setCaptionText('');
+      setTranscription('');
+      setEvaluationResult(null);
+      setUserEvaluation(null);
+      setIsTranscribing(false);
+      setIsEvaluating(false);
+      setStatus('Aguardando...');
+      setError(null);
+    }
+  }, [selectedTranscriptionId, transcriptions]);
 
   const selectedBriefing = briefings.find(b => b.id === selectedBriefingId);
   const campaignBriefing = selectedBriefing?.briefing_data?.revisedText || '';
@@ -206,15 +245,78 @@ const TranscriptionPage = () => {
     });
   };
 
+  const handleSave = async () => {
+    if (!transcriptionName) {
+      toast.error('O nome da transcrição é obrigatório para salvar.');
+      return;
+    }
+
+    const transcriptionData = {
+      captionText,
+      transcription,
+      evaluationResult,
+      userEvaluation,
+    };
+
+    try {
+      if (selectedTranscriptionId) {
+        await updateTranscription(selectedTranscriptionId, transcriptionName, videoUrl, selectedBriefingId, transcriptionData);
+        toast.success('Transcrição atualizada com sucesso!');
+      } else {
+        const result = await saveTranscription(transcriptionName, videoUrl, selectedBriefingId, transcriptionData);
+        toast.success('Transcrição salva com sucesso!');
+        setSelectedTranscriptionId(result.id);
+      }
+      await fetchTranscriptions();
+    } catch (e) {
+      toast.error(`Erro ao salvar: ${e.message}`);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selectedTranscriptionId) return;
+    if (window.confirm('Tem certeza que deseja excluir esta transcrição?')) {
+      try {
+        await deleteTranscription(selectedTranscriptionId);
+        toast.success('Transcrição excluída com sucesso!');
+        setSelectedTranscriptionId(null);
+        await fetchTranscriptions();
+      } catch (e) {
+        toast.error(`Erro ao excluir: ${e.message}`);
+      }
+    }
+  };
+
   return (
     <Container maxWidth="md">
       <Box sx={{ my: 4 }}>
         <Button variant="outlined" onClick={handleBack} sx={{ mb: 2 }}>
           Voltar
         </Button>
-        <Typography variant="h4" component="h1" gutterBottom>
-          Gestão de Transcrições
-        </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h4" component="h1">
+            Gestão de Transcrições
+          </Typography>
+          <Box>
+            {selectedTranscriptionId && (
+              <Button variant="outlined" color="error" onClick={handleDelete} sx={{ mr: 1 }}>
+                Excluir
+              </Button>
+            )}
+            <Button variant="contained" color="success" onClick={handleSave}>
+              Salvar
+            </Button>
+          </Box>
+        </Box>
+
+        <TextField
+          label="Nome da Transcrição"
+          variant="outlined"
+          fullWidth
+          value={transcriptionName}
+          onChange={(e) => setTranscriptionName(e.target.value)}
+          sx={{ mb: 2 }}
+        />
 
         <Paper elevation={2} sx={{ p: 2, mb: 3 }}>
             <Typography variant="h6" gutterBottom>Status do Sistema</Typography>
@@ -349,6 +451,7 @@ const TranscriptionPage = () => {
                 variant="outlined"
                 size="small"
                 onClick={() => setUserEvaluation(JSON.parse(JSON.stringify(evaluationResult)))}
+                disabled={!evaluationResult}
               >
                 Resetar para IA
               </Button>
@@ -360,7 +463,7 @@ const TranscriptionPage = () => {
 
             <Box sx={{ mb: 4 }}>
               {userEvaluation.avaliacoes.map((av, index) => {
-                const aiAv = evaluationResult.avaliacoes[index];
+                const aiAv = evaluationResult?.avaliacoes?.[index];
                 return (
                   <Paper variant="outlined" key={av.id_criterio} sx={{ p: 2, mb: 2, bgcolor: 'background.paper' }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
@@ -381,7 +484,7 @@ const TranscriptionPage = () => {
                             <MenuItem value={2}>2</MenuItem>
                             <MenuItem value={3}>3</MenuItem>
                           </Select>
-                          {Number(av.nota) !== Number(aiAv.nota) && (
+                          {aiAv && Number(av.nota) !== Number(aiAv.nota) && (
                             <Typography variant="caption" color="textSecondary" display="block" align="center">
                               IA: {aiAv.nota}
                             </Typography>
@@ -404,7 +507,7 @@ const TranscriptionPage = () => {
                             <MenuItem value="BOM">BOM</MenuItem>
                             <MenuItem value="ÓTIMO">ÓTIMO</MenuItem>
                           </Select>
-                          {av.status !== aiAv.status && (
+                          {aiAv && av.status !== aiAv.status && (
                             <Typography variant="caption" color="textSecondary" display="block" align="center">
                               IA: {aiAv.status}
                             </Typography>
@@ -425,7 +528,7 @@ const TranscriptionPage = () => {
                           variant="outlined"
                           size="small"
                         />
-                        {av.comentario !== aiAv.comentario && (
+                        {aiAv && av.comentario !== aiAv.comentario && (
                            <Box sx={{ mt: 1, p: 1, bgcolor: 'action.hover', borderRadius: 1, borderLeft: '3px solid', borderColor: 'divider' }}>
                              <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 'bold', display: 'block' }}>IA Original:</Typography>
                              <Typography variant="caption" color="textSecondary">{aiAv.comentario}</Typography>
@@ -445,7 +548,7 @@ const TranscriptionPage = () => {
                           color="error"
                           focused={!!av.detalhes_ausentes}
                         />
-                        {(av.detalhes_ausentes !== aiAv.detalhes_ausentes) && (
+                        {aiAv && (av.detalhes_ausentes !== aiAv.detalhes_ausentes) && (
                            <Box sx={{ mt: 1, p: 1, bgcolor: 'action.hover', borderRadius: 1, borderLeft: '3px solid', borderColor: 'error.light' }}>
                              <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 'bold', display: 'block' }}>IA Original (Ausente):</Typography>
                              <Typography variant="caption" color="textSecondary">{aiAv.detalhes_ausentes || '(nada identificado)'}</Typography>
@@ -460,9 +563,9 @@ const TranscriptionPage = () => {
 
             <Box sx={{ bgcolor: 'action.hover', p: 2, borderRadius: 2, mb: 3 }}>
               <Typography variant="h6" gutterBottom>
-                Score Final: {userEvaluation.score_final.pontuacao_obtida} / {userEvaluation.score_final.pontuacao_maxima}
+                Score Final: {userEvaluation.score_final?.pontuacao_obtida} / {userEvaluation.score_final?.pontuacao_maxima}
               </Typography>
-              {userEvaluation.score_final.pontuacao_obtida !== evaluationResult.score_final.pontuacao_obtida && (
+              {evaluationResult?.score_final && userEvaluation.score_final?.pontuacao_obtida !== evaluationResult.score_final?.pontuacao_obtida && (
                   <Typography variant="caption" color="textSecondary">
                       Score original da IA: {evaluationResult.score_final.pontuacao_obtida}
                   </Typography>
@@ -476,12 +579,12 @@ const TranscriptionPage = () => {
               multiline
               fullWidth
               rows={4}
-              value={userEvaluation.feedback_consolidado.texto}
+              value={userEvaluation.feedback_consolidado?.texto || ''}
               onChange={(e) => handleUpdateFeedback(e.target.value)}
               variant="outlined"
               sx={{ bgcolor: 'background.default' }}
             />
-            {userEvaluation.feedback_consolidado.texto !== evaluationResult.feedback_consolidado.texto && (
+            {evaluationResult?.feedback_consolidado && userEvaluation.feedback_consolidado?.texto !== evaluationResult.feedback_consolidado?.texto && (
               <Paper variant="outlined" sx={{ p: 2, mt: 1, bgcolor: 'grey.100' }}>
                 <Typography variant="caption" color="textSecondary" display="block" gutterBottom>Conteúdo Original da IA:</Typography>
                 <Typography variant="body2" sx={{ fontStyle: 'italic', color: 'text.secondary' }}>

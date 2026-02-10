@@ -2,6 +2,7 @@ import React, {
   createContext, useState, useContext, useCallback,
 } from 'react';
 import { getBriefings } from '../utils/briefingState';
+import { getTranscriptions } from '../utils/transcriptionState';
 
 const LayoutContext = createContext(null);
 
@@ -17,6 +18,8 @@ export const LayoutProvider = ({ children }) => {
   const [isDrawerOpen, setDrawerOpen] = useState(true);
   const [briefings, setBriefings] = useState([]);
   const [selectedBriefingId, setSelectedBriefingId] = useState(null);
+  const [transcriptions, setTranscriptions] = useState([]);
+  const [selectedTranscriptionId, setSelectedTranscriptionId] = useState(null);
 
   const fetchBriefings = useCallback(async () => {
     try {
@@ -24,7 +27,15 @@ export const LayoutProvider = ({ children }) => {
       setBriefings(data);
     } catch (err) {
       console.error('Failed to fetch briefings:', err);
-      // Optionally, set an error state to show in the UI
+    }
+  }, []);
+
+  const fetchTranscriptions = useCallback(async () => {
+    try {
+      const data = await getTranscriptions();
+      setTranscriptions(data);
+    } catch (err) {
+      console.error('Failed to fetch transcriptions:', err);
     }
   }, []);
 
@@ -35,6 +46,10 @@ export const LayoutProvider = ({ children }) => {
     fetchBriefings,
     selectedBriefingId,
     setSelectedBriefingId,
+    transcriptions,
+    fetchTranscriptions,
+    selectedTranscriptionId,
+    setSelectedTranscriptionId,
   };
 
   return (
