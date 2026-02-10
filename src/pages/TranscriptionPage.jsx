@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Container, TextField, Button, Typography, Box, Paper, CircularProgress, Alert,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, Divider,
-  FormControl, InputLabel, Select, MenuItem
+  FormControl, InputLabel, Select, MenuItem, Grid
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import getFriendlyErrorMessage from '../utils/friendlyErrors';
@@ -358,24 +358,21 @@ const TranscriptionPage = () => {
             </Typography>
             <Divider sx={{ mb: 3 }} />
 
-            <TableContainer component={Box} sx={{ mb: 4 }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell><strong>Critério</strong></TableCell>
-                    <TableCell align="center"><strong>Nota</strong></TableCell>
-                    <TableCell align="center"><strong>Status</strong></TableCell>
-                    <TableCell><strong>Feedback / O que faltou</strong></TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {userEvaluation.avaliacoes.map((av, index) => {
-                    const aiAv = evaluationResult.avaliacoes[index];
-                    return (
-                      <TableRow key={av.id_criterio}>
-                        <TableCell>{av.nome}</TableCell>
-                        <TableCell align="center">
+            <Box sx={{ mb: 4 }}>
+              {userEvaluation.avaliacoes.map((av, index) => {
+                const aiAv = evaluationResult.avaliacoes[index];
+                return (
+                  <Paper variant="outlined" key={av.id_criterio} sx={{ p: 2, mb: 2, bgcolor: 'background.paper' }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 'bold', flexGrow: 1 }}>
+                        {av.nome}
+                      </Typography>
+
+                      <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                        <Box>
+                          <InputLabel id={`nota-label-${index}`} sx={{ fontSize: '0.75rem' }}>Nota</InputLabel>
                           <Select
+                            labelId={`nota-label-${index}`}
                             value={av.nota}
                             onChange={(e) => handleUpdateEvaluation(index, 'nota', e.target.value)}
                             size="small"
@@ -385,13 +382,16 @@ const TranscriptionPage = () => {
                             <MenuItem value={3}>3</MenuItem>
                           </Select>
                           {Number(av.nota) !== Number(aiAv.nota) && (
-                            <Typography variant="caption" color="textSecondary" display="block">
+                            <Typography variant="caption" color="textSecondary" display="block" align="center">
                               IA: {aiAv.nota}
                             </Typography>
                           )}
-                        </TableCell>
-                        <TableCell align="center">
+                        </Box>
+
+                        <Box>
+                          <InputLabel id={`status-label-${index}`} sx={{ fontSize: '0.75rem' }}>Status</InputLabel>
                           <Select
+                            labelId={`status-label-${index}`}
                             value={av.status}
                             onChange={(e) => handleUpdateEvaluation(index, 'status', e.target.value)}
                             size="small"
@@ -405,48 +405,58 @@ const TranscriptionPage = () => {
                             <MenuItem value="ÓTIMO">ÓTIMO</MenuItem>
                           </Select>
                           {av.status !== aiAv.status && (
-                            <Typography variant="caption" color="textSecondary" display="block">
+                            <Typography variant="caption" color="textSecondary" display="block" align="center">
                               IA: {aiAv.status}
                             </Typography>
                           )}
-                        </TableCell>
-                        <TableCell>
-                          <TextField
-                            multiline
-                            fullWidth
-                            value={av.comentario}
-                            onChange={(e) => handleUpdateEvaluation(index, 'comentario', e.target.value)}
-                            variant="standard"
-                            InputProps={{ style: { fontSize: '0.875rem' } }}
-                            placeholder="Comentário..."
-                          />
-                          {av.comentario !== aiAv.comentario && (
-                             <Box sx={{ mt: 1, p: 0.5, bgcolor: 'grey.100', borderRadius: 1 }}>
-                               <Typography variant="caption" color="textSecondary">IA: {aiAv.comentario}</Typography>
-                             </Box>
-                          )}
+                        </Box>
+                      </Box>
+                    </Box>
 
-                          <TextField
-                            label="O que faltou"
-                            fullWidth
-                            value={av.detalhes_ausentes || ''}
-                            onChange={(e) => handleUpdateEvaluation(index, 'detalhes_ausentes', e.target.value)}
-                            variant="standard"
-                            sx={{ mt: 1 }}
-                            InputProps={{ style: { fontSize: '0.75rem' } }}
-                          />
-                          {(av.detalhes_ausentes !== aiAv.detalhes_ausentes) && (
-                             <Typography variant="caption" color="textSecondary" display="block">
-                               IA: {aiAv.detalhes_ausentes || '(vazio)'}
-                             </Typography>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} md={6}>
+                        <TextField
+                          label="Comentário / Feedback"
+                          multiline
+                          fullWidth
+                          minRows={3}
+                          value={av.comentario}
+                          onChange={(e) => handleUpdateEvaluation(index, 'comentario', e.target.value)}
+                          variant="outlined"
+                          size="small"
+                        />
+                        {av.comentario !== aiAv.comentario && (
+                           <Box sx={{ mt: 1, p: 1, bgcolor: 'action.hover', borderRadius: 1, borderLeft: '3px solid', borderColor: 'divider' }}>
+                             <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 'bold', display: 'block' }}>IA Original:</Typography>
+                             <Typography variant="caption" color="textSecondary">{aiAv.comentario}</Typography>
+                           </Box>
+                        )}
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <TextField
+                          label="O que faltou / Itens Ausentes"
+                          multiline
+                          fullWidth
+                          minRows={3}
+                          value={av.detalhes_ausentes || ''}
+                          onChange={(e) => handleUpdateEvaluation(index, 'detalhes_ausentes', e.target.value)}
+                          variant="outlined"
+                          size="small"
+                          color="error"
+                          focused={!!av.detalhes_ausentes}
+                        />
+                        {(av.detalhes_ausentes !== aiAv.detalhes_ausentes) && (
+                           <Box sx={{ mt: 1, p: 1, bgcolor: 'action.hover', borderRadius: 1, borderLeft: '3px solid', borderColor: 'error.light' }}>
+                             <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 'bold', display: 'block' }}>IA Original (Ausente):</Typography>
+                             <Typography variant="caption" color="textSecondary">{aiAv.detalhes_ausentes || '(nada identificado)'}</Typography>
+                           </Box>
+                        )}
+                      </Grid>
+                    </Grid>
+                  </Paper>
+                );
+              })}
+            </Box>
 
             <Box sx={{ bgcolor: 'action.hover', p: 2, borderRadius: 2, mb: 3 }}>
               <Typography variant="h6" gutterBottom>
