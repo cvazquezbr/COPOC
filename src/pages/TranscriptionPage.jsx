@@ -1,11 +1,17 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Container, TextField, Button, Typography, Box, Paper, CircularProgress, Alert } from '@mui/material';
+import {
+  Container, TextField, Button, Typography, Box, Paper, CircularProgress, Alert,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, Divider
+} from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import getFriendlyErrorMessage from '../utils/friendlyErrors';
+import { useUserAuth } from '../context/UserAuthContext';
+import geminiAPI from '../utils/geminiAPI';
 
 const TranscriptionPage = () => {
   const navigate = useNavigate();
+  const { user } = useUserAuth();
   const [videoUrl, setVideoUrl] = useState('');
   const [campaignBriefing, setCampaignBriefing] = useState('');
   const [captionText, setCaptionText] = useState('');
@@ -13,6 +19,8 @@ const TranscriptionPage = () => {
   const [status, setStatus] = useState('Aguardando...');
   const [workerReady, setWorkerReady] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [isEvaluating, setIsEvaluating] = useState(false);
+  const [evaluationResult, setEvaluationResult] = useState(null);
   const [error, setError] = useState(null);
   const worker = useRef(null);
 
@@ -114,6 +122,47 @@ const TranscriptionPage = () => {
     });
   };
 
+  const handleEvaluate = async () => {
+    if (!transcription || !campaignBriefing || !captionText) {
+      alert('Certifique-se de que a transcrição, o briefing e a legenda estejam preenchidos.');
+      return;
+    }
+
+    if (!user?.gemini_api_key) {
+      setError('Chave da API Gemini não configurada. Por favor, configure-a nas configurações.');
+      return;
+    }
+
+    setIsEvaluating(true);
+    setError(null);
+    setEvaluationResult(null);
+
+    try {
+      geminiAPI.initialize(user.gemini_api_key);
+      const result = await geminiAPI.evaluateContent(
+        transcription,
+        captionText,
+        campaignBriefing,
+        user.gemini_model
+      );
+      setEvaluationResult(result);
+    } catch (e) {
+      console.error('Erro na avaliação:', e);
+      setError(e.message);
+    } finally {
+      setIsEvaluating(false);
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'ÓTIMO': return 'success';
+      case 'BOM': return 'warning';
+      case 'RUIM': return 'error';
+      default: return 'default';
+    }
+  };
+
   return (
     <Container maxWidth="md">
       <Box sx={{ my: 4 }}>
@@ -201,13 +250,87 @@ const TranscriptionPage = () => {
         )}
 
         {transcription && (
-          <Paper elevation={3} sx={{ p: 2, mt: 4, maxHeight: '400px', overflow: 'auto' }}>
-            <Typography variant="h6" component="h2">
-              Transcrição:
+          <Box sx={{ mt: 4 }}>
+            <Paper elevation={3} sx={{ p: 2, mb: 3, maxHeight: '400px', overflow: 'auto' }}>
+              <Typography variant="h6" component="h2">
+                Transcrição:
+              </Typography>
+              <Typography component="pre" sx={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word' }}>
+                {transcription}
+              </Typography>
+            </Paper>
+
+            <Button
+              variant="contained"
+              color="secondary"
+              onClick={handleEvaluate}
+              disabled={isEvaluating || !campaignBriefing || !captionText}
+              fullWidth
+              size="large"
+              sx={{ mb: 2 }}
+            >
+              {isEvaluating ? <CircularProgress size={24} color="inherit" /> : 'Avaliar Material'}
+            </Button>
+          </Box>
+        )}
+
+        {evaluationResult && (
+          <Paper elevation={3} sx={{ p: 3, mt: 2 }}>
+            <Typography variant="h5" gutterBottom align="center">
+              Resultado da Avaliação
             </Typography>
-            <Typography component="pre" sx={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word' }}>
-              {transcription}
+            <Divider sx={{ mb: 3 }} />
+
+            <TableContainer component={Box} sx={{ mb: 4 }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell><strong>Critério</strong></TableCell>
+                    <TableCell align="center"><strong>Nota</strong></TableCell>
+                    <TableCell align="center"><strong>Status</strong></TableCell>
+                    <TableCell><strong>Feedback / O que faltou</strong></TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {evaluationResult.avaliacoes.map((av) => (
+                    <TableRow key={av.id_criterio}>
+                      <TableCell>{av.nome}</TableCell>
+                      <TableCell align="center">{av.nota}</TableCell>
+                      <TableCell align="center">
+                        <Chip
+                          label={av.status}
+                          color={getStatusColor(av.status)}
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">{av.comentario}</Typography>
+                        {av.detalhes_ausentes && (
+                          <Typography variant="caption" color="error" display="block" sx={{ mt: 1, fontWeight: 'bold' }}>
+                            Ausente: {av.detalhes_ausentes}
+                          </Typography>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+
+            <Box sx={{ bgcolor: 'action.hover', p: 2, borderRadius: 2, mb: 3 }}>
+              <Typography variant="h6" gutterBottom>
+                Score Final: {evaluationResult.score_final.pontuacao_obtida} / {evaluationResult.score_final.pontuacao_maxima}
+              </Typography>
+            </Box>
+
+            <Typography variant="h6" gutterBottom>
+              Feedback Consolidado:
             </Typography>
+            <Paper variant="outlined" sx={{ p: 2, bgcolor: 'background.default' }}>
+              <Typography variant="body1" sx={{ fontStyle: 'italic' }}>
+                "{evaluationResult.feedback_consolidado.texto}"
+              </Typography>
+            </Paper>
           </Paper>
         )}
       </Box>

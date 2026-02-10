@@ -262,6 +262,106 @@ class GeminiAPI {
       throw new Error(`A tradução da IA falhou. Motivo: ${error.message}`);
     }
   }
+
+  async evaluateContent(transcription, caption, briefing, model) {
+    const purpose = 'Avaliação de Conteúdo';
+    const prompt = `
+Contexto: Você é um curador de conteúdo especializado em marketing de influência. Sua tarefa é avaliar o material de um creator (transcrição do vídeo + legenda) com base em um briefing específico. A análise é estritamente textual (ignore elementos visuais).
+
+Critérios de Avaliação (Notas 1 a 3):
+Key Message / Mensagem Principal: O núcleo da campanha foi transmitido?
+Branding (Do’s & Don’ts): Respeitou a identidade e diretrizes da marca?
+Criatividade: O conteúdo é original e envolvente no texto?
+Call to Action (CTA): O comando final está claro e correto?
+
+Regras de Negócio:
+Compare o conteúdo com o briefing fornecido.
+Aponte o que falta de forma objetiva.
+O tom do feedback_geral deve ser de "creator para creator": leve, descolado, encorajador, mas direto sobre ajustes técnicos/comerciais.
+O campo detalhes_ausentes deve detalhar itens ausentes (ex: preço, aviso legal, etc).
+
+---
+**DADOS PARA AVALIAÇÃO:**
+
+**BRIEFING:**
+${briefing}
+
+**TRANSCRIÇÃO DO VÍDEO:**
+${transcription}
+
+**LEGENDA:**
+${caption}
+---
+
+Instrução de Saída: Sua resposta deve ser exclusivamente um objeto JSON estruturado da seguinte forma:
+
+{
+  "avaliacoes": [
+    {
+      "id_criterio": 1,
+      "nome": "Key Message / Mensagem Principal",
+      "nota": 0,
+      "status": "RUIM | BOM | ÓTIMO",
+      "comentario": "",
+      "detalhes_ausentes": ""
+    },
+    {
+      "id_criterio": 3,
+      "nome": "Branding (Do’s & Don’ts)",
+      "nota": 0,
+      "status": "RUIM | BOM | ÓTIMO",
+      "comentario": "",
+      "detalhes_ausentes": ""
+    },
+    {
+      "id_criterio": 4,
+      "nome": "Criatividade",
+      "nota": 0,
+      "status": "RUIM | BOM | ÓTIMO",
+      "comentario": "",
+      "detalhes_ausentes": ""
+    },
+    {
+      "id_criterio": 7,
+      "nome": "Call to Action (CTA)",
+      "nota": 0,
+      "status": "RUIM | BOM | ÓTIMO",
+      "comentario": "",
+      "detalhes_ausentes": ""
+    }
+  ],
+  "score_final": {
+    "pontuacao_obtida": 0,
+    "pontuacao_maxima": 12
+  },
+  "feedback_consolidado": {
+    "texto": ""
+  }
+}
+`;
+
+    try {
+      const responseText = await this.generateContent(prompt, model, purpose);
+      let jsonString = responseText;
+      const codeBlockMatch = responseText.match(/```json\n([\s\S]*?)\n```/);
+      if (codeBlockMatch && codeBlockMatch[1]) {
+        jsonString = codeBlockMatch[1];
+      } else {
+        const firstBrace = responseText.indexOf("{");
+        const lastBrace = responseText.lastIndexOf("}");
+        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+          jsonString = responseText.substring(firstBrace, lastBrace + 1);
+        }
+      }
+
+      const parsed = JSON.parse(jsonString);
+      return parsed;
+
+    } catch (error) {
+      console.error(`[${purpose}] Erro ao avaliar conteúdo:`, error);
+      throw new Error(`A avaliação da IA falhou. Motivo: ${error.message}`);
+    }
+  }
 }
 
 const geminiAPI = new GeminiAPI();
