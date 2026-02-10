@@ -2,18 +2,21 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Container, TextField, Button, Typography, Box, Paper, CircularProgress, Alert,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, Divider
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, Divider,
+  FormControl, InputLabel, Select, MenuItem
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import getFriendlyErrorMessage from '../utils/friendlyErrors';
 import { useUserAuth } from '../context/UserAuthContext';
+import { useLayout } from '../context/LayoutContext';
 import geminiAPI from '../utils/geminiAPI';
 
 const TranscriptionPage = () => {
   const navigate = useNavigate();
   const { user } = useUserAuth();
+  const { briefings, fetchBriefings } = useLayout();
   const [videoUrl, setVideoUrl] = useState('');
-  const [campaignBriefing, setCampaignBriefing] = useState('');
+  const [selectedBriefingId, setSelectedBriefingId] = useState('');
   const [captionText, setCaptionText] = useState('');
   const [transcription, setTranscription] = useState('');
   const [status, setStatus] = useState('Aguardando...');
@@ -23,6 +26,13 @@ const TranscriptionPage = () => {
   const [evaluationResult, setEvaluationResult] = useState(null);
   const [error, setError] = useState(null);
   const worker = useRef(null);
+
+  useEffect(() => {
+    fetchBriefings();
+  }, [fetchBriefings]);
+
+  const selectedBriefing = briefings.find(b => b.id === selectedBriefingId);
+  const campaignBriefing = selectedBriefing?.briefing_data?.revisedText || '';
 
   useEffect(() => {
     if (!worker.current) {
@@ -123,8 +133,13 @@ const TranscriptionPage = () => {
   };
 
   const handleEvaluate = async () => {
-    if (!transcription || !campaignBriefing || !captionText) {
+    if (!transcription || !selectedBriefingId || !captionText) {
       alert('Certifique-se de que a transcrição, o briefing e a legenda estejam preenchidos.');
+      return;
+    }
+
+    if (!campaignBriefing) {
+      alert('O briefing selecionado não possui conteúdo revisado. Por favor, revise-o na Gestão de Briefings antes de avaliar.');
       return;
     }
 
@@ -209,17 +224,39 @@ const TranscriptionPage = () => {
           sx={{ my: 2 }}
           disabled={isTranscribing || !workerReady}
         />
-        <TextField
-          label="Briefing da Campanha"
-          variant="outlined"
-          fullWidth
-          multiline
-          rows={3}
-          value={campaignBriefing}
-          onChange={(e) => setCampaignBriefing(e.target.value)}
-          sx={{ mb: 2 }}
-          disabled={isTranscribing}
-        />
+
+        <FormControl fullWidth sx={{ mb: 2 }} disabled={isTranscribing}>
+          <InputLabel id="select-briefing-label">Selecionar Briefing</InputLabel>
+          <Select
+            labelId="select-briefing-label"
+            value={selectedBriefingId}
+            label="Selecionar Briefing"
+            onChange={(e) => setSelectedBriefingId(e.target.value)}
+          >
+            <MenuItem value=""><em>Nenhum</em></MenuItem>
+            {briefings.map((b) => (
+              <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        {selectedBriefing && (
+          <Paper variant="outlined" sx={{ p: 2, mb: 2, bgcolor: 'action.hover', maxHeight: '200px', overflow: 'auto' }}>
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              Conteúdo do Briefing Selecionado (Revisado):
+            </Typography>
+            <Box sx={{ fontSize: '0.875rem' }}>
+              {campaignBriefing ? (
+                <div dangerouslySetInnerHTML={{ __html: campaignBriefing }} />
+              ) : (
+                <Typography color="error" variant="body2">
+                  Aviso: Este briefing ainda não possui um conteúdo revisado pela IA.
+                </Typography>
+              )}
+            </Box>
+          </Paper>
+        )}
+
         <TextField
           label="Texto de Legenda"
           variant="outlined"
