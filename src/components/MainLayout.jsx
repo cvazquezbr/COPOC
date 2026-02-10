@@ -115,6 +115,10 @@ const MainLayout = () => {
     fetchBriefings,
     setSelectedBriefingId,
     selectedBriefingId,
+    transcriptions,
+    fetchTranscriptions,
+    setSelectedTranscriptionId,
+    selectedTranscriptionId,
     isDrawerOpen,
     setDrawerOpen,
   } = useLayout();
@@ -127,8 +131,12 @@ const MainLayout = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
-    fetchBriefings();
-  }, [fetchBriefings]);
+    if (isBriefingPage) {
+      fetchBriefings();
+    } else if (isTranscriptionPage) {
+      fetchTranscriptions();
+    }
+  }, [fetchBriefings, fetchTranscriptions, isBriefingPage, isTranscriptionPage]);
 
   const handleDrawerToggle = () => {
     if (isMobile) {
@@ -151,9 +159,14 @@ const MainLayout = () => {
     logout();
   };
 
-  const handleNewBriefing = () => {
-    setSelectedBriefingId(null);
-    navigate('/briefings');
+  const handleNewItem = () => {
+    if (isBriefingPage) {
+      setSelectedBriefingId(null);
+      navigate('/briefings');
+    } else if (isTranscriptionPage) {
+      setSelectedTranscriptionId(null);
+      navigate('/transcricoes');
+    }
     if (isMobile) setMobileOpen(false);
   };
 
@@ -163,13 +176,19 @@ const MainLayout = () => {
     if (isMobile) setMobileOpen(false);
   };
 
+  const handleSelectTranscription = (id) => {
+    setSelectedTranscriptionId(id);
+    navigate('/transcricoes');
+    if (isMobile) setMobileOpen(false);
+  };
+
   const drawerContent = (
     <div>
       <DrawerHeader>
         <Button
           variant="contained"
           startIcon={<AddIcon />}
-          onClick={handleNewBriefing}
+          onClick={handleNewItem}
           sx={{
             margin: 'auto',
             flexGrow: 1,
@@ -179,7 +198,7 @@ const MainLayout = () => {
             transition: 'opacity 0.2s',
           }}
         >
-          Novo Briefing
+          {isBriefingPage ? 'Novo Briefing' : 'Nova Transcrição'}
         </Button>
         <IconButton onClick={() => (isMobile ? setMobileOpen(false) : setDrawerOpen(false))}>
           <ChevronLeftIcon />
@@ -187,7 +206,7 @@ const MainLayout = () => {
       </DrawerHeader>
       <Divider />
       <List>
-        {briefings.map((briefing) => (
+        {isBriefingPage && briefings.map((briefing) => (
           <ListItem key={briefing.id} disablePadding sx={{ display: 'block' }}>
             <ListItemButton
               selected={selectedBriefingId === briefing.id}
@@ -211,6 +230,30 @@ const MainLayout = () => {
             </ListItemButton>
           </ListItem>
         ))}
+        {isTranscriptionPage && transcriptions.map((transcription) => (
+          <ListItem key={transcription.id} disablePadding sx={{ display: 'block' }}>
+            <ListItemButton
+              selected={selectedTranscriptionId === transcription.id}
+              onClick={() => handleSelectTranscription(transcription.id)}
+              sx={{
+                minHeight: 48,
+                justifyContent: isDrawerOpen || isMobile ? 'initial' : 'center',
+                px: 2.5,
+              }}
+            >
+              <ListItemIcon
+                sx={{
+                  minWidth: 0,
+                  mr: isDrawerOpen || isMobile ? 3 : 'auto',
+                  justifyContent: 'center',
+                }}
+              >
+                <DescriptionIcon />
+              </ListItemIcon>
+              <ListItemText primary={transcription.name} sx={{ opacity: isDrawerOpen || isMobile ? 1 : 0 }} />
+            </ListItemButton>
+          </ListItem>
+        ))}
       </List>
     </div>
   );
@@ -221,7 +264,7 @@ const MainLayout = () => {
         <CssBaseline />
         <AppBar position="fixed" open={!isMobile && isDrawerOpen} isMobile={isMobile}>
           <Toolbar>
-            {isBriefingPage && (
+            {(isBriefingPage || isTranscriptionPage) && (
               <IconButton
                 color="inherit"
                 aria-label="open drawer"
@@ -234,15 +277,6 @@ const MainLayout = () => {
               >
                 <MenuIcon />
               </IconButton>
-            )}
-             {isTranscriptionPage && (
-              <Button
-                color="inherit"
-                onClick={() => navigate('/')}
-                startIcon={<ChevronLeftIcon />}
-              >
-                Voltar
-              </Button>
             )}
             <Box sx={{ flexGrow: 1 }} />
             {isBriefingPage &&
@@ -289,7 +323,7 @@ const MainLayout = () => {
             </div>
           </Toolbar>
         </AppBar>
-        {isBriefingPage && (
+        {(isBriefingPage || isTranscriptionPage) && (
           <Box
             component="nav"
             sx={{ width: { sm: isDrawerOpen ? drawerWidth : `calc(${theme.spacing(7)} + 1px)` }, flexShrink: { sm: 0 } }}
