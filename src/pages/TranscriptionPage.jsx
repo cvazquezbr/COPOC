@@ -24,6 +24,7 @@ const TranscriptionPage = () => {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluationResult, setEvaluationResult] = useState(null);
+  const [userEvaluation, setUserEvaluation] = useState(null);
   const [error, setError] = useState(null);
   const worker = useRef(null);
 
@@ -161,6 +162,7 @@ const TranscriptionPage = () => {
         user.gemini_model
       );
       setEvaluationResult(result);
+      setUserEvaluation(JSON.parse(JSON.stringify(result)));
     } catch (e) {
       console.error('Erro na avaliação:', e);
       setError(e.message);
@@ -176,6 +178,32 @@ const TranscriptionPage = () => {
       case 'RUIM': return 'error';
       default: return 'default';
     }
+  };
+
+  const handleUpdateEvaluation = (index, field, value) => {
+    const updatedAvaliacoes = [...userEvaluation.avaliacoes];
+    updatedAvaliacoes[index] = { ...updatedAvaliacoes[index], [field]: value };
+
+    let updatedScore = userEvaluation.score_final.pontuacao_obtida;
+    if (field === 'nota') {
+      updatedScore = updatedAvaliacoes.reduce((acc, curr) => acc + (Number(curr.nota) || 0), 0);
+    }
+
+    setUserEvaluation({
+      ...userEvaluation,
+      avaliacoes: updatedAvaliacoes,
+      score_final: {
+        ...userEvaluation.score_final,
+        pontuacao_obtida: updatedScore
+      }
+    });
+  };
+
+  const handleUpdateFeedback = (value) => {
+    setUserEvaluation({
+      ...userEvaluation,
+      feedback_consolidado: { ...userEvaluation.feedback_consolidado, texto: value }
+    });
   };
 
   return (
@@ -311,10 +339,22 @@ const TranscriptionPage = () => {
           </Box>
         )}
 
-        {evaluationResult && (
+        {userEvaluation && (
           <Paper elevation={3} sx={{ p: 3, mt: 2 }}>
-            <Typography variant="h5" gutterBottom align="center">
-              Resultado da Avaliação
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+              <Typography variant="h5">
+                Resultado da Avaliação
+              </Typography>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => setUserEvaluation(JSON.parse(JSON.stringify(evaluationResult)))}
+              >
+                Resetar para IA
+              </Button>
+            </Box>
+            <Typography variant="caption" color="textSecondary" align="left" display="block" sx={{ mb: 2 }}>
+              As respostas abaixo foram geradas pela IA. Você pode editá-las conforme necessário.
             </Typography>
             <Divider sx={{ mb: 3 }} />
 
@@ -329,45 +369,116 @@ const TranscriptionPage = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {evaluationResult.avaliacoes.map((av) => (
-                    <TableRow key={av.id_criterio}>
-                      <TableCell>{av.nome}</TableCell>
-                      <TableCell align="center">{av.nota}</TableCell>
-                      <TableCell align="center">
-                        <Chip
-                          label={av.status}
-                          color={getStatusColor(av.status)}
-                          size="small"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2">{av.comentario}</Typography>
-                        {av.detalhes_ausentes && (
-                          <Typography variant="caption" color="error" display="block" sx={{ mt: 1, fontWeight: 'bold' }}>
-                            Ausente: {av.detalhes_ausentes}
-                          </Typography>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {userEvaluation.avaliacoes.map((av, index) => {
+                    const aiAv = evaluationResult.avaliacoes[index];
+                    return (
+                      <TableRow key={av.id_criterio}>
+                        <TableCell>{av.nome}</TableCell>
+                        <TableCell align="center">
+                          <Select
+                            value={av.nota}
+                            onChange={(e) => handleUpdateEvaluation(index, 'nota', e.target.value)}
+                            size="small"
+                          >
+                            <MenuItem value={1}>1</MenuItem>
+                            <MenuItem value={2}>2</MenuItem>
+                            <MenuItem value={3}>3</MenuItem>
+                          </Select>
+                          {Number(av.nota) !== Number(aiAv.nota) && (
+                            <Typography variant="caption" color="textSecondary" display="block">
+                              IA: {aiAv.nota}
+                            </Typography>
+                          )}
+                        </TableCell>
+                        <TableCell align="center">
+                          <Select
+                            value={av.status}
+                            onChange={(e) => handleUpdateEvaluation(index, 'status', e.target.value)}
+                            size="small"
+                            sx={{
+                                color: getStatusColor(av.status) === 'default' ? 'inherit' : `${getStatusColor(av.status)}.main`,
+                                fontWeight: 'bold'
+                            }}
+                          >
+                            <MenuItem value="RUIM">RUIM</MenuItem>
+                            <MenuItem value="BOM">BOM</MenuItem>
+                            <MenuItem value="ÓTIMO">ÓTIMO</MenuItem>
+                          </Select>
+                          {av.status !== aiAv.status && (
+                            <Typography variant="caption" color="textSecondary" display="block">
+                              IA: {aiAv.status}
+                            </Typography>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <TextField
+                            multiline
+                            fullWidth
+                            value={av.comentario}
+                            onChange={(e) => handleUpdateEvaluation(index, 'comentario', e.target.value)}
+                            variant="standard"
+                            InputProps={{ style: { fontSize: '0.875rem' } }}
+                            placeholder="Comentário..."
+                          />
+                          {av.comentario !== aiAv.comentario && (
+                             <Box sx={{ mt: 1, p: 0.5, bgcolor: 'grey.100', borderRadius: 1 }}>
+                               <Typography variant="caption" color="textSecondary">IA: {aiAv.comentario}</Typography>
+                             </Box>
+                          )}
+
+                          <TextField
+                            label="O que faltou"
+                            fullWidth
+                            value={av.detalhes_ausentes || ''}
+                            onChange={(e) => handleUpdateEvaluation(index, 'detalhes_ausentes', e.target.value)}
+                            variant="standard"
+                            sx={{ mt: 1 }}
+                            InputProps={{ style: { fontSize: '0.75rem' } }}
+                          />
+                          {(av.detalhes_ausentes !== aiAv.detalhes_ausentes) && (
+                             <Typography variant="caption" color="textSecondary" display="block">
+                               IA: {aiAv.detalhes_ausentes || '(vazio)'}
+                             </Typography>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </TableContainer>
 
             <Box sx={{ bgcolor: 'action.hover', p: 2, borderRadius: 2, mb: 3 }}>
               <Typography variant="h6" gutterBottom>
-                Score Final: {evaluationResult.score_final.pontuacao_obtida} / {evaluationResult.score_final.pontuacao_maxima}
+                Score Final: {userEvaluation.score_final.pontuacao_obtida} / {userEvaluation.score_final.pontuacao_maxima}
               </Typography>
+              {userEvaluation.score_final.pontuacao_obtida !== evaluationResult.score_final.pontuacao_obtida && (
+                  <Typography variant="caption" color="textSecondary">
+                      Score original da IA: {evaluationResult.score_final.pontuacao_obtida}
+                  </Typography>
+              )}
             </Box>
 
             <Typography variant="h6" gutterBottom>
               Feedback Consolidado:
             </Typography>
-            <Paper variant="outlined" sx={{ p: 2, bgcolor: 'background.default' }}>
-              <Typography variant="body1" sx={{ fontStyle: 'italic' }}>
-                "{evaluationResult.feedback_consolidado.texto}"
-              </Typography>
-            </Paper>
+            <TextField
+              multiline
+              fullWidth
+              rows={4}
+              value={userEvaluation.feedback_consolidado.texto}
+              onChange={(e) => handleUpdateFeedback(e.target.value)}
+              variant="outlined"
+              sx={{ bgcolor: 'background.default' }}
+            />
+            {userEvaluation.feedback_consolidado.texto !== evaluationResult.feedback_consolidado.texto && (
+              <Paper variant="outlined" sx={{ p: 2, mt: 1, bgcolor: 'grey.100' }}>
+                <Typography variant="caption" color="textSecondary" display="block" gutterBottom>Conteúdo Original da IA:</Typography>
+                <Typography variant="body2" sx={{ fontStyle: 'italic', color: 'text.secondary' }}>
+                  "{evaluationResult.feedback_consolidado.texto}"
+                </Typography>
+              </Paper>
+            )}
           </Paper>
         )}
       </Box>
