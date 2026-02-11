@@ -7,6 +7,7 @@ import {
   Box,
   Paper,
   CircularProgress,
+  LinearProgress,
   Alert,
   Table,
   TableBody,
@@ -23,7 +24,11 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
 import TranslateIcon from '@mui/icons-material/Translate';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import AutoModeIcon from '@mui/icons-material/AutoMode';
 import { toast } from 'sonner';
+import Papa from 'papaparse';
+import { saveAs } from 'file-saver';
 import { useUserAuth } from '../context/UserAuthContext';
 import geminiAPI from '../utils/geminiAPI';
 
@@ -36,6 +41,7 @@ const InstagramExtractorPage = () => {
   const [error, setError] = useState(null);
   const [workerReady, setWorkerReady] = useState(false);
   const [globalIsProcessing, setGlobalIsProcessing] = useState(false);
+  const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
   const worker = useRef(null);
 
   useEffect(() => {
@@ -123,12 +129,14 @@ const InstagramExtractorPage = () => {
     toast.success('Link copiado para a área de transferência!');
   };
 
-  const handleTranscribeAndTranslate = async (index) => {
-    const result = results[index];
-    if (!result.mp4_url) return;
+  const processItem = async (index, currentResults, silent = false) => {
+    const result = currentResults[index];
+    if (!result.mp4_url || result.status !== 'success') return result;
+
+    let updatedResult = { ...result };
 
     // Update processing state for this item
-    const updateResult = (updates) => {
+    const updateResultInUI = (updates) => {
       setResults(prev => {
         const newResults = [...prev];
         newResults[index] = { ...newResults[index], ...updates };
@@ -136,8 +144,7 @@ const InstagramExtractorPage = () => {
       });
     };
 
-    updateResult({ isProcessing: true, processingStatus: 'Iniciando transcrição...' });
-    setGlobalIsProcessing(true);
+    updateResultInUI({ isProcessing: true, processingStatus: 'Iniciando transcrição...' });
 
     try {
       const proxyUrl = `/api/proxy-download?url=${encodeURIComponent(result.mp4_url)}`;
@@ -153,7 +160,6 @@ const InstagramExtractorPage = () => {
                   if (errJson.error) detailedError += ` - ${errJson.error}`;
                   if (errJson.detectedHost) detailedError += ` (Host: ${errJson.detectedHost})`;
               } catch (e) {
-                  // Not JSON, use raw text if short
                   if (errorText.length < 100) detailedError += ` - ${errorText}`;
               }
               throw new Error(detailedError);
@@ -164,12 +170,11 @@ const InstagramExtractorPage = () => {
           }
       } catch (e) {
           console.error('Pre-flight check failed:', e);
-          updateResult({ isProcessing: false, processingStatus: `Erro: ${e.message}` });
-          toast.error(`Erro: ${e.message}`);
-          setGlobalIsProcessing(false);
-          return;
+          updatedResult = { ...updatedResult, isProcessing: false, processingStatus: `Erro: ${e.message}`, transcriptionStatus: 'error' };
+          updateResultInUI(updatedResult);
+          if (!silent) toast.error(`Erro: ${e.message}`);
+          return updatedResult;
       }
-      // --- End Pre-flight Check ---
 
       // Transcription promise
       const transcription = await new Promise((resolve, reject) => {
@@ -181,11 +186,11 @@ const InstagramExtractorPage = () => {
             worker.current.removeEventListener('message', onMessage);
             reject(new Error(e.data.error));
           } else if (e.data.status === 'audio_downloading') {
-            updateResult({ processingStatus: 'Baixando áudio...' });
+            updateResultInUI({ processingStatus: 'Baixando áudio...' });
           } else if (e.data.status === 'audio_converting') {
-            updateResult({ processingStatus: 'Convertendo áudio...' });
+            updateResultInUI({ processingStatus: 'Convertendo áudio...' });
           } else if (e.data.status === 'transcribing') {
-            updateResult({ processingStatus: 'Transcrevendo...' });
+            updateResultInUI({ processingStatus: 'Transcrevendo...' });
           }
         };
         worker.current.addEventListener('message', onMessage);
@@ -196,28 +201,108 @@ const InstagramExtractorPage = () => {
         });
       });
 
-      updateResult({ transcription, processingStatus: 'Aguardando 2s para tradução...' });
+      updatedResult = { ...updatedResult, transcription, transcriptionStatus: 'success', processingStatus: 'Aguardando 2s para tradução...' };
+      updateResultInUI(updatedResult);
 
       // 2-second delay
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      updateResult({ processingStatus: 'Traduzindo para espanhol...' });
+      try {
+        updateResultInUI({ processingStatus: 'Traduzindo para espanhol...' });
 
-      if (!user?.gemini_api_key) {
-        throw new Error('Chave da API Gemini não configurada.');
+        if (!user?.gemini_api_key) {
+          throw new Error('Chave da API Gemini não configurada.');
+        }
+
+        geminiAPI.initialize(user.gemini_api_key);
+        const translation = await geminiAPI.translateText(transcription, 'Espanhol', user.gemini_model);
+
+        updatedResult = { ...updatedResult, translation, translationStatus: 'success', isProcessing: false, processingStatus: 'Concluído' };
+        updateResultInUI(updatedResult);
+        if (!silent) toast.success('Transcrição e tradução concluídas!');
+        return updatedResult;
+      } catch (transError) {
+        console.error('Error in translation:', transError);
+        updatedResult = { ...updatedResult, isProcessing: false, processingStatus: `Erro na tradução: ${transError.message}`, translationStatus: 'error' };
+        updateResultInUI(updatedResult);
+        if (!silent) toast.error(`Erro na tradução: ${transError.message}`);
+        return updatedResult;
       }
-
-      geminiAPI.initialize(user.gemini_api_key);
-      const translation = await geminiAPI.translateText(transcription, 'Espanhol', user.gemini_model);
-
-      updateResult({ translation, isProcessing: false, processingStatus: 'Concluído' });
-      toast.success('Transcrição e tradução concluídas!');
     } catch (err) {
-      console.error('Error in transcribe/translate:', err);
-      updateResult({ isProcessing: false, processingStatus: `Erro: ${err.message}` });
-      toast.error(`Erro: ${err.message}`);
+      console.error('Error in transcription:', err);
+      updatedResult = { ...updatedResult, isProcessing: false, processingStatus: `Erro na transcrição: ${err.message}`, transcriptionStatus: 'error' };
+      updateResultInUI(updatedResult);
+      if (!silent) toast.error(`Erro na transcrição: ${err.message}`);
+      return updatedResult;
+    }
+  };
+
+  const handleTranscribeAndTranslate = async (index) => {
+    setGlobalIsProcessing(true);
+    try {
+      await processItem(index, results);
     } finally {
       setGlobalIsProcessing(false);
+    }
+  };
+
+  const handleExportExcel = (dataToExport = results) => {
+    if (dataToExport.length === 0) {
+      toast.error('Não há dados para exportar.');
+      return;
+    }
+
+    const formattedData = dataToExport.map(r => ({
+      'Link Original': r.original_url,
+      'Link MP4': r.mp4_url || '-',
+      'Status Extração': r.status === 'success' ? 'Sucesso' : 'Erro',
+      'Status Transcrição': r.transcriptionStatus === 'success' ? 'Concluído' : (r.transcriptionStatus === 'error' ? 'Erro' : 'Pendente'),
+      'Status Tradução': r.translationStatus === 'success' ? 'Concluído' : (r.translationStatus === 'error' ? 'Erro' : 'Pendente'),
+      'Texto Transcrito': r.transcription || '',
+      'Texto Traduzido': r.translation || ''
+    }));
+
+    const csv = Papa.unparse(formattedData, {
+      delimiter: ";",
+      header: true,
+    });
+
+    const csvData = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
+    saveAs(csvData, `instagram_extraction_${new Date().toISOString().split('T')[0]}.csv`);
+    toast.success('Planilha exportada com sucesso!');
+  };
+
+  const handleProcessAll = async () => {
+    const indices = results
+      .map((r, i) => (r.mp4_url && r.status === 'success') ? i : -1)
+      .filter(i => i !== -1);
+
+    if (indices.length === 0) {
+      toast.error('Não há links válidos para processar.');
+      return;
+    }
+
+    setGlobalIsProcessing(true);
+    setBatchProgress({ current: 0, total: indices.length });
+
+    let latestResults = [...results];
+
+    try {
+      for (const index of indices) {
+        const updatedResult = await processItem(index, latestResults, true);
+        latestResults[index] = updatedResult;
+        setBatchProgress(prev => ({ ...prev, current: prev.current + 1 }));
+      }
+
+      toast.success('Processamento em lote concluído!');
+      // Use latestResults to avoid stale state closure
+      handleExportExcel(latestResults);
+    } catch (error) {
+      console.error('Erro no processamento em lote:', error);
+      toast.error('Erro durante o processamento em lote.');
+    } finally {
+      setGlobalIsProcessing(false);
+      setBatchProgress({ current: 0, total: 0 });
     }
   };
 
@@ -288,6 +373,45 @@ const InstagramExtractorPage = () => {
           <Alert severity="error" sx={{ mb: 4 }}>
             {error}
           </Alert>
+        )}
+
+        {results.length > 0 && (
+          <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Button
+              variant="contained"
+              color="secondary"
+              startIcon={globalIsProcessing && batchProgress.total > 0 ? <CircularProgress size={20} color="inherit" /> : <AutoModeIcon />}
+              onClick={handleProcessAll}
+              disabled={globalIsProcessing || !workerReady}
+            >
+              {globalIsProcessing && batchProgress.total > 0 ? 'Processando Lote...' : 'Processar Todos'}
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<FileDownloadIcon />}
+              onClick={handleExportExcel}
+              disabled={globalIsProcessing}
+            >
+              Exportar Planilha (Excel)
+            </Button>
+            {batchProgress.total > 0 && (
+              <Box sx={{ flexGrow: 1, minWidth: '200px' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                  <Typography variant="caption" color="primary" sx={{ fontWeight: 'bold' }}>
+                    Processando: {batchProgress.current} de {batchProgress.total}
+                  </Typography>
+                  <Typography variant="caption" color="primary" sx={{ fontWeight: 'bold' }}>
+                    {Math.round((batchProgress.current / batchProgress.total) * 100)}%
+                  </Typography>
+                </Box>
+                <LinearProgress
+                  variant="determinate"
+                  value={(batchProgress.current / batchProgress.total) * 100}
+                  sx={{ height: 10, borderRadius: 5 }}
+                />
+              </Box>
+            )}
+          </Box>
         )}
 
         {results.length > 0 && (
