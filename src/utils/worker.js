@@ -113,6 +113,8 @@ class TranscriptionService {
         const output = await this.transcriber(floatData, {
             language: language,
             task: task,
+            chunk_length_s: 30,
+            stride_length_s: 5,
         });
 
         await this.ffmpeg.deleteFile(inputFileName);
