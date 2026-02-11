@@ -36,6 +36,7 @@ import Papa from 'papaparse';
 import { saveAs } from 'file-saver';
 import { useUserAuth } from '../context/UserAuthContext';
 import geminiAPI from '../utils/geminiAPI';
+import InfoBox from '../components/InfoBox';
 
 const InstagramExtractorPage = () => {
   const navigate = useNavigate();
@@ -415,7 +416,13 @@ const InstagramExtractorPage = () => {
         <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
           <Box sx={{ mb: 3 }}>
             <FormControl component="fieldset">
-              <FormLabel component="legend" sx={{ fontWeight: 'bold', mb: 1 }}>Motor de Tradução</FormLabel>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                <FormLabel component="legend" sx={{ fontWeight: 'bold' }}>Motor de Tradução</FormLabel>
+                <InfoBox
+                  title="Comparativo de Motores"
+                  description={"GEMINI (Nuvem):\nPros: Alta qualidade, rápido, melhor contexto.\nContras: Requer API Key, dados saem do browser.\n\nLOCAL (M2M100):\nPros: 100% privado, sem custo de API.\nContras: Download de 480MB, uso intenso de RAM/CPU."}
+                />
+              </Box>
               <RadioGroup
                 row
                 value={translationEngine}
