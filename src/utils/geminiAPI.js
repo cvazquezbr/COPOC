@@ -362,6 +362,24 @@ Instrução de Saída: Sua resposta deve ser exclusivamente um objeto JSON estru
       throw new Error(`A avaliação da IA falhou. Motivo: ${error.message}`);
     }
   }
+
+  async translateText(text, targetLanguage, model) {
+    const purpose = `Tradução para ${targetLanguage}`;
+    const prompt = `Traduza o seguinte texto para ${targetLanguage}.
+    Mantenha o tom original.
+    Responda apenas com o texto traduzido, sem explicações.
+
+    TEXTO:
+    ${text}`;
+
+    try {
+      const translatedText = await this.generateContent(prompt, model, purpose);
+      return translatedText;
+    } catch (error) {
+      console.error(`[${purpose}] Erro ao traduzir texto:`, error);
+      throw new Error(`A tradução da IA falhou. Motivo: ${error.message}`);
+    }
+  }
 }
 
 const geminiAPI = new GeminiAPI();

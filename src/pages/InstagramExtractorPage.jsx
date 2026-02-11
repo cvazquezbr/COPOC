@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Container,
   TextField,
@@ -22,14 +22,50 @@ import { useNavigate } from 'react-router-dom';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
+import TranslateIcon from '@mui/icons-material/Translate';
 import { toast } from 'sonner';
+import { useUserAuth } from '../context/UserAuthContext';
+import geminiAPI from '../utils/geminiAPI';
 
 const InstagramExtractorPage = () => {
   const navigate = useNavigate();
+  const { user } = useUserAuth();
   const [urlInput, setUrlInput] = useState('');
   const [results, setResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [workerReady, setWorkerReady] = useState(false);
+  const [globalIsProcessing, setGlobalIsProcessing] = useState(false);
+  const worker = useRef(null);
+
+  useEffect(() => {
+    if (!worker.current) {
+      worker.current = new Worker(new URL('../utils/worker.js', import.meta.url), {
+        type: 'module'
+      });
+    }
+
+    const onMessage = (e) => {
+      if (e.data.status === 'transcriber_ready') {
+        setWorkerReady(true);
+      } else if (e.data.status === 'complete') {
+        // Handle in the specific transcription call
+      } else if (e.data.status === 'error') {
+        // Handle in the specific transcription call
+      }
+    };
+
+    worker.current.addEventListener('message', onMessage);
+    worker.current.postMessage({ type: 'INIT' });
+
+    return () => {
+      if (worker.current) {
+        worker.current.removeEventListener('message', onMessage);
+        worker.current.terminate();
+        worker.current = null;
+      }
+    };
+  }, []);
 
   const handleBack = () => {
     navigate('/');
@@ -67,7 +103,7 @@ const InstagramExtractorPage = () => {
 
       if (!response.ok) {
         const errData = await response.json();
-        throw new Error(errData.message || 'Erro ao processar a solicitação.');
+        throw new Error(errData.error || errData.message || 'Erro ao processar a solicitação.');
       }
 
       const data = await response.json();
@@ -87,6 +123,75 @@ const InstagramExtractorPage = () => {
     toast.success('Link copiado para a área de transferência!');
   };
 
+  const handleTranscribeAndTranslate = async (index) => {
+    const result = results[index];
+    if (!result.mp4_url) return;
+
+    // Update processing state for this item
+    const updateResult = (updates) => {
+      setResults(prev => {
+        const newResults = [...prev];
+        newResults[index] = { ...newResults[index], ...updates };
+        return newResults;
+      });
+    };
+
+    updateResult({ isProcessing: true, processingStatus: 'Iniciando transcrição...' });
+    setGlobalIsProcessing(true);
+
+    try {
+      const proxyUrl = `/api/proxy-download?url=${encodeURIComponent(result.mp4_url)}`;
+
+      // Transcription promise
+      const transcription = await new Promise((resolve, reject) => {
+        const onMessage = (e) => {
+          if (e.data.status === 'complete') {
+            worker.current.removeEventListener('message', onMessage);
+            resolve(e.data.output);
+          } else if (e.data.status === 'error') {
+            worker.current.removeEventListener('message', onMessage);
+            reject(new Error(e.data.error));
+          } else if (e.data.status === 'audio_downloading') {
+            updateResult({ processingStatus: 'Baixando áudio...' });
+          } else if (e.data.status === 'audio_converting') {
+            updateResult({ processingStatus: 'Convertendo áudio...' });
+          } else if (e.data.status === 'transcribing') {
+            updateResult({ processingStatus: 'Transcrevendo...' });
+          }
+        };
+        worker.current.addEventListener('message', onMessage);
+        worker.current.postMessage({
+          audio: proxyUrl,
+          language: 'portuguese',
+          task: 'transcribe',
+        });
+      });
+
+      updateResult({ transcription, processingStatus: 'Aguardando 2s para tradução...' });
+
+      // 2-second delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      updateResult({ processingStatus: 'Traduzindo para espanhol...' });
+
+      if (!user?.gemini_api_key) {
+        throw new Error('Chave da API Gemini não configurada.');
+      }
+
+      geminiAPI.initialize(user.gemini_api_key);
+      const translation = await geminiAPI.translateText(transcription, 'Espanhol', user.gemini_model);
+
+      updateResult({ translation, isProcessing: false, processingStatus: 'Concluído' });
+      toast.success('Transcrição e tradução concluídas!');
+    } catch (err) {
+      console.error('Error in transcribe/translate:', err);
+      updateResult({ isProcessing: false, processingStatus: `Erro: ${err.message}` });
+      toast.error(`Erro: ${err.message}`);
+    } finally {
+      setGlobalIsProcessing(false);
+    }
+  };
+
   return (
     <Container maxWidth="md">
       <Box sx={{ my: 4 }}>
@@ -96,6 +201,26 @@ const InstagramExtractorPage = () => {
         <Typography variant="h4" component="h1" gutterBottom>
           Extração de Vídeos Instagram
         </Typography>
+
+        <Paper elevation={2} sx={{ p: 2, mb: 3 }}>
+          <Typography variant="h6" gutterBottom>Status do Sistema</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+            <Typography variant="body1" sx={{ minWidth: '200px' }}><strong>Cross-Origin Isolation:</strong></Typography>
+            {window.crossOriginIsolated ? (
+              <Typography color="green" sx={{ fontWeight: 'bold' }}>✅ Habilitado</Typography>
+            ) : (
+              <Typography color="error" sx={{ fontWeight: 'bold' }}>❌ Desabilitado (Headers ausentes)</Typography>
+            )}
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+            <Typography variant="body1" sx={{ minWidth: '200px' }}><strong>Worker de Transcrição:</strong></Typography>
+            {workerReady ? (
+              <Typography color="green" sx={{ fontWeight: 'bold' }}>✅ Pronto</Typography>
+            ) : (
+              <Typography color="orange" sx={{ fontWeight: 'bold' }}>⏳ Carregando...</Typography>
+            )}
+          </Box>
+        </Paper>
 
         <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
           <Typography variant="body1" gutterBottom>
@@ -145,12 +270,14 @@ const InstagramExtractorPage = () => {
                   <TableCell>Status</TableCell>
                   <TableCell>Link MP4</TableCell>
                   <TableCell align="center">Ações</TableCell>
+                  <TableCell align="center">Transcrição / Tradução</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {results.map((result, index) => (
-                  <TableRow key={index}>
-                    <TableCell sx={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <React.Fragment key={index}>
+                  <TableRow>
+                    <TableCell sx={{ maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       <Tooltip title={result.original_url}>
                         <Link href={result.original_url} target="_blank" rel="noopener">
                           {result.original_url}
@@ -194,7 +321,62 @@ const InstagramExtractorPage = () => {
                         </Box>
                       )}
                     </TableCell>
+                    <TableCell align="center">
+                      {result.mp4_url && result.status === 'success' && (
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          startIcon={result.isProcessing ? <CircularProgress size={16} /> : <TranslateIcon />}
+                          onClick={() => handleTranscribeAndTranslate(index)}
+                          disabled={globalIsProcessing || !workerReady}
+                        >
+                          {result.isProcessing ? 'Processando...' : 'Transcrever e Traduzir'}
+                        </Button>
+                      )}
+                    </TableCell>
                   </TableRow>
+                  {result.processingStatus && (
+                    <TableRow>
+                      <TableCell colSpan={5}>
+                        <Typography variant="caption" color="primary">
+                          Status: {result.processingStatus}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {(result.transcription || result.translation) && (
+                    <TableRow>
+                      <TableCell colSpan={5}>
+                        <Box sx={{ p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
+                          {result.transcription && (
+                            <Box sx={{ mb: 2 }}>
+                              <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>Transcrição (PT):</Typography>
+                              <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{result.transcription}</Typography>
+                              <IconButton size="small" onClick={() => {
+                                navigator.clipboard.writeText(result.transcription);
+                                toast.success('Transcrição copiada!');
+                              }} title="Copiar Transcrição">
+                                <ContentCopyIcon fontSize="inherit" />
+                              </IconButton>
+                            </Box>
+                          )}
+                          {result.translation && (
+                            <Box>
+                              <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: 'secondary.main' }}>Tradução (ES):</Typography>
+                              <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{result.translation}</Typography>
+                              <IconButton size="small" onClick={() => {
+                                navigator.clipboard.writeText(result.translation);
+                                toast.success('Tradução copiada!');
+                              }} title="Copiar Tradução">
+                                <ContentCopyIcon fontSize="inherit" />
+                              </IconButton>
+                            </Box>
+                          )}
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  </React.Fragment>
                 ))}
               </TableBody>
             </Table>
