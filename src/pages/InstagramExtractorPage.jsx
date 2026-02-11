@@ -17,7 +17,12 @@ import {
   TableRow,
   IconButton,
   Tooltip,
-  Link
+  Link,
+  FormControl,
+  FormLabel,
+  RadioGroup,
+  FormControlLabel,
+  Radio
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
@@ -40,10 +45,19 @@ const InstagramExtractorPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [workerReady, setWorkerReady] = useState(false);
+  const [translatorReady, setTranslatorReady] = useState(false);
+  const [translatorStatus, setTranslatorStatus] = useState('idle'); // idle, loading, ready, error
+  const [translationEngine, setTranslationEngine] = useState('gemini');
   const [globalIsProcessing, setGlobalIsProcessing] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
   const [lastBatchTime, setLastBatchTime] = useState(null);
   const worker = useRef(null);
+
+  useEffect(() => {
+    if (translationEngine === 'local' && !translatorReady && translatorStatus === 'idle') {
+      worker.current?.postMessage({ type: 'INIT', loadTranslator: true });
+    }
+  }, [translationEngine, translatorReady, translatorStatus]);
 
   useEffect(() => {
     if (!worker.current) {
@@ -53,17 +67,25 @@ const InstagramExtractorPage = () => {
     }
 
     const onMessage = (e) => {
-      if (e.data.status === 'transcriber_ready') {
+      const { status, model } = e.data;
+      if (status === 'transcriber_ready') {
         setWorkerReady(true);
-      } else if (e.data.status === 'complete') {
-        // Handle in the specific transcription call
-      } else if (e.data.status === 'error') {
-        // Handle in the specific transcription call
+      } else if (status === 'translator_ready') {
+        setTranslatorReady(true);
+        setTranslatorStatus('ready');
+      } else if (status === 'translator_loading') {
+        setTranslatorStatus('loading');
+      } else if (status === 'translator_error') {
+        setTranslatorStatus('error');
+      } else if (status === 'model_download_progress') {
+        if (model === 'translation') {
+          setTranslatorStatus(`loading (${Math.round(e.data.progress.progress || 0)}%)`);
+        }
       }
     };
 
     worker.current.addEventListener('message', onMessage);
-    worker.current.postMessage({ type: 'INIT' });
+    worker.current.postMessage({ type: 'INIT', loadTranslator: translationEngine === 'local' });
 
     return () => {
       if (worker.current) {
@@ -212,14 +234,38 @@ const InstagramExtractorPage = () => {
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       try {
-        updateResultInUI({ processingStatus: 'Traduzindo para espanhol...' });
+        updateResultInUI({ processingStatus: `Traduzindo para espanhol (${translationEngine === 'gemini' ? 'Gemini' : 'Local'})...` });
 
-        if (!user?.gemini_api_key) {
-          throw new Error('Chave da API Gemini não configurada.');
+        let translation = '';
+        if (translationEngine === 'gemini') {
+          if (!user?.gemini_api_key) {
+            throw new Error('Chave da API Gemini não configurada.');
+          }
+          geminiAPI.initialize(user.gemini_api_key);
+          translation = await geminiAPI.translateText(transcription, 'Espanhol', user.gemini_model);
+        } else {
+          // Local translation via worker
+          translation = await new Promise((resolve, reject) => {
+            const onTranslateMessage = (e) => {
+              if (e.data.status === 'translation_complete') {
+                worker.current.removeEventListener('message', onTranslateMessage);
+                resolve(e.data.output);
+              } else if (e.data.status === 'error') {
+                worker.current.removeEventListener('message', onTranslateMessage);
+                reject(new Error(e.data.error));
+              } else if (e.data.status === 'translating') {
+                updateResultInUI({ processingStatus: 'Traduzindo (Local)...' });
+              }
+            };
+            worker.current.addEventListener('message', onTranslateMessage);
+            worker.current.postMessage({
+              type: 'TRANSLATE',
+              text: transcription,
+              src_lang: 'portuguese',
+              tgt_lang: 'spanish'
+            });
+          });
         }
-
-        geminiAPI.initialize(user.gemini_api_key);
-        const translation = await geminiAPI.translateText(transcription, 'Espanhol', user.gemini_model);
 
         updatedResult = { ...updatedResult, translation, translationStatus: 'success', isProcessing: false, processingStatus: 'Concluído' };
         updateResultInUI(updatedResult);
@@ -350,9 +396,40 @@ const InstagramExtractorPage = () => {
               <Typography color="orange" sx={{ fontWeight: 'bold' }}>⏳ Carregando...</Typography>
             )}
           </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+            <Typography variant="body1" sx={{ minWidth: '200px' }}><strong>Worker de Tradução:</strong></Typography>
+            {translatorReady ? (
+              <Typography color="green" sx={{ fontWeight: 'bold' }}>✅ Pronto</Typography>
+            ) : (
+              translatorStatus === 'idle' ? (
+                <Typography color="textSecondary">Não iniciado</Typography>
+              ) : translatorStatus === 'error' ? (
+                <Typography color="error" sx={{ fontWeight: 'bold' }}>❌ Erro</Typography>
+              ) : (
+                <Typography color="orange" sx={{ fontWeight: 'bold' }}>⏳ {translatorStatus === 'loading' ? 'Carregando...' : translatorStatus}</Typography>
+              )
+            )}
+          </Box>
         </Paper>
 
         <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
+          <Box sx={{ mb: 3 }}>
+            <FormControl component="fieldset">
+              <FormLabel component="legend" sx={{ fontWeight: 'bold', mb: 1 }}>Motor de Tradução</FormLabel>
+              <RadioGroup
+                row
+                value={translationEngine}
+                onChange={(e) => setTranslationEngine(e.target.value)}
+              >
+                <FormControlLabel value="gemini" control={<Radio size="small" />} label="Gemini (Nuvem)" />
+                <FormControlLabel value="local" control={<Radio size="small" />} label="Transformers.js (Local - Meta M2M100)" />
+              </RadioGroup>
+              <Typography variant="caption" color="textSecondary">
+                O motor local baixa o modelo (aprox. 480MB) e processa inteiramente no seu navegador.
+              </Typography>
+            </FormControl>
+          </Box>
+
           <Typography variant="body1" gutterBottom>
             Insira até 30 URLs de posts ou Reels do Instagram (uma por linha ou separadas por vírgula).
           </Typography>
@@ -398,7 +475,7 @@ const InstagramExtractorPage = () => {
               color="secondary"
               startIcon={globalIsProcessing && batchProgress.total > 0 ? <CircularProgress size={20} color="inherit" /> : <AutoModeIcon />}
               onClick={handleProcessAll}
-              disabled={globalIsProcessing || !workerReady}
+              disabled={globalIsProcessing || !workerReady || (translationEngine === 'local' && !translatorReady)}
             >
               {globalIsProcessing && batchProgress.total > 0 ? 'Processando Lote...' : 'Processar Todos'}
             </Button>
@@ -503,7 +580,7 @@ const InstagramExtractorPage = () => {
                           size="small"
                           startIcon={result.isProcessing ? <CircularProgress size={16} /> : <TranslateIcon />}
                           onClick={() => handleTranscribeAndTranslate(index)}
-                          disabled={globalIsProcessing || !workerReady}
+                          disabled={globalIsProcessing || !workerReady || (translationEngine === 'local' && !translatorReady)}
                         >
                           {result.isProcessing ? 'Processando...' : 'Transcrever e Traduzir'}
                         </Button>
