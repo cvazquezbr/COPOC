@@ -14,6 +14,7 @@ import InstagramExtractorPage from './pages/InstagramExtractorPage';
 // Context
 import { useUserAuth, UserAuthContextProvider } from './context/UserAuthContext';
 import { LayoutProvider } from './context/LayoutContext';
+import { Toaster } from 'sonner';
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useUserAuth();
@@ -31,6 +32,8 @@ const ProtectedRoute = ({ children }) => {
 
 function App() {
   return (
+    <>
+    <Toaster position="top-right" richColors />
     <Routes>
       {/* Public Routes */}
       <Route path="/login" element={<LoginPage />} />
@@ -55,6 +58,7 @@ function App() {
       {/* Fallback for non-matching routes */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   );
 }
 
