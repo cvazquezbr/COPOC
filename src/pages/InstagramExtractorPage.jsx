@@ -48,10 +48,8 @@ const InstagramExtractorPage = () => {
     const onMessage = (e) => {
       if (e.data.status === 'transcriber_ready') {
         setWorkerReady(true);
-      } else if (e.data.status === 'complete') {
-        // Handle in the specific transcription call
-      } else if (e.data.status === 'error') {
-        // Handle in the specific transcription call
+      } else if (e.data.status === 'ffmpeg_log') {
+        console.log('FFmpeg Log:', e.data.message);
       }
     };
 
@@ -186,6 +184,8 @@ const InstagramExtractorPage = () => {
             updateResult({ processingStatus: 'Convertendo áudio...' });
           } else if (e.data.status === 'transcribing') {
             updateResult({ processingStatus: 'Transcrevendo...' });
+          } else if (e.data.status === 'ffmpeg_log') {
+            console.log(`FFmpeg [Item ${index}]:`, e.data.message);
           }
         };
         worker.current.addEventListener('message', onMessage);

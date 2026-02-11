@@ -30,6 +30,9 @@ class TranscriptionService {
                     throw new Error('crossOriginIsolated is false. FFmpeg requires COOP/COEP headers.');
                 }
                 const ffmpeg = new FFmpeg();
+                ffmpeg.on('log', ({ message }) => {
+                    self.postMessage({ status: 'ffmpeg_log', message });
+                });
                 const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
                 const coreURL = await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
                 const wasmURL = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
@@ -92,12 +95,31 @@ class TranscriptionService {
 
         self.postMessage({ status: 'audio_downloading' });
         const audioData = await fetchFile(audioUrl);
-        const inputFileName = 'input.audio';
+
+        // Detect extension from URL to help FFmpeg correctly identify format
+        let extension = 'media';
+        try {
+            // If audioUrl is a proxy URL, try to get the original URL from search params
+            const urlObj = new URL(audioUrl, self.location.origin);
+            const actualUrl = urlObj.searchParams.get('url') || audioUrl;
+            const path = actualUrl.split('?')[0];
+            if (path.includes('.')) {
+                const parts = path.split('.');
+                const ext = parts.pop().toLowerCase();
+                if (ext.length <= 4) { // typical extensions are 3-4 chars
+                    extension = ext;
+                }
+            }
+        } catch (e) {
+            console.warn('Could not detect extension from URL:', e);
+        }
+
+        const inputFileName = `input.${extension}`;
         const outputFileName = 'output.wav';
         await this.ffmpeg.writeFile(inputFileName, audioData);
 
         self.postMessage({ status: 'audio_converting' });
-        const exitCode = await this.ffmpeg.exec(['-i', inputFileName, '-ar', '16000', '-ac', '1', '-c:a', 'pcm_s16le', outputFileName]);
+        const exitCode = await this.ffmpeg.exec(['-y', '-i', inputFileName, '-ar', '16000', '-ac', '1', '-c:a', 'pcm_s16le', outputFileName]);
         if (exitCode !== 0) {
             throw new Error(`FFmpeg conversion failed with exit code ${exitCode}. The input file might be corrupted or in an unsupported format.`);
         }

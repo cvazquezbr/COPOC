@@ -23,6 +23,7 @@ function cleanUrl(url) {
   // 2. Standard cleanup for common HTML/JSON escapes that might remain
   cleaned = cleaned
     .replace(/\\\//g, '/')
+    .replace(/\\"/g, '"')
     .replace(/&amp;/g, '&');
 
   // 3. Truncate at characters that definitely don't belong in an Instagram CDN URL

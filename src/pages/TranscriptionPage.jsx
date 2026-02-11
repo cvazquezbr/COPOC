@@ -110,6 +110,9 @@ const TranscriptionPage = () => {
           setStatus('Transcrição concluída.');
           setIsTranscribing(false);
           break;
+        case 'ffmpeg_log':
+          console.log('FFmpeg:', e.data.message);
+          break;
         case 'error':
           setError(e.data.error);
           setStatus('Ocorreu um erro.');
