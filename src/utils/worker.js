@@ -97,7 +97,10 @@ class TranscriptionService {
         await this.ffmpeg.writeFile(inputFileName, audioData);
 
         self.postMessage({ status: 'audio_converting' });
-        await this.ffmpeg.exec(['-i', inputFileName, '-ar', '16000', '-ac', '1', '-c:a', 'pcm_s16le', outputFileName]);
+        const exitCode = await this.ffmpeg.exec(['-i', inputFileName, '-ar', '16000', '-ac', '1', '-c:a', 'pcm_s16le', outputFileName]);
+        if (exitCode !== 0) {
+            throw new Error(`FFmpeg conversion failed with exit code ${exitCode}. The input file might be corrupted or in an unsupported format.`);
+        }
         const wavData = await this.ffmpeg.readFile(outputFileName);
 
         const pcmData = new Int16Array(wavData.buffer.slice(44));

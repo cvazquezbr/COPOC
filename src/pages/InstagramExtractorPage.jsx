@@ -83,8 +83,8 @@ const InstagramExtractorPage = () => {
       return;
     }
 
-    if (urls.length > 5) {
-      toast.error('O limite é de 5 URLs por vez.');
+    if (urls.length > 30) {
+      toast.error('O limite é de 30 URLs por vez.');
       return;
     }
 
@@ -141,6 +141,35 @@ const InstagramExtractorPage = () => {
 
     try {
       const proxyUrl = `/api/proxy-download?url=${encodeURIComponent(result.mp4_url)}`;
+
+      // --- Pre-flight Check ---
+      try {
+          const preflightResponse = await fetch(proxyUrl);
+          if (!preflightResponse.ok) {
+              const errorText = await preflightResponse.text();
+              let detailedError = `Falha no proxy: ${preflightResponse.status}`;
+              try {
+                  const errJson = JSON.parse(errorText);
+                  if (errJson.error) detailedError += ` - ${errJson.error}`;
+                  if (errJson.detectedHost) detailedError += ` (Host: ${errJson.detectedHost})`;
+              } catch (e) {
+                  // Not JSON, use raw text if short
+                  if (errorText.length < 100) detailedError += ` - ${errorText}`;
+              }
+              throw new Error(detailedError);
+          }
+          const contentType = preflightResponse.headers.get('content-type');
+          if (contentType && contentType.includes('text/html')) {
+              throw new Error('O proxy retornou HTML em vez de um arquivo de mídia. O link pode ter expirado.');
+          }
+      } catch (e) {
+          console.error('Pre-flight check failed:', e);
+          updateResult({ isProcessing: false, processingStatus: `Erro: ${e.message}` });
+          toast.error(`Erro: ${e.message}`);
+          setGlobalIsProcessing(false);
+          return;
+      }
+      // --- End Pre-flight Check ---
 
       // Transcription promise
       const transcription = await new Promise((resolve, reject) => {
@@ -224,7 +253,7 @@ const InstagramExtractorPage = () => {
 
         <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
           <Typography variant="body1" gutterBottom>
-            Insira até 5 URLs de posts ou Reels do Instagram (uma por linha ou separadas por vírgula).
+            Insira até 30 URLs de posts ou Reels do Instagram (uma por linha ou separadas por vírgula).
           </Typography>
           <TextField
             label="URLs do Instagram"
