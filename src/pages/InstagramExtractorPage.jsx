@@ -42,6 +42,7 @@ const InstagramExtractorPage = () => {
   const [workerReady, setWorkerReady] = useState(false);
   const [globalIsProcessing, setGlobalIsProcessing] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
+  const [lastBatchTime, setLastBatchTime] = useState(null);
   const worker = useRef(null);
 
   useEffect(() => {
@@ -97,6 +98,8 @@ const InstagramExtractorPage = () => {
     setIsLoading(true);
     setError(null);
     setResults([]);
+    setLastBatchTime(null);
+    const startTime = Date.now();
 
     try {
       const response = await fetch('/api/instagram/extract', {
@@ -114,7 +117,8 @@ const InstagramExtractorPage = () => {
 
       const data = await response.json();
       setResults(data);
-      toast.success('Extração concluída!');
+      const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
+      toast.success(`Extração concluída em ${durationSec}s!`);
     } catch (err) {
       console.error('Error extracting URLs:', err);
       setError(err.message);
@@ -284,8 +288,10 @@ const InstagramExtractorPage = () => {
 
     setGlobalIsProcessing(true);
     setBatchProgress({ current: 0, total: indices.length });
+    setLastBatchTime(null);
 
     let latestResults = [...results];
+    const startTime = Date.now();
 
     try {
       for (const index of indices) {
@@ -294,7 +300,14 @@ const InstagramExtractorPage = () => {
         setBatchProgress(prev => ({ ...prev, current: prev.current + 1 }));
       }
 
-      toast.success('Processamento em lote concluído!');
+      const durationMs = Date.now() - startTime;
+      const durationSec = Math.floor(durationMs / 1000);
+      const minutes = Math.floor(durationSec / 60);
+      const seconds = durationSec % 60;
+      const timeString = minutes > 0 ? `${minutes}min ${seconds}s` : `${seconds}s`;
+
+      setLastBatchTime(timeString);
+      toast.success(`Processamento em lote concluído em ${timeString}!`);
       // Use latestResults to avoid stale state closure
       handleExportExcel(latestResults);
     } catch (error) {
@@ -302,7 +315,10 @@ const InstagramExtractorPage = () => {
       toast.error('Erro durante o processamento em lote.');
     } finally {
       setGlobalIsProcessing(false);
-      setBatchProgress({ current: 0, total: 0 });
+      // Pequeno atraso para o usuário ver o 100% antes de mostrar o tempo total
+      setTimeout(() => {
+        setBatchProgress({ current: 0, total: 0 });
+      }, 500);
     }
   };
 
@@ -394,7 +410,7 @@ const InstagramExtractorPage = () => {
             >
               Exportar Planilha (Excel)
             </Button>
-            {batchProgress.total > 0 && (
+            {batchProgress.total > 0 ? (
               <Box sx={{ flexGrow: 1, minWidth: '200px' }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                   <Typography variant="caption" color="primary" sx={{ fontWeight: 'bold' }}>
@@ -410,6 +426,12 @@ const InstagramExtractorPage = () => {
                   sx={{ height: 10, borderRadius: 5 }}
                 />
               </Box>
+            ) : (
+              lastBatchTime && (
+                <Typography variant="body2" color="textSecondary" sx={{ ml: 'auto', fontWeight: 'bold' }}>
+                  Tempo do último lote: {lastBatchTime}
+                </Typography>
+              )
             )}
           </Box>
         )}
