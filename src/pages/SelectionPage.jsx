@@ -30,6 +30,20 @@ const SelectionPage = () => {
           </Card>
         </Grid>
         <Grid item xs={12} sm={6}>
+          <Card onClick={() => handleSelection('/instagram-extractor')}>
+            <CardActionArea style={{ padding: '2rem' }}>
+              <CardContent>
+                <Typography gutterBottom variant="h5" component="h2" align="center">
+                  Extração de Vídeos (Instagram)
+                </Typography>
+                <Typography variant="body2" color="textSecondary" component="p" align="center">
+                  Extraia links diretos MP4 de posts e Reels.
+                </Typography>
+              </CardContent>
+            </CardActionArea>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6}>
           <Card onClick={() => handleSelection('/transcricoes')}>
             <CardActionArea style={{ padding: '2rem' }}>
               <CardContent>

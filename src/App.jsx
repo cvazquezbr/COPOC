@@ -9,6 +9,7 @@ import BriefingPage from './pages/BriefingPage';
 import TemplatePage from './pages/TemplatePage';
 import SelectionPage from './pages/SelectionPage';
 import TranscriptionPage from './pages/TranscriptionPage';
+import InstagramExtractorPage from './pages/InstagramExtractorPage';
 
 // Context
 import { useUserAuth, UserAuthContextProvider } from './context/UserAuthContext';
@@ -47,6 +48,7 @@ function App() {
         <Route index element={<SelectionPage />} />
         <Route path="briefings" element={<BriefingPage />} />
         <Route path="transcricoes" element={<TranscriptionPage />} />
+        <Route path="instagram-extractor" element={<InstagramExtractorPage />} />
         <Route path="briefing-template" element={<TemplatePage />} />
       </Route>
 
