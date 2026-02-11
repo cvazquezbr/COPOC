@@ -419,8 +419,18 @@ const InstagramExtractorPage = () => {
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                 <FormLabel component="legend" sx={{ fontWeight: 'bold' }}>Motor de Tradução</FormLabel>
                 <InfoBox
-                  title="Comparativo de Motores"
-                  description={"GEMINI (Nuvem):\nPros: Alta qualidade, rápido, melhor contexto.\nContras: Requer API Key, dados saem do browser.\n\nLOCAL (M2M100):\nPros: 100% privado, sem custo de API.\nContras: Download de 480MB, uso intenso de RAM/CPU."}
+                  title="Comparativo de Motores de Tradução"
+                  description={
+                    "GOOGLE GEMINI (Nuvem):\n" +
+                    "• Contexto: Superior. Entende tom, gírias e parágrafos inteiros.\n" +
+                    "• Fluência: Conversacional. Traduz ideias e intenções.\n" +
+                    "• Alucinação: Moderada. Pode tentar 'explicar' a tradução.\n\n" +
+                    "HUGGING FACE (Local - M2M100):\n" +
+                    "• Contexto: Limitado. Foco na frase, pode perder o sentido em textos longos.\n" +
+                    "• Fluência: Mecânica. Gramaticalmente correto, mas soa mais 'robótico'.\n" +
+                    "• Alucinação: Baixa. Modelos específicos raramente inventam fatos.\n" +
+                    "• Idiomas: Suporta centenas de idiomas com alta precisão."
+                  }
                 />
               </Box>
               <RadioGroup
