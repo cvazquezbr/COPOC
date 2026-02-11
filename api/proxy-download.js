@@ -58,7 +58,8 @@ export default async function handler(req) {
 
     // Create a new response that streams the body from the original response
     const headers = new Headers(response.headers);
-    headers.set('Access-Control-Allow-Origin', '*'); // Allow any origin to access this proxy
+    headers.set('Access-Control-Allow-Origin', '*');
+    headers.set('Cross-Origin-Resource-Policy', 'cross-origin');
 
     return new Response(response.body, {
       status: 200,

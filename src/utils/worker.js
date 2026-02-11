@@ -124,7 +124,21 @@ class MediaAIService {
         }
 
         self.postMessage({ status: 'audio_downloading' });
-        const audioData = await fetchFile(audioUrl);
+
+        let audioData;
+        try {
+            const response = await fetch(audioUrl);
+            if (!response.ok) {
+                const errorBody = await response.text().catch(() => 'No body');
+                throw new Error(`HTTP ${response.status}: ${response.statusText}. Body: ${errorBody.substring(0, 100)}`);
+            }
+            const buffer = await response.arrayBuffer();
+            audioData = new Uint8Array(buffer);
+        } catch (e) {
+            console.error('Worker fetch failed:', e);
+            throw new Error(`Falha ao baixar áudio para transcrição: ${e.message}`);
+        }
+
         const inputFileName = 'input.audio';
         const outputFileName = 'output.wav';
         await this.ffmpeg.writeFile(inputFileName, audioData);
