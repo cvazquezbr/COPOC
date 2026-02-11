@@ -144,7 +144,7 @@ const TranscriptionPage = () => {
     setError(null);
     setStatus('Iniciando...');
 
-    const proxyUrl = `/api/proxy-download?url=${encodeURIComponent(videoUrl)}`;
+    const proxyUrl = new URL(`/api/proxy-download?url=${encodeURIComponent(videoUrl)}`, window.location.origin).href;
 
     // --- Pre-flight Check ---
     try {
