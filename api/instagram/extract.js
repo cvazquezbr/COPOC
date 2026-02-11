@@ -146,8 +146,8 @@ const handler = async (req, res) => {
       return res.status(400).json({ message: 'An array of URLs is required in the request body.' });
     }
 
-    if (urls.length > 5) {
-        return res.status(400).json({ message: 'Batch size too large. Maximum 5 URLs allowed per request.' });
+    if (urls.length > 30) {
+        return res.status(400).json({ message: 'Batch size too large. Maximum 30 URLs allowed per request.' });
     }
 
     const results = await Promise.all(

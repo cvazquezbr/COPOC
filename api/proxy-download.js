@@ -26,6 +26,9 @@ export default async function handler(req) {
         'dai.ly',
         'cocreatorscollab.com.br',
         'cocreators.app',
+        'instagram.com',
+        'cdninstagram.com',
+        'fbcdn.net',
     ];
     const parsedUrl = new URL(urlToProxy);
     const isAllowedHost = allowedHosts.some(host =>
