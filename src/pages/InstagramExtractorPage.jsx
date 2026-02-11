@@ -174,7 +174,7 @@ const InstagramExtractorPage = () => {
     updateResultInUI({ isProcessing: true, processingStatus: 'Iniciando transcrição...' });
 
     try {
-      const proxyUrl = `/api/proxy-download?url=${encodeURIComponent(result.mp4_url)}`;
+      const proxyUrl = new URL(`/api/proxy-download?url=${encodeURIComponent(result.mp4_url)}`, window.location.origin).href;
 
       // --- Pre-flight Check ---
       try {
