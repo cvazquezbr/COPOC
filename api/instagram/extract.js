@@ -12,10 +12,28 @@ const USER_AGENTS = [
  * Note: The generated .mp4 links have temporary validity due to Instagram's signature tokens.
  */
 function cleanUrl(url) {
-  return url
-    .replace(/\\u0026/g, '&')
+  if (!url) return '';
+
+  // 1. Decode all Unicode escapes (\uXXXX)
+  // This handles \u0026 (&), \u003d (=), \u003c (<), \u0025 (%), etc.
+  let cleaned = url.replace(/\\u([0-9a-fA-F]{4})/g, (match, grp) => {
+    return String.fromCharCode(parseInt(grp, 16));
+  });
+
+  // 2. Standard cleanup for common HTML/JSON escapes that might remain
+  cleaned = cleaned
     .replace(/\\\//g, '/')
     .replace(/&amp;/g, '&');
+
+  // 3. Truncate at characters that definitely don't belong in an Instagram CDN URL
+  // but often follow it in JSON or DASH manifests.
+  // We look for: <, >, ", ', whitespace, newline, and common control chars.
+  const firstBadChar = cleaned.search(/[<>"'\s\n\r\t]/);
+  if (firstBadChar !== -1) {
+    cleaned = cleaned.substring(0, firstBadChar);
+  }
+
+  return cleaned.trim();
 }
 
 /**
