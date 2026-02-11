@@ -1,9 +1,5 @@
-import fetch from 'node-fetch';
 import { parse } from 'node-html-parser';
-import jwt from 'jsonwebtoken';
-import cookie from 'cookie';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'a-secure-default-secret-for-development';
+import { withAuth } from '../middleware/auth.js';
 
 const USER_AGENTS = [
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -94,7 +90,6 @@ export async function extractInstagramMp4(url) {
     }
 
     // 3. Fallback to Regex for video_url or escaped scontent URLs
-    // We look for patterns like "video_url":"https://..."
     const regexes = [
       /"video_url":"([^"]+)"/g,
       /"contentUrl":"([^"]+)"/g,
@@ -120,15 +115,7 @@ export async function extractInstagramMp4(url) {
   }
 }
 
-export default async function handler(req, res) {
-  // CORS Check
-  if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    return res.status(200).end();
-  }
-
+const handler = async (req, res) => {
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
     return res.status(405).json({ message: `Method ${req.method} Not Allowed` });
@@ -141,7 +128,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ message: 'An array of URLs is required in the request body.' });
     }
 
-    if (urls.length > 5) { // Adjusted to 5 per requirements
+    if (urls.length > 5) {
         return res.status(400).json({ message: 'Batch size too large. Maximum 5 URLs allowed per request.' });
     }
 
@@ -165,11 +152,14 @@ export default async function handler(req, res) {
       })
     );
 
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    // Note: Standard CORS is handled by Vercel or middleware if needed,
+    // but here we keep it simple or restricted to same-origin in production.
     return res.status(200).json(results);
 
   } catch (error) {
     console.error('API /instagram/extract error:', error);
     return res.status(500).json({ message: 'Internal Server Error' });
   }
-}
+};
+
+export default withAuth(handler);
