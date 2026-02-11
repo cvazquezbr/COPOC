@@ -8,14 +8,17 @@ if (process.env.VITE_MODELS_URL) {
 }
 
 // --- Singleton Service Class ---
-class TranscriptionService {
+class MediaAIService {
     constructor() {
         this.ffmpeg = null;
         this.transcriber = null;
+        this.translator = null;
         this.ffmpegReady = false;
         this.transcriberReady = false;
+        this.translatorReady = false;
         this.ffmpegLoadingPromise = null;
         this.transcriberLoadingPromise = null;
+        this.translatorLoadingPromise = null;
     }
 
     async loadFFmpeg() {
@@ -59,7 +62,7 @@ class TranscriptionService {
             try {
                 this.transcriber = await pipeline('automatic-speech-recognition', model, {
                     progress_callback: (progress) => {
-                        self.postMessage({ status: 'model_download_progress', progress });
+                        self.postMessage({ status: 'model_download_progress', model: 'transcription', progress });
                     },
                 });
                 this.transcriberReady = true;
@@ -76,9 +79,39 @@ class TranscriptionService {
         return this.transcriberLoadingPromise;
     }
 
-    async ensureReady() {
+    async loadTranslator(model = 'Xenova/m2m100_418M') {
+        if (this.translatorReady) return;
+        if (this.translatorLoadingPromise) return this.translatorLoadingPromise;
+
+        self.postMessage({ status: 'translator_loading' });
+
+        this.translatorLoadingPromise = new Promise(async (resolve, reject) => {
+            try {
+                this.translator = await pipeline('translation', model, {
+                    progress_callback: (progress) => {
+                        self.postMessage({ status: 'model_download_progress', model: 'translation', progress });
+                    },
+                });
+                this.translatorReady = true;
+                self.postMessage({ status: 'translator_ready' });
+                resolve();
+            } catch (error) {
+                console.error('Failed to load translator model in worker:', error);
+                self.postMessage({ status: 'translator_error', error: String(error) });
+                reject(error);
+            } finally {
+                this.translatorLoadingPromise = null;
+            }
+        });
+        return this.translatorLoadingPromise;
+    }
+
+    async ensureReady(loadTranslator = false) {
         await this.loadFFmpeg();
         await this.loadTranscriber();
+        if (loadTranslator) {
+            await this.loadTranslator();
+        }
     }
 
     isLoaded() {
@@ -129,23 +162,66 @@ class TranscriptionService {
         await this.ffmpeg.deleteFile(outputFileName);
         return output.text;
     }
+
+    async translate(text, src_lang, tgt_lang) {
+        if (!this.translatorReady) {
+            await this.loadTranslator();
+        }
+
+        self.postMessage({ status: 'translating' });
+
+        // M2M100 uses language codes like 'pt', 'es', etc.
+        // If coming from the UI, we might need to map 'portuguese' to 'pt'
+        const langMap = {
+            'portuguese': 'pt',
+            'spanish': 'es',
+            'espanhol': 'es',
+            'english': 'en',
+        };
+
+        const src = langMap[src_lang.toLowerCase()] || src_lang;
+        const tgt = langMap[tgt_lang.toLowerCase()] || tgt_lang;
+
+        const output = await this.translator(text, {
+            src_lang: src,
+            tgt_lang: tgt,
+        });
+
+        return output[0].translation_text;
+    }
 }
 
 // --- Worker Setup ---
-const service = new TranscriptionService();
+const service = new MediaAIService();
 
 self.addEventListener('message', async (event) => {
     const { type } = event.data;
 
     if (type === 'INIT') {
         try {
-            await service.ensureReady();
+            const { loadTranslator } = event.data;
+            await service.ensureReady(loadTranslator);
             self.postMessage({ status: 'INIT_COMPLETE' });
         } catch (error) {
             console.error('Initialization failed in worker:', error);
             self.postMessage({
                 status: 'ERROR',
                 error: `Worker initialization failed: ${String(error.message || error)}`,
+            });
+        }
+        return;
+    }
+
+    if (type === 'TRANSLATE') {
+        try {
+            const { text, src_lang, tgt_lang } = event.data;
+            const translation = await service.translate(text, src_lang, tgt_lang);
+            self.postMessage({ status: 'translation_complete', output: translation });
+        } catch (error) {
+            console.error('Error in worker during translation:', error);
+            self.postMessage({
+                status: 'error',
+                error: String(error.message || error),
             });
         }
         return;
