@@ -251,6 +251,7 @@ const TranscriptionPage = () => {
 
     setIsBulkProcessing(true);
     const results = [];
+    geminiAPI.initialize(user.gemini_api_key);
 
     for (let i = 0; i < bulkData.length; i++) {
       const row = bulkData[i];
@@ -281,7 +282,6 @@ const TranscriptionPage = () => {
         // 2. Evaluate
         console.log(`[Bulk] Avaliando: ${name}`);
         setBulkStatus(`Avaliando: ${name}`);
-        geminiAPI.initialize(user.gemini_api_key);
         const evaluation = await geminiAPI.evaluateContent(
           transcriptionText,
           caption || '',
@@ -300,11 +300,25 @@ const TranscriptionPage = () => {
         };
         await saveTranscription(name, videoUrl, selectedBriefingId, transcriptionData);
 
+        const flatEvaluation = {};
+        if (evaluation && evaluation.avaliacoes) {
+          evaluation.avaliacoes.forEach(av => {
+            const prefix = av.nome.split('/')[0].trim();
+            flatEvaluation[`${prefix} - Nota`] = av.nota;
+            flatEvaluation[`${prefix} - Status`] = av.status;
+            flatEvaluation[`${prefix} - Comentário`] = av.comentario;
+            flatEvaluation[`${prefix} - Detalhes Ausentes`] = av.detalhes_ausentes;
+          });
+          flatEvaluation['Score Final'] = `${evaluation.score_final?.pontuacao_obtida} / ${evaluation.score_final?.pontuacao_maxima}`;
+          flatEvaluation['Feedback Consolidado'] = evaluation.feedback_consolidado?.texto;
+        }
+
         results.push({
           ...row,
           transcription: transcriptionText,
-          evaluation_result: JSON.stringify(evaluation),
-          ai_status: 'Sucesso'
+          ...flatEvaluation,
+          ai_status: 'Sucesso',
+          evaluation_result_json: JSON.stringify(evaluation),
         });
 
       } catch (err) {
@@ -312,8 +326,8 @@ const TranscriptionPage = () => {
         results.push({
           ...row,
           transcription: '',
-          evaluation_result: '',
-          ai_status: `Erro: ${err.message}`
+          ai_status: `Erro: ${err.message}`,
+          evaluation_result_json: '',
         });
       }
 
