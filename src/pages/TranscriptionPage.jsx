@@ -3,10 +3,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Container, TextField, Button, Typography, Box, Paper, CircularProgress, Alert,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, Divider,
-  FormControl, InputLabel, Select, MenuItem, Grid
+  FormControl, InputLabel, Select, MenuItem, Grid, LinearProgress
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 import getFriendlyErrorMessage from '../utils/friendlyErrors';
 import { useUserAuth } from '../context/UserAuthContext';
 import { useLayout } from '../context/LayoutContext';
@@ -36,6 +38,11 @@ const TranscriptionPage = () => {
   const [evaluationResult, setEvaluationResult] = useState(null);
   const [userEvaluation, setUserEvaluation] = useState(null);
   const [error, setError] = useState(null);
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0 });
+  const [bulkStatus, setBulkStatus] = useState('');
+  const [bulkData, setBulkData] = useState([]);
+  const [originalData, setOriginalData] = useState([]);
   const worker = useRef(null);
 
   useEffect(() => {
@@ -144,32 +151,196 @@ const TranscriptionPage = () => {
     setError(null);
     setStatus('Iniciando...');
 
-    const proxyUrl = new URL(`/api/proxy-download?url=${encodeURIComponent(videoUrl)}`, window.location.origin).href;
+    try {
+      const output = await transcribeUrl(videoUrl);
+      setTranscription(output);
+      setStatus('Transcrição concluída.');
+    } catch (e) {
+      setError(e.message);
+      setStatus('Ocorreu um erro.');
+    } finally {
+      setIsTranscribing(false);
+    }
+  };
+
+  const transcribeUrl = async (url, nameForStatus = null) => {
+    const proxyUrl = new URL(`/api/proxy-download?url=${encodeURIComponent(url)}`, window.location.origin).href;
 
     // --- Pre-flight Check ---
-    try {
-        const preflightResponse = await fetch(proxyUrl);
-        if (!preflightResponse.ok) {
-            const errorText = await preflightResponse.text();
-            throw new Error(`Proxy pre-flight check failed: ${preflightResponse.status} ${preflightResponse.statusText}. Server response: ${errorText}`);
-        }
-        const contentType = preflightResponse.headers.get('content-type');
-        if (contentType && contentType.includes('text/html')) {
-            const errorText = await preflightResponse.text();
-            throw new Error(`Expected audio but received HTML. Server error: ${errorText}`);
-        }
-    } catch (e) {
-        setError(e.message);
-        setIsTranscribing(false);
-        return;
+    const preflightResponse = await fetch(proxyUrl);
+    if (!preflightResponse.ok) {
+      const errorText = await preflightResponse.text();
+      throw new Error(`Proxy pre-flight check failed: ${preflightResponse.status} ${preflightResponse.statusText}. Server response: ${errorText}`);
+    }
+    const contentType = preflightResponse.headers.get('content-type');
+    if (contentType && contentType.includes('text/html')) {
+      const errorText = await preflightResponse.text();
+      throw new Error(`Expected audio but received HTML. Server error: ${errorText}`);
     }
     // --- End Pre-flight Check ---
 
-    worker.current.postMessage({
-      audio: proxyUrl,
-      language: 'portuguese',
-      task: 'transcribe',
+    return new Promise((resolve, reject) => {
+      const onMessage = (e) => {
+        switch (e.data.status) {
+          case 'complete':
+            worker.current.removeEventListener('message', onMessage);
+            resolve(e.data.output);
+            break;
+          case 'error':
+            worker.current.removeEventListener('message', onMessage);
+            reject(new Error(e.data.error));
+            break;
+          default:
+            if (nameForStatus) {
+              setBulkStatus(`Processando: ${nameForStatus} (${e.data.status})`);
+            }
+            break;
+        }
+      };
+      worker.current.addEventListener('message', onMessage);
+
+      worker.current.postMessage({
+        audio: proxyUrl,
+        language: 'portuguese',
+        task: 'transcribe',
+      });
     });
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const data = new Uint8Array(evt.target.result);
+      const wb = XLSX.read(data, { type: 'array' });
+      const wsname = wb.SheetNames[0];
+      const ws = wb.Sheets[wsname];
+      const jsonData = XLSX.utils.sheet_to_json(ws);
+
+      // Filter out "Duplicado" status
+      const filteredData = jsonData.filter(row => row['Status'] !== 'Duplicado');
+      setOriginalData(jsonData);
+      setBulkData(filteredData);
+      setBulkProgress({ current: 0, total: filteredData.length });
+      toast.info(`${filteredData.length} registros carregados (excluindo duplicados).`);
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const handleBulkProcess = async () => {
+    if (bulkData.length === 0) {
+      toast.error('Nenhum dado carregado para processar.');
+      return;
+    }
+    if (!selectedBriefingId) {
+      toast.error('Por favor, selecione um briefing antes de iniciar o processamento em massa.');
+      return;
+    }
+    if (!user?.gemini_api_key) {
+      toast.error('Chave da API Gemini não configurada.');
+      return;
+    }
+
+    setIsBulkProcessing(true);
+    const results = [];
+
+    for (let i = 0; i < bulkData.length; i++) {
+      const row = bulkData[i];
+      setBulkProgress({ current: i + 1, total: bulkData.length });
+
+      const challengeId = row['Challenge ID'] || '';
+      const rowNum = String(i + 1).padStart(3, '0');
+      const nameCol = row['Name'] || '';
+      const nameParts = nameCol.trim().split(/\s+/).filter(p => p.length > 0);
+      const firstWord = nameParts[0] || '';
+      const lastWord = nameParts.length > 0 ? nameParts[nameParts.length - 1] : '';
+      const name = `${challengeId}${rowNum}${firstWord}${lastWord}`;
+
+      setBulkStatus(`Processando: ${name}`);
+
+      try {
+        const videoUrl = row['URL'];
+        const caption = row['Caption'];
+
+        if (!videoUrl) throw new Error('URL não encontrada nesta linha.');
+
+        // 1. Transcribe
+        const transcriptionText = await transcribeUrl(videoUrl, name);
+
+        // 2. Evaluate
+        setBulkStatus(`Avaliando: ${name}`);
+        geminiAPI.initialize(user.gemini_api_key);
+        const evaluation = await geminiAPI.evaluateContent(
+          transcriptionText,
+          caption || '',
+          campaignBriefing,
+          user.gemini_model
+        );
+
+        // 3. Save
+        setBulkStatus(`Salvando: ${name}`);
+        const transcriptionData = {
+          captionText: caption || '',
+          transcription: transcriptionText,
+          evaluationResult: evaluation,
+          userEvaluation: evaluation,
+        };
+        await saveTranscription(name, videoUrl, selectedBriefingId, transcriptionData);
+
+        results.push({
+          ...row,
+          transcription: transcriptionText,
+          evaluation_result: JSON.stringify(evaluation),
+          ai_status: 'Sucesso'
+        });
+
+      } catch (err) {
+        console.error(`Erro ao processar linha ${i + 1}:`, err);
+        results.push({
+          ...row,
+          transcription: '',
+          evaluation_result: '',
+          ai_status: `Erro: ${err.message}`
+        });
+      }
+
+      if (i < bulkData.length - 1) {
+        for (let s = 15; s > 0; s--) {
+          setBulkStatus(`Aguardando ${s} segundos para o próximo registro...`);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+    }
+
+    setIsBulkProcessing(false);
+    setBulkStatus('Processamento concluído!');
+    toast.success('Processamento em massa concluído!');
+    fetchTranscriptions();
+
+    exportBulkResults(results);
+  };
+
+  const exportBulkResults = (results) => {
+    const wb = XLSX.utils.book_new();
+
+    // Sheet 1: Original data
+    const ws1 = XLSX.utils.json_to_sheet(originalData);
+    XLSX.utils.book_append_sheet(wb, ws1, "Dados Originais");
+
+    // Sheet 2: Results
+    const ws2 = XLSX.utils.json_to_sheet(results);
+    XLSX.utils.book_append_sheet(wb, ws2, "Resultados IA");
+
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'binary' });
+    function s2ab(s) {
+      const buf = new ArrayBuffer(s.length);
+      const view = new Uint8Array(buf);
+      for (let i = 0; i !== s.length; ++i) view[i] = s.charCodeAt(i) & 0xFF;
+      return buf;
+    }
+    saveAs(new Blob([s2ab(wbout)], { type: "application/octet-stream" }), `resultados_transcricao_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const handleEvaluate = async () => {
@@ -316,7 +487,54 @@ const TranscriptionPage = () => {
           value={transcriptionName}
           onChange={(e) => setTranscriptionName(e.target.value)}
           sx={{ mb: 2 }}
+          disabled={isBulkProcessing}
         />
+
+        <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
+          <Typography variant="h6" gutterBottom>
+            Processamento em Massa (Carga de Planilha)
+          </Typography>
+          <Box sx={{ mb: 2 }}>
+            <input
+              accept=".xlsx, .xls, .csv"
+              style={{ display: 'none' }}
+              id="bulk-file-upload"
+              type="file"
+              onChange={handleFileUpload}
+              disabled={isBulkProcessing}
+            />
+            <label htmlFor="bulk-file-upload">
+              <Button variant="outlined" component="span" disabled={isBulkProcessing}>
+                Selecionar Planilha
+              </Button>
+            </label>
+            {bulkData.length > 0 && (
+              <Typography variant="body2" sx={{ mt: 1 }}>
+                {bulkData.length} registros carregados (excluindo duplicados).
+              </Typography>
+            )}
+          </Box>
+
+          <Button
+            variant="contained"
+            color="secondary"
+            onClick={handleBulkProcess}
+            disabled={isBulkProcessing || bulkData.length === 0 || !selectedBriefingId || !workerReady}
+            fullWidth
+          >
+            {isBulkProcessing ? 'Processando...' : 'Iniciar Processamento em Massa'}
+          </Button>
+
+          {(isBulkProcessing || bulkStatus === 'Processamento concluído!') && (
+            <Box sx={{ mt: 2 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="body2">{bulkStatus}</Typography>
+                <Typography variant="body2">{bulkProgress.current} / {bulkProgress.total}</Typography>
+              </Box>
+              <LinearProgress variant="determinate" value={bulkProgress.total > 0 ? (bulkProgress.current / bulkProgress.total) * 100 : 0} />
+            </Box>
+          )}
+        </Paper>
 
         <Paper elevation={2} sx={{ p: 2, mb: 3 }}>
             <Typography variant="h6" gutterBottom>Status do Sistema</Typography>
@@ -352,10 +570,10 @@ const TranscriptionPage = () => {
           value={videoUrl}
           onChange={(e) => setVideoUrl(e.target.value)}
           sx={{ my: 2 }}
-          disabled={isTranscribing || !workerReady}
+          disabled={isTranscribing || !workerReady || isBulkProcessing}
         />
 
-        <FormControl fullWidth sx={{ mb: 2 }} disabled={isTranscribing}>
+        <FormControl fullWidth sx={{ mb: 2 }} disabled={isTranscribing || isBulkProcessing}>
           <InputLabel id="select-briefing-label">Selecionar Briefing</InputLabel>
           <Select
             labelId="select-briefing-label"
@@ -396,13 +614,13 @@ const TranscriptionPage = () => {
           value={captionText}
           onChange={(e) => setCaptionText(e.target.value)}
           sx={{ mb: 2 }}
-          disabled={isTranscribing}
+          disabled={isTranscribing || isBulkProcessing}
         />
         <Button
           variant="contained"
           color="primary"
           onClick={handleTranscribe}
-          disabled={isTranscribing || !workerReady || !videoUrl}
+          disabled={isTranscribing || !workerReady || !videoUrl || isBulkProcessing}
           fullWidth
           size="large"
           sx={{ mb: 2 }}
