@@ -282,14 +282,30 @@ const TranscriptionPage = () => {
         const transcriptionText = await transcribeUrl(videoUrl, name);
 
         // 2. Evaluate
-        console.log(`[Bulk] Avaliando: ${name}`);
-        setBulkStatus(`Avaliando: ${name}`);
-        const evaluation = await geminiAPI.evaluateContent(
-          transcriptionText,
-          caption || '',
-          campaignBriefing,
-          user.gemini_model
-        );
+        let evaluation;
+        if (transcriptionText.length > 20) {
+          console.log(`[Bulk] Avaliando: ${name}`);
+          setBulkStatus(`Avaliando: ${name}`);
+          evaluation = await geminiAPI.evaluateContent(
+            transcriptionText,
+            caption || '',
+            campaignBriefing,
+            user.gemini_model
+          );
+        } else {
+          console.log(`[Bulk] Reprovando automaticamente (transcrição curta): ${name}`);
+          setBulkStatus(`Reprovando: ${name} (Mídia curta)`);
+          evaluation = {
+            avaliacoes: [
+              { id_criterio: 1, nome: "Key Message / Mensagem Principal", nota: 1, status: "RUIM", comentario: "Transcrição muito curta para avaliação.", detalhes_ausentes: "Conteúdo insuficiente" },
+              { id_criterio: 3, nome: "Branding (Do’s & Don’ts)", nota: 1, status: "RUIM", comentario: "Transcrição muito curta para avaliação.", detalhes_ausentes: "Conteúdo insuficiente" },
+              { id_criterio: 4, nome: "Criatividade", nota: 1, status: "RUIM", comentario: "Transcrição muito curta para avaliação.", detalhes_ausentes: "Conteúdo insuficiente" },
+              { id_criterio: 7, nome: "Call to Action (CTA)", nota: 1, status: "RUIM", comentario: "Transcrição muito curta para avaliação.", detalhes_ausentes: "Conteúdo insuficiente" }
+            ],
+            score_final: { pontuacao_obtida: 4, pontuacao_maxima: 12 },
+            feedback_consolidado: { texto: "Reprovado. O áudio transcrito possui 20 caracteres ou menos." }
+          };
+        }
 
         // 3. Save
         console.log(`[Bulk] Salvando: ${name}`);
@@ -344,8 +360,8 @@ const TranscriptionPage = () => {
         const seconds = Math.floor((estimatedRemainingMs % 60000) / 1000);
         setEstimatedTimeRemaining(minutes > 0 ? `${minutes}min ${seconds}s` : `${seconds}s`);
 
-        for (let s = 15; s > 0; s--) {
-          setBulkStatus(`Aguardando ${s} segundos para o próximo registro...`);
+        for (let s = 1; s > 0; s--) {
+          setBulkStatus(`Aguardando ${s} segundo para o próximo registro...`);
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
@@ -402,13 +418,28 @@ const TranscriptionPage = () => {
     setEvaluationResult(null);
 
     try {
-      geminiAPI.initialize(user.gemini_api_key);
-      const result = await geminiAPI.evaluateContent(
-        transcription,
-        captionText,
-        campaignBriefing,
-        user.gemini_model
-      );
+      let result;
+      if (transcription.length > 20) {
+        geminiAPI.initialize(user.gemini_api_key);
+        result = await geminiAPI.evaluateContent(
+          transcription,
+          captionText,
+          campaignBriefing,
+          user.gemini_model
+        );
+      } else {
+        result = {
+          avaliacoes: [
+            { id_criterio: 1, nome: "Key Message / Mensagem Principal", nota: 1, status: "RUIM", comentario: "Transcrição muito curta para avaliação.", detalhes_ausentes: "Conteúdo insuficiente" },
+            { id_criterio: 3, nome: "Branding (Do’s & Don’ts)", nota: 1, status: "RUIM", comentario: "Transcrição muito curta para avaliação.", detalhes_ausentes: "Conteúdo insuficiente" },
+            { id_criterio: 4, nome: "Criatividade", nota: 1, status: "RUIM", comentario: "Transcrição muito curta para avaliação.", detalhes_ausentes: "Conteúdo insuficiente" },
+            { id_criterio: 7, nome: "Call to Action (CTA)", nota: 1, status: "RUIM", comentario: "Transcrição muito curta para avaliação.", detalhes_ausentes: "Conteúdo insuficiente" }
+          ],
+          score_final: { pontuacao_obtida: 4, pontuacao_maxima: 12 },
+          feedback_consolidado: { texto: "Reprovado. O áudio transcrito possui 20 caracteres ou menos." }
+        };
+        toast.warning('Transcrição muito curta. Reprovando automaticamente.');
+      }
       setEvaluationResult(result);
       setUserEvaluation(JSON.parse(JSON.stringify(result)));
     } catch (e) {
