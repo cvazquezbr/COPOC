@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Container, TextField, Button, Typography, Box, Paper, CircularProgress, Alert,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, Divider,
-  FormControl, InputLabel, Select, MenuItem, Grid, LinearProgress
+  FormControl, InputLabel, Select, MenuItem, Grid, LinearProgress, RadioGroup, FormControlLabel, Radio
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -44,6 +44,7 @@ const TranscriptionPage = () => {
   const [bulkData, setBulkData] = useState([]);
   const [originalData, setOriginalData] = useState([]);
   const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState(null);
+  const [processingMode, setProcessingMode] = useState('individual'); // 'individual' or 'grouped'
   const worker = useRef(null);
 
   useEffect(() => {
@@ -252,6 +253,7 @@ const TranscriptionPage = () => {
 
     setIsBulkProcessing(true);
     const results = [];
+    const pendingEvaluations = [];
     geminiAPI.initialize(user.gemini_api_key);
     const startTime = Date.now();
 
@@ -282,41 +284,52 @@ const TranscriptionPage = () => {
         const transcriptionText = await transcribeUrl(videoUrl, name);
 
         // 2. Evaluate
-        let evaluation;
+        let evaluation = null;
         if (transcriptionText.length > 20) {
-          console.log(`[Bulk] Avaliando: ${name}`);
-          setBulkStatus(`Avaliando: ${name}`);
+          if (processingMode === 'individual') {
+            console.log(`[Bulk] Avaliando: ${name}`);
+            setBulkStatus(`Avaliando: ${name}`);
 
-          const evaluateWithRetry = async () => {
-            let retries = 0;
-            const maxRetries = 5;
-            while (retries < maxRetries) {
-              try {
-                return await geminiAPI.evaluateContent(
-                  transcriptionText,
-                  caption || '',
-                  campaignBriefing,
-                  user.gemini_model
-                );
-              } catch (err) {
-                const waitMatch = err.message.match(/retry in ([\d.]+)s/);
-                if (waitMatch && waitMatch[1]) {
-                  const waitSeconds = parseFloat(waitMatch[1]);
-                  console.log(`[Bulk] Quota excedida. Tentativa ${retries + 1}. Aguardando ${waitSeconds}s...`);
-                  for (let s = Math.ceil(waitSeconds); s > 0; s--) {
-                    setBulkStatus(`Quota excedida. Retentando em ${s}s... (${name})`);
-                    await new Promise(resolve => setTimeout(resolve, 1000));
+            const evaluateWithRetry = async () => {
+              let retries = 0;
+              const maxRetries = 5;
+              while (retries < maxRetries) {
+                try {
+                  return await geminiAPI.evaluateContent(
+                    transcriptionText,
+                    caption || '',
+                    campaignBriefing,
+                    user.gemini_model
+                  );
+                } catch (err) {
+                  const waitMatch = err.message.match(/retry in ([\d.]+)s/);
+                  if (waitMatch && waitMatch[1]) {
+                    const waitSeconds = parseFloat(waitMatch[1]);
+                    console.log(`[Bulk] Quota excedida. Tentativa ${retries + 1}. Aguardando ${waitSeconds}s...`);
+                    for (let s = Math.ceil(waitSeconds); s > 0; s--) {
+                      setBulkStatus(`Quota excedida. Retentando em ${s}s... (${name})`);
+                      await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
+                    retries++;
+                  } else {
+                    throw err;
                   }
-                  retries++;
-                } else {
-                  throw err;
                 }
               }
-            }
-            throw new Error('Falha na avaliação após múltiplas tentativas devido a limite de quota.');
-          };
+              throw new Error('Falha na avaliação após múltiplas tentativas devido a limite de quota.');
+            };
 
-          evaluation = await evaluateWithRetry();
+            evaluation = await evaluateWithRetry();
+          } else {
+            console.log(`[Bulk] Adicionando para avaliação agrupada: ${name}`);
+            setBulkStatus(`Transcrevendo: ${name} (Agrupando para IA)`);
+            pendingEvaluations.push({
+              id: name,
+              transcription: transcriptionText,
+              caption: caption || '',
+              row: row
+            });
+          }
         } else {
           console.log(`[Bulk] Reprovando automaticamente (transcrição curta): ${name}`);
           setBulkStatus(`Reprovando: ${name} (Mídia curta)`);
@@ -332,37 +345,51 @@ const TranscriptionPage = () => {
           };
         }
 
-        // 3. Save
-        console.log(`[Bulk] Salvando: ${name}`);
-        setBulkStatus(`Salvando: ${name}`);
-        const transcriptionData = {
-          captionText: caption || '',
-          transcription: transcriptionText,
-          evaluationResult: evaluation,
-          userEvaluation: evaluation,
-        };
-        await saveTranscription(name, videoUrl, selectedBriefingId, transcriptionData);
+        // 3. Save (Individual Mode)
+        if (processingMode === 'individual' || !evaluation) {
+          // In individual mode, or if it was auto-rejected (transcription <= 20)
+          const finalEvaluation = evaluation || {
+            avaliacoes: [
+              { id_criterio: 1, nome: "Key Message / Mensagem Principal", nota: 1, status: "RUIM", comentario: "Transcrição muito curta para avaliação.", detalhes_ausentes: "Conteúdo insuficiente" },
+              { id_criterio: 3, nome: "Branding (Do’s & Don’ts)", nota: 1, status: "RUIM", comentario: "Transcrição muito curta para avaliação.", detalhes_ausentes: "Conteúdo insuficiente" },
+              { id_criterio: 4, nome: "Criatividade", nota: 1, status: "RUIM", comentario: "Transcrição muito curta para avaliação.", detalhes_ausentes: "Conteúdo insuficiente" },
+              { id_criterio: 7, nome: "Call to Action (CTA)", nota: 1, status: "RUIM", comentario: "Transcrição muito curta para avaliação.", detalhes_ausentes: "Conteúdo insuficiente" }
+            ],
+            score_final: { pontuacao_obtida: 4, pontuacao_maxima: 12 },
+            feedback_consolidado: { texto: "Reprovado. O áudio transcrito possui 20 caracteres ou menos." }
+          };
 
-        const flatEvaluation = {};
-        if (evaluation && evaluation.avaliacoes) {
-          evaluation.avaliacoes.forEach(av => {
-            const prefix = av.nome.split('/')[0].trim();
-            flatEvaluation[`${prefix} - Nota`] = av.nota;
-            flatEvaluation[`${prefix} - Status`] = av.status;
-            flatEvaluation[`${prefix} - Comentário`] = av.comentario;
-            flatEvaluation[`${prefix} - Detalhes Ausentes`] = av.detalhes_ausentes;
+          console.log(`[Bulk] Salvando: ${name}`);
+          setBulkStatus(`Salvando: ${name}`);
+          const transcriptionData = {
+            captionText: caption || '',
+            transcription: transcriptionText,
+            evaluationResult: finalEvaluation,
+            userEvaluation: finalEvaluation,
+          };
+          await saveTranscription(name, videoUrl, selectedBriefingId, transcriptionData);
+
+          const flatEvaluation = {};
+          if (finalEvaluation && finalEvaluation.avaliacoes) {
+            finalEvaluation.avaliacoes.forEach(av => {
+              const prefix = av.nome.split('/')[0].trim();
+              flatEvaluation[`${prefix} - Nota`] = av.nota;
+              flatEvaluation[`${prefix} - Status`] = av.status;
+              flatEvaluation[`${prefix} - Comentário`] = av.comentario;
+              flatEvaluation[`${prefix} - Detalhes Ausentes`] = av.detalhes_ausentes;
+            });
+            flatEvaluation['Score Final'] = `${finalEvaluation.score_final?.pontuacao_obtida} / ${finalEvaluation.score_final?.pontuacao_maxima}`;
+            flatEvaluation['Feedback Consolidado'] = finalEvaluation.feedback_consolidado?.texto;
+          }
+
+          results.push({
+            ...row,
+            transcription: transcriptionText,
+            ...flatEvaluation,
+            ai_status: 'Sucesso',
+            evaluation_result_json: JSON.stringify(finalEvaluation),
           });
-          flatEvaluation['Score Final'] = `${evaluation.score_final?.pontuacao_obtida} / ${evaluation.score_final?.pontuacao_maxima}`;
-          flatEvaluation['Feedback Consolidado'] = evaluation.feedback_consolidado?.texto;
         }
-
-        results.push({
-          ...row,
-          transcription: transcriptionText,
-          ...flatEvaluation,
-          ai_status: 'Sucesso',
-          evaluation_result_json: JSON.stringify(evaluation),
-        });
 
       } catch (err) {
         console.error(`Erro ao processar linha ${i + 1}:`, err);
@@ -389,6 +416,100 @@ const TranscriptionPage = () => {
           setBulkStatus(`Aguardando ${s} segundo para o próximo registro...`);
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
+      }
+    }
+
+    // --- Grouped Evaluation Processing ---
+    if (processingMode === 'grouped' && pendingEvaluations.length > 0) {
+      setBulkStatus(`Iniciando Avaliação Agrupada de ${pendingEvaluations.length} itens...`);
+      console.log(`[Bulk] Iniciando avaliação agrupada para ${pendingEvaluations.length} itens.`);
+
+      try {
+        const evaluateMultipleWithRetry = async () => {
+          let retries = 0;
+          const maxRetries = 5;
+          while (retries < maxRetries) {
+            try {
+              return await geminiAPI.evaluateMultipleContent(
+                pendingEvaluations,
+                campaignBriefing,
+                user.gemini_model
+              );
+            } catch (err) {
+              const waitMatch = err.message.match(/retry in ([\d.]+)s/);
+              if (waitMatch && waitMatch[1]) {
+                const waitSeconds = parseFloat(waitMatch[1]);
+                console.log(`[Bulk Grouped] Quota excedida. Tentativa ${retries + 1}. Aguardando ${waitSeconds}s...`);
+                for (let s = Math.ceil(waitSeconds); s > 0; s--) {
+                  setBulkStatus(`Quota excedida (Agrupada). Retentando em ${s}s...`);
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+                retries++;
+              } else {
+                throw err;
+              }
+            }
+          }
+          throw new Error('Falha na avaliação agrupada após múltiplas tentativas.');
+        };
+
+        const groupedResult = await evaluateMultipleWithRetry();
+        console.log('[Bulk Grouped] Resultado recebido:', groupedResult);
+
+        // Map results back to records
+        for (const item of pendingEvaluations) {
+          const evalResult = groupedResult.resultados?.find(r => r.id === item.id);
+
+          if (evalResult) {
+            console.log(`[Bulk Grouped] Salvando: ${item.id}`);
+            setBulkStatus(`Salvando Avaliação: ${item.id}`);
+
+            const transcriptionData = {
+              captionText: item.caption,
+              transcription: item.transcription,
+              evaluationResult: evalResult,
+              userEvaluation: evalResult,
+            };
+            await saveTranscription(item.id, (item.row['URL'] || '').trim(), selectedBriefingId, transcriptionData);
+
+            const flatEvaluation = {};
+            if (evalResult.avaliacoes) {
+              evalResult.avaliacoes.forEach(av => {
+                const prefix = av.nome.split('/')[0].trim();
+                flatEvaluation[`${prefix} - Nota`] = av.nota;
+                flatEvaluation[`${prefix} - Status`] = av.status;
+                flatEvaluation[`${prefix} - Comentário`] = av.comentario;
+                flatEvaluation[`${prefix} - Detalhes Ausentes`] = av.detalhes_ausentes;
+              });
+              flatEvaluation['Score Final'] = `${evalResult.score_final?.pontuacao_obtida} / ${evalResult.score_final?.pontuacao_maxima}`;
+              flatEvaluation['Feedback Consolidado'] = evalResult.feedback_consolidado?.texto;
+            }
+
+            results.push({
+              ...item.row,
+              transcription: item.transcription,
+              ...flatEvaluation,
+              ai_status: 'Sucesso',
+              evaluation_result_json: JSON.stringify(evalResult),
+            });
+          } else {
+            console.warn(`[Bulk Grouped] Resultado não encontrado para ID: ${item.id}`);
+            results.push({
+              ...item.row,
+              transcription: item.transcription,
+              ai_status: 'Erro: IA não retornou avaliação para este item no lote.',
+            });
+          }
+        }
+      } catch (err) {
+        console.error('[Bulk Grouped] Erro na avaliação agrupada:', err);
+        pendingEvaluations.forEach(item => {
+           results.push({
+             ...item.row,
+             transcription: item.transcription,
+             ai_status: `Erro na avaliação agrupada: ${err.message}`,
+           });
+        });
       }
     }
 
@@ -613,6 +734,28 @@ const TranscriptionPage = () => {
           <Typography variant="h6" gutterBottom>
             Processamento em Massa (Carga de Planilha)
           </Typography>
+
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle2" gutterBottom>Modo de Avaliação pela IA:</Typography>
+            <RadioGroup
+              row
+              value={processingMode}
+              onChange={(e) => setProcessingMode(e.target.value)}
+              disabled={isBulkProcessing}
+            >
+              <FormControlLabel
+                value="individual"
+                control={<Radio size="small" />}
+                label={<Typography variant="body2">Individual (Avaliar após cada transcrição)</Typography>}
+              />
+              <FormControlLabel
+                value="grouped"
+                control={<Radio size="small" />}
+                label={<Typography variant="body2">Agrupado (Transcrever tudo e avaliar em um único prompt)</Typography>}
+              />
+            </RadioGroup>
+          </Box>
+
           <Box sx={{ mb: 2 }}>
             <input
               accept=".xlsx, .xls, .csv"
