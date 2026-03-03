@@ -43,6 +43,7 @@ const TranscriptionPage = () => {
   const [bulkStatus, setBulkStatus] = useState('');
   const [bulkData, setBulkData] = useState([]);
   const [originalData, setOriginalData] = useState([]);
+  const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState(null);
   const worker = useRef(null);
 
   useEffect(() => {
@@ -252,6 +253,7 @@ const TranscriptionPage = () => {
     setIsBulkProcessing(true);
     const results = [];
     geminiAPI.initialize(user.gemini_api_key);
+    const startTime = Date.now();
 
     for (let i = 0; i < bulkData.length; i++) {
       const row = bulkData[i];
@@ -332,6 +334,16 @@ const TranscriptionPage = () => {
       }
 
       if (i < bulkData.length - 1) {
+        // Calculate estimated time remaining
+        const elapsedMs = Date.now() - startTime;
+        const avgTimePerRowMs = elapsedMs / (i + 1);
+        const remainingRows = bulkData.length - (i + 1);
+        const estimatedRemainingMs = remainingRows * avgTimePerRowMs;
+
+        const minutes = Math.floor(estimatedRemainingMs / 60000);
+        const seconds = Math.floor((estimatedRemainingMs % 60000) / 1000);
+        setEstimatedTimeRemaining(minutes > 0 ? `${minutes}min ${seconds}s` : `${seconds}s`);
+
         for (let s = 15; s > 0; s--) {
           setBulkStatus(`Aguardando ${s} segundos para o próximo registro...`);
           await new Promise(resolve => setTimeout(resolve, 1000));
@@ -340,6 +352,7 @@ const TranscriptionPage = () => {
     }
 
     setIsBulkProcessing(false);
+    setEstimatedTimeRemaining(null);
     setBulkStatus('Processamento concluído!');
     toast.success('Processamento em massa concluído!');
     fetchTranscriptions();
@@ -554,7 +567,10 @@ const TranscriptionPage = () => {
             <Box sx={{ mt: 2 }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                 <Typography variant="body2">{bulkStatus}</Typography>
-                <Typography variant="body2">{bulkProgress.current} / {bulkProgress.total}</Typography>
+                <Typography variant="body2">
+                    {bulkProgress.current} / {bulkProgress.total}
+                    {estimatedTimeRemaining && ` (Restante aprox.: ${estimatedTimeRemaining})`}
+                </Typography>
               </Box>
               <LinearProgress variant="determinate" value={bulkProgress.total > 0 ? (bulkProgress.current / bulkProgress.total) * 100 : 0} />
             </Box>
