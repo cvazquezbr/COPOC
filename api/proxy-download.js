@@ -57,9 +57,19 @@ export default async function handler(req) {
     }
 
     // Create a new response that streams the body from the original response
-    const headers = new Headers(response.headers);
+    // We only copy essential headers to avoid conflicts with security policies
+    const headers = new Headers();
     headers.set('Access-Control-Allow-Origin', '*');
     headers.set('Cross-Origin-Resource-Policy', 'cross-origin');
+
+    const contentType = response.headers.get('Content-Type');
+    if (contentType) headers.set('Content-Type', contentType);
+
+    const contentLength = response.headers.get('Content-Length');
+    if (contentLength) headers.set('Content-Length', contentLength);
+
+    const acceptRanges = response.headers.get('Accept-Ranges');
+    if (acceptRanges) headers.set('Accept-Ranges', acceptRanges);
 
     return new Response(response.body, {
       status: 200,

@@ -219,8 +219,14 @@ const TranscriptionPage = () => {
       const ws = wb.Sheets[wsname];
       const jsonData = XLSX.utils.sheet_to_json(ws);
 
+      // Add original row number (Excel rows start at 1, headers are row 1, first data row is 2)
+      const dataWithIndex = jsonData.map((row, index) => ({
+        ...row,
+        __rowNum__: index + 2
+      }));
+
       // Filter out "Duplicado" status
-      const filteredData = jsonData.filter(row => row['Status'] !== 'Duplicado');
+      const filteredData = dataWithIndex.filter(row => row['Status'] !== 'Duplicado');
       setOriginalData(jsonData);
       setBulkData(filteredData);
       setBulkProgress({ current: 0, total: filteredData.length });
@@ -251,25 +257,29 @@ const TranscriptionPage = () => {
       setBulkProgress({ current: i + 1, total: bulkData.length });
 
       const challengeId = row['Challenge ID'] || '';
-      const rowNum = String(i + 1).padStart(3, '0');
+      const rowNum = String(row.__rowNum__ || (i + 1)).padStart(3, '0');
       const nameCol = row['Name'] || '';
       const nameParts = nameCol.trim().split(/\s+/).filter(p => p.length > 0);
       const firstWord = nameParts[0] || '';
       const lastWord = nameParts.length > 0 ? nameParts[nameParts.length - 1] : '';
       const name = `${challengeId}${rowNum}${firstWord}${lastWord}`;
 
-      setBulkStatus(`Processando: ${name}`);
+      setBulkStatus(`Processando: ${name} (Iniciando)`);
 
       try {
-        const videoUrl = row['URL'];
+        const videoUrl = (row['URL'] || '').trim();
         const caption = row['Caption'];
 
         if (!videoUrl) throw new Error('URL não encontrada nesta linha.');
+
+        console.log(`[Bulk] Processando linha ${i + 1}:`, { name, videoUrl, caption });
+        setBulkStatus(`Processando: ${name} (Mídia: ${videoUrl})`);
 
         // 1. Transcribe
         const transcriptionText = await transcribeUrl(videoUrl, name);
 
         // 2. Evaluate
+        console.log(`[Bulk] Avaliando: ${name}`);
         setBulkStatus(`Avaliando: ${name}`);
         geminiAPI.initialize(user.gemini_api_key);
         const evaluation = await geminiAPI.evaluateContent(
@@ -280,6 +290,7 @@ const TranscriptionPage = () => {
         );
 
         // 3. Save
+        console.log(`[Bulk] Salvando: ${name}`);
         setBulkStatus(`Salvando: ${name}`);
         const transcriptionData = {
           captionText: caption || '',
