@@ -123,6 +123,7 @@ class MediaAIService {
             throw new Error('Services not initialized. Send INIT message first.');
         }
 
+        console.log(`[Worker] Iniciando fetch de áudio: ${audioUrl}`);
         self.postMessage({ status: 'audio_downloading' });
 
         let audioData;
