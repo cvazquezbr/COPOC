@@ -344,8 +344,8 @@ const TranscriptionPage = () => {
         const seconds = Math.floor((estimatedRemainingMs % 60000) / 1000);
         setEstimatedTimeRemaining(minutes > 0 ? `${minutes}min ${seconds}s` : `${seconds}s`);
 
-        for (let s = 15; s > 0; s--) {
-          setBulkStatus(`Aguardando ${s} segundos para o próximo registro...`);
+        for (let s = 1; s > 0; s--) {
+          setBulkStatus(`Aguardando ${s} segundo para o próximo registro...`);
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
