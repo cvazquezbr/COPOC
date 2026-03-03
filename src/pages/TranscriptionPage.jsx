@@ -286,12 +286,37 @@ const TranscriptionPage = () => {
         if (transcriptionText.length > 20) {
           console.log(`[Bulk] Avaliando: ${name}`);
           setBulkStatus(`Avaliando: ${name}`);
-          evaluation = await geminiAPI.evaluateContent(
-            transcriptionText,
-            caption || '',
-            campaignBriefing,
-            user.gemini_model
-          );
+
+          const evaluateWithRetry = async () => {
+            let retries = 0;
+            const maxRetries = 5;
+            while (retries < maxRetries) {
+              try {
+                return await geminiAPI.evaluateContent(
+                  transcriptionText,
+                  caption || '',
+                  campaignBriefing,
+                  user.gemini_model
+                );
+              } catch (err) {
+                const waitMatch = err.message.match(/retry in ([\d.]+)s/);
+                if (waitMatch && waitMatch[1]) {
+                  const waitSeconds = parseFloat(waitMatch[1]);
+                  console.log(`[Bulk] Quota excedida. Tentativa ${retries + 1}. Aguardando ${waitSeconds}s...`);
+                  for (let s = Math.ceil(waitSeconds); s > 0; s--) {
+                    setBulkStatus(`Quota excedida. Retentando em ${s}s... (${name})`);
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                  }
+                  retries++;
+                } else {
+                  throw err;
+                }
+              }
+            }
+            throw new Error('Falha na avaliação após múltiplas tentativas devido a limite de quota.');
+          };
+
+          evaluation = await evaluateWithRetry();
         } else {
           console.log(`[Bulk] Reprovando automaticamente (transcrição curta): ${name}`);
           setBulkStatus(`Reprovando: ${name} (Mídia curta)`);
@@ -421,12 +446,37 @@ const TranscriptionPage = () => {
       let result;
       if (transcription.length > 20) {
         geminiAPI.initialize(user.gemini_api_key);
-        result = await geminiAPI.evaluateContent(
-          transcription,
-          captionText,
-          campaignBriefing,
-          user.gemini_model
-        );
+
+        const evaluateWithRetry = async () => {
+          let retries = 0;
+          const maxRetries = 5;
+          while (retries < maxRetries) {
+            try {
+              return await geminiAPI.evaluateContent(
+                transcription,
+                captionText,
+                campaignBriefing,
+                user.gemini_model
+              );
+            } catch (err) {
+              const waitMatch = err.message.match(/retry in ([\d.]+)s/);
+              if (waitMatch && waitMatch[1]) {
+                const waitSeconds = parseFloat(waitMatch[1]);
+                console.log(`[Evaluate] Quota excedida. Tentativa ${retries + 1}. Aguardando ${waitSeconds}s...`);
+                for (let s = Math.ceil(waitSeconds); s > 0; s--) {
+                  setStatus(`Quota excedida. Retentando em ${s}s...`);
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+                retries++;
+              } else {
+                throw err;
+              }
+            }
+          }
+          throw new Error('Falha na avaliação após múltiplas tentativas devido a limite de quota.');
+        };
+
+        result = await evaluateWithRetry();
       } else {
         result = {
           avaliacoes: [
