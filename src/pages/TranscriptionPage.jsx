@@ -251,6 +251,11 @@ const TranscriptionPage = () => {
       return;
     }
 
+    const getWordCount = (text) => {
+      if (!text) return 0;
+      return text.trim().split(/\s+/).filter(word => word.length > 0).length;
+    };
+
     setIsBulkProcessing(true);
     const results = [];
     const pendingEvaluations = [];
@@ -282,10 +287,11 @@ const TranscriptionPage = () => {
 
         // 1. Transcribe
         const transcriptionText = await transcribeUrl(videoUrl, name);
+        const wordCount = getWordCount(transcriptionText);
 
         // 2. Evaluate
         let evaluation = null;
-        if (transcriptionText.length > 20) {
+        if (wordCount >= 20) {
           if (processingMode === 'individual') {
             console.log(`[Bulk] Avaliando: ${name}`);
             setBulkStatus(`Avaliando: ${name}`);
@@ -331,7 +337,7 @@ const TranscriptionPage = () => {
             });
           }
         } else {
-          console.log(`[Bulk] Reprovando automaticamente (transcrição curta): ${name}`);
+          console.log(`[Bulk] Reprovando automaticamente (transcrição curta: ${wordCount} palavras): ${name}`);
           setBulkStatus(`Reprovando: ${name} (Mídia curta)`);
           evaluation = {
             avaliacoes: [
@@ -341,45 +347,33 @@ const TranscriptionPage = () => {
               { id_criterio: 7, nome: "Call to Action (CTA)", nota: 1, status: "RUIM", comentario: "Transcrição muito curta para avaliação.", detalhes_ausentes: "Conteúdo insuficiente" }
             ],
             score_final: { pontuacao_obtida: 4, pontuacao_maxima: 12 },
-            feedback_consolidado: { texto: "Reprovado. O áudio transcrito possui 20 caracteres ou menos." }
+            feedback_consolidado: { texto: `Reprovado. O áudio transcrito possui apenas ${wordCount} palavras (mínimo 20).` }
           };
         }
 
-        // 3. Save (Individual Mode)
-        if (processingMode === 'individual' || !evaluation) {
-          // In individual mode, or if it was auto-rejected (transcription <= 20)
-          const finalEvaluation = evaluation || {
-            avaliacoes: [
-              { id_criterio: 1, nome: "Key Message / Mensagem Principal", nota: 1, status: "RUIM", comentario: "Transcrição muito curta para avaliação.", detalhes_ausentes: "Conteúdo insuficiente" },
-              { id_criterio: 3, nome: "Branding (Do’s & Don’ts)", nota: 1, status: "RUIM", comentario: "Transcrição muito curta para avaliação.", detalhes_ausentes: "Conteúdo insuficiente" },
-              { id_criterio: 4, nome: "Criatividade", nota: 1, status: "RUIM", comentario: "Transcrição muito curta para avaliação.", detalhes_ausentes: "Conteúdo insuficiente" },
-              { id_criterio: 7, nome: "Call to Action (CTA)", nota: 1, status: "RUIM", comentario: "Transcrição muito curta para avaliação.", detalhes_ausentes: "Conteúdo insuficiente" }
-            ],
-            score_final: { pontuacao_obtida: 4, pontuacao_maxima: 12 },
-            feedback_consolidado: { texto: "Reprovado. O áudio transcrito possui 20 caracteres ou menos." }
-          };
-
+        // 3. Save (Immediate for individual mode or auto-rejected items)
+        if (evaluation) {
           console.log(`[Bulk] Salvando: ${name}`);
           setBulkStatus(`Salvando: ${name}`);
           const transcriptionData = {
             captionText: caption || '',
             transcription: transcriptionText,
-            evaluationResult: finalEvaluation,
-            userEvaluation: finalEvaluation,
+            evaluationResult: evaluation,
+            userEvaluation: evaluation,
           };
           await saveTranscription(name, videoUrl, selectedBriefingId, transcriptionData);
 
           const flatEvaluation = {};
-          if (finalEvaluation && finalEvaluation.avaliacoes) {
-            finalEvaluation.avaliacoes.forEach(av => {
+          if (evaluation && evaluation.avaliacoes) {
+            evaluation.avaliacoes.forEach(av => {
               const prefix = av.nome.split('/')[0].trim();
               flatEvaluation[`${prefix} - Nota`] = av.nota;
               flatEvaluation[`${prefix} - Status`] = av.status;
               flatEvaluation[`${prefix} - Comentário`] = av.comentario;
               flatEvaluation[`${prefix} - Detalhes Ausentes`] = av.detalhes_ausentes;
             });
-            flatEvaluation['Score Final'] = `${finalEvaluation.score_final?.pontuacao_obtida} / ${finalEvaluation.score_final?.pontuacao_maxima}`;
-            flatEvaluation['Feedback Consolidado'] = finalEvaluation.feedback_consolidado?.texto;
+            flatEvaluation['Score Final'] = `${evaluation.score_final?.pontuacao_obtida} / ${evaluation.score_final?.pontuacao_maxima}`;
+            flatEvaluation['Feedback Consolidado'] = evaluation.feedback_consolidado?.texto;
           }
 
           results.push({
@@ -387,7 +381,7 @@ const TranscriptionPage = () => {
             transcription: transcriptionText,
             ...flatEvaluation,
             ai_status: 'Sucesso',
-            evaluation_result_json: JSON.stringify(finalEvaluation),
+            evaluation_result_json: JSON.stringify(evaluation),
           });
         }
 
@@ -419,97 +413,115 @@ const TranscriptionPage = () => {
       }
     }
 
-    // --- Grouped Evaluation Processing ---
+    // --- Grouped Evaluation Processing (Chunked) ---
     if (processingMode === 'grouped' && pendingEvaluations.length > 0) {
-      setBulkStatus(`Iniciando Avaliação Agrupada de ${pendingEvaluations.length} itens...`);
-      console.log(`[Bulk] Iniciando avaliação agrupada para ${pendingEvaluations.length} itens.`);
+      const CHUNK_SIZE = 5;
+      const totalChunks = Math.ceil(pendingEvaluations.length / CHUNK_SIZE);
+      console.log(`[Bulk] Iniciando avaliação agrupada para ${pendingEvaluations.length} itens em ${totalChunks} lotes.`);
 
-      try {
-        const evaluateMultipleWithRetry = async () => {
-          let retries = 0;
-          const maxRetries = 5;
-          while (retries < maxRetries) {
-            try {
-              return await geminiAPI.evaluateMultipleContent(
-                pendingEvaluations,
-                campaignBriefing,
-                user.gemini_model
-              );
-            } catch (err) {
-              const waitMatch = err.message.match(/retry in ([\d.]+)s/);
-              if (waitMatch && waitMatch[1]) {
-                const waitSeconds = parseFloat(waitMatch[1]);
-                console.log(`[Bulk Grouped] Quota excedida. Tentativa ${retries + 1}. Aguardando ${waitSeconds}s...`);
-                for (let s = Math.ceil(waitSeconds); s > 0; s--) {
-                  setBulkStatus(`Quota excedida (Agrupada). Retentando em ${s}s...`);
-                  await new Promise(resolve => setTimeout(resolve, 1000));
+      for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+        const start = chunkIndex * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, pendingEvaluations.length);
+        const chunk = pendingEvaluations.slice(start, end);
+
+        setBulkStatus(`IA: Avaliando lote ${chunkIndex + 1} de ${totalChunks} (${chunk.length} itens)...`);
+        console.log(`[Bulk Grouped] Processando lote ${chunkIndex + 1}/${totalChunks} (itens ${start + 1} a ${end})`);
+
+        try {
+          const evaluateMultipleWithRetry = async () => {
+            let retries = 0;
+            const maxRetries = 5;
+            while (retries < maxRetries) {
+              try {
+                return await geminiAPI.evaluateMultipleContent(
+                  chunk,
+                  campaignBriefing,
+                  user.gemini_model
+                );
+              } catch (err) {
+                const waitMatch = err.message.match(/retry in ([\d.]+)s/);
+                if (waitMatch && waitMatch[1]) {
+                  const waitSeconds = parseFloat(waitMatch[1]);
+                  console.log(`[Bulk Grouped] Quota excedida. Tentativa ${retries + 1}. Aguardando ${waitSeconds}s...`);
+                  for (let s = Math.ceil(waitSeconds); s > 0; s--) {
+                    setBulkStatus(`Quota excedida (Agrupada). Retentando em ${s}s...`);
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                  }
+                  retries++;
+                } else {
+                  throw err;
                 }
-                retries++;
-              } else {
-                throw err;
               }
             }
-          }
-          throw new Error('Falha na avaliação agrupada após múltiplas tentativas.');
-        };
+            throw new Error('Falha na avaliação agrupada após múltiplas tentativas.');
+          };
 
-        const groupedResult = await evaluateMultipleWithRetry();
-        console.log('[Bulk Grouped] Resultado recebido:', groupedResult);
+          const groupedResult = await evaluateMultipleWithRetry();
+          console.log(`[Bulk Grouped] Resultado recebido para lote ${chunkIndex + 1}:`, groupedResult);
 
-        // Map results back to records
-        for (const item of pendingEvaluations) {
-          const evalResult = groupedResult.resultados?.find(r => r.id === item.id);
+          // Map results back to records
+          for (const item of chunk) {
+            const evalResult = groupedResult.resultados?.find(r => r.id === item.id);
 
-          if (evalResult) {
-            console.log(`[Bulk Grouped] Salvando: ${item.id}`);
-            setBulkStatus(`Salvando Avaliação: ${item.id}`);
+            if (evalResult) {
+              console.log(`[Bulk Grouped] Salvando: ${item.id}`);
+              setBulkStatus(`Salvando Avaliação: ${item.id}`);
 
-            const transcriptionData = {
-              captionText: item.caption,
-              transcription: item.transcription,
-              evaluationResult: evalResult,
-              userEvaluation: evalResult,
-            };
-            await saveTranscription(item.id, (item.row['URL'] || '').trim(), selectedBriefingId, transcriptionData);
+              const transcriptionData = {
+                captionText: item.caption,
+                transcription: item.transcription,
+                evaluationResult: evalResult,
+                userEvaluation: evalResult,
+              };
+              await saveTranscription(item.id, (item.row['URL'] || '').trim(), selectedBriefingId, transcriptionData);
 
-            const flatEvaluation = {};
-            if (evalResult.avaliacoes) {
-              evalResult.avaliacoes.forEach(av => {
-                const prefix = av.nome.split('/')[0].trim();
-                flatEvaluation[`${prefix} - Nota`] = av.nota;
-                flatEvaluation[`${prefix} - Status`] = av.status;
-                flatEvaluation[`${prefix} - Comentário`] = av.comentario;
-                flatEvaluation[`${prefix} - Detalhes Ausentes`] = av.detalhes_ausentes;
+              const flatEvaluation = {};
+              if (evalResult.avaliacoes) {
+                evalResult.avaliacoes.forEach(av => {
+                  const prefix = av.nome.split('/')[0].trim();
+                  flatEvaluation[`${prefix} - Nota`] = av.nota;
+                  flatEvaluation[`${prefix} - Status`] = av.status;
+                  flatEvaluation[`${prefix} - Comentário`] = av.comentario;
+                  flatEvaluation[`${prefix} - Detalhes Ausentes`] = av.detalhes_ausentes;
+                });
+                flatEvaluation['Score Final'] = `${evalResult.score_final?.pontuacao_obtida} / ${evalResult.score_final?.pontuacao_maxima}`;
+                flatEvaluation['Feedback Consolidado'] = evalResult.feedback_consolidado?.texto;
+              }
+
+              results.push({
+                ...item.row,
+                transcription: item.transcription,
+                ...flatEvaluation,
+                ai_status: 'Sucesso',
+                evaluation_result_json: JSON.stringify(evalResult),
               });
-              flatEvaluation['Score Final'] = `${evalResult.score_final?.pontuacao_obtida} / ${evalResult.score_final?.pontuacao_maxima}`;
-              flatEvaluation['Feedback Consolidado'] = evalResult.feedback_consolidado?.texto;
+            } else {
+              console.warn(`[Bulk Grouped] Resultado não encontrado para ID: ${item.id}`);
+              results.push({
+                ...item.row,
+                transcription: item.transcription,
+                ai_status: 'Erro: IA não retornou avaliação para este item no lote.',
+              });
             }
+          }
+        } catch (err) {
+          console.error(`[Bulk Grouped] Erro na avaliação agrupada (Lote ${chunkIndex + 1}):`, err);
+          chunk.forEach(item => {
+            results.push({
+              ...item.row,
+              transcription: item.transcription,
+              ai_status: `Erro na avaliação agrupada: ${err.message}`,
+            });
+          });
+        }
 
-            results.push({
-              ...item.row,
-              transcription: item.transcription,
-              ...flatEvaluation,
-              ai_status: 'Sucesso',
-              evaluation_result_json: JSON.stringify(evalResult),
-            });
-          } else {
-            console.warn(`[Bulk Grouped] Resultado não encontrado para ID: ${item.id}`);
-            results.push({
-              ...item.row,
-              transcription: item.transcription,
-              ai_status: 'Erro: IA não retornou avaliação para este item no lote.',
-            });
+        // Delay between chunks if not the last one
+        if (chunkIndex < totalChunks - 1) {
+          for (let s = 2; s > 0; s--) {
+            setBulkStatus(`Aguardando ${s}s para o próximo lote de IA...`);
+            await new Promise(resolve => setTimeout(resolve, 1000));
           }
         }
-      } catch (err) {
-        console.error('[Bulk Grouped] Erro na avaliação agrupada:', err);
-        pendingEvaluations.forEach(item => {
-           results.push({
-             ...item.row,
-             transcription: item.transcription,
-             ai_status: `Erro na avaliação agrupada: ${err.message}`,
-           });
-        });
       }
     }
 
@@ -559,13 +571,19 @@ const TranscriptionPage = () => {
       return;
     }
 
+    const getWordCount = (text) => {
+      if (!text) return 0;
+      return text.trim().split(/\s+/).filter(word => word.length > 0).length;
+    };
+
     setIsEvaluating(true);
     setError(null);
     setEvaluationResult(null);
 
     try {
       let result;
-      if (transcription.length > 20) {
+      const wordCount = getWordCount(transcription);
+      if (wordCount >= 20) {
         geminiAPI.initialize(user.gemini_api_key);
 
         const evaluateWithRetry = async () => {
@@ -607,9 +625,9 @@ const TranscriptionPage = () => {
             { id_criterio: 7, nome: "Call to Action (CTA)", nota: 1, status: "RUIM", comentario: "Transcrição muito curta para avaliação.", detalhes_ausentes: "Conteúdo insuficiente" }
           ],
           score_final: { pontuacao_obtida: 4, pontuacao_maxima: 12 },
-          feedback_consolidado: { texto: "Reprovado. O áudio transcrito possui 20 caracteres ou menos." }
+          feedback_consolidado: { texto: `Reprovado. O áudio transcrito possui apenas ${wordCount} palavras (mínimo 20).` }
         };
-        toast.warning('Transcrição muito curta. Reprovando automaticamente.');
+        toast.warning(`Transcrição muito curta (${wordCount} palavras). Reprovando automaticamente.`);
       }
       setEvaluationResult(result);
       setUserEvaluation(JSON.parse(JSON.stringify(result)));
