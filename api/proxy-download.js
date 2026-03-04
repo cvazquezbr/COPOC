@@ -60,6 +60,7 @@ export default async function handler(req) {
     // We only copy essential headers to avoid conflicts with security policies
     const headers = new Headers();
     headers.set('Access-Control-Allow-Origin', '*');
+    headers.set('Access-Control-Expose-Headers', 'Content-Length, Content-Type');
     headers.set('Cross-Origin-Resource-Policy', 'cross-origin');
 
     const contentType = response.headers.get('Content-Type');

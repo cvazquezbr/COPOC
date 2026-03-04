@@ -179,9 +179,20 @@ const InstagramExtractorPage = () => {
       // --- Direct Fetch Attempt (Bypass Proxy if possible) ---
       // For Instagram, we SKIP direct fetch attempt because it ALWAYS fails due to CORS.
       // This silences redundant console errors.
-      const isInstagram = result.mp4_url.includes('cdninstagram.com') || result.mp4_url.includes('fbcdn.net');
+      const urlObj = new URL(result.mp4_url);
+      const isSameOrigin = urlObj.origin === window.location.origin;
+      const isVercelBlob = result.mp4_url.includes('blob.vercel-storage.com');
 
-      if (!isInstagram) {
+      const isRestrictedSource =
+          result.mp4_url.includes('cdninstagram.com') ||
+          result.mp4_url.includes('fbcdn.net') ||
+          result.mp4_url.includes('instagram.com') ||
+          result.mp4_url.includes('cocreators.app') ||
+          result.mp4_url.includes('cocreatorscollab.com.br');
+
+      const shouldTryDirect = isSameOrigin || (isVercelBlob && !isRestrictedSource);
+
+      if (shouldTryDirect) {
         try {
           const directResponse = await fetch(result.mp4_url, { method: 'HEAD', mode: 'cors' });
           if (directResponse.ok) {
@@ -190,11 +201,11 @@ const InstagramExtractorPage = () => {
             throw new Error('Direct access failed');
           }
         } catch (e) {
-          console.log(`[Instagram] Direct access failed or CORS restricted. Using proxy for ${result.mp4_url}.`);
+          console.log(`[Instagram] Direct access failed for ${result.mp4_url}. Falling back to proxy.`);
           finalUrl = new URL(`/api/proxy-download?url=${encodeURIComponent(result.mp4_url)}`, window.location.origin).href;
         }
       } else {
-        console.log(`[Instagram] Source identified as Instagram CDN. Using proxy directly to avoid CORS errors.`);
+        console.log(`[Instagram] Source ${urlObj.hostname} is likely CORS-restricted. Using proxy directly.`);
         finalUrl = new URL(`/api/proxy-download?url=${encodeURIComponent(result.mp4_url)}`, window.location.origin).href;
       }
 

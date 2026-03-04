@@ -169,11 +169,24 @@ const TranscriptionPage = () => {
     let finalUrl = url;
 
     // --- Direct Fetch Attempt (Bypass Proxy if possible) ---
-    // We only try direct fetch for same-origin or specific storage domains known to allow CORS.
-    // Instagram (scontent) never allows CORS, so we skip it to avoid console errors.
-    const isInstagram = url.includes('cdninstagram.com') || url.includes('fbcdn.net') || url.includes('instagram.com');
+    // We only try direct fetch for SAME-ORIGIN or specific storage domains known to allow CORS.
+    // Most external domains (Instagram, CoCreators App) have restrictive CORS policies.
+    // We skip the direct attempt for these to avoid redundant console errors.
+    const urlObj = new URL(url);
+    const isSameOrigin = urlObj.origin === window.location.origin;
+    const isVercelBlob = url.includes('blob.vercel-storage.com');
 
-    if (!isInstagram) {
+    // Domains known to NOT allow CORS from copoc.vercel.app
+    const isRestrictedSource =
+        url.includes('cdninstagram.com') ||
+        url.includes('fbcdn.net') ||
+        url.includes('instagram.com') ||
+        url.includes('cocreators.app') ||
+        url.includes('cocreatorscollab.com.br');
+
+    const shouldTryDirect = isSameOrigin || (isVercelBlob && !isRestrictedSource);
+
+    if (shouldTryDirect) {
       try {
         const directResponse = await fetch(url, { method: 'HEAD', mode: 'cors' });
         if (directResponse.ok) {
@@ -183,11 +196,11 @@ const TranscriptionPage = () => {
           throw new Error('Direct access failed, using proxy.');
         }
       } catch (e) {
-        console.log(`[Transcription] Direct access failed or CORS restricted. Using proxy for ${url}.`);
+        console.log(`[Transcription] Direct access failed for ${url}. Falling back to proxy.`);
         finalUrl = new URL(`/api/proxy-download?url=${encodeURIComponent(url)}`, window.location.origin).href;
       }
     } else {
-      console.log(`[Transcription] Source identified as Instagram. Using proxy directly to avoid CORS errors.`);
+      console.log(`[Transcription] Source ${urlObj.hostname} is likely CORS-restricted. Using proxy directly.`);
       finalUrl = new URL(`/api/proxy-download?url=${encodeURIComponent(url)}`, window.location.origin).href;
     }
 
