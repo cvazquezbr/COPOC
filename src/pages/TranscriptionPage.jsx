@@ -169,31 +169,27 @@ const TranscriptionPage = () => {
     let finalUrl = url;
 
     // --- Direct Fetch Attempt (Bypass Proxy if possible) ---
-    try {
-      const directResponse = await fetch(url, { method: 'HEAD', mode: 'cors' });
-      if (directResponse.ok) {
-        console.log(`[Transcription] Direct access successful for ${url}. Bypassing proxy.`);
-        finalUrl = url;
-      } else {
-        throw new Error('Direct access failed, using proxy.');
+    // We only try direct fetch for same-origin or specific storage domains known to allow CORS.
+    // Instagram (scontent) never allows CORS, so we skip it to avoid console errors.
+    const isInstagram = url.includes('cdninstagram.com') || url.includes('fbcdn.net') || url.includes('instagram.com');
+
+    if (!isInstagram) {
+      try {
+        const directResponse = await fetch(url, { method: 'HEAD', mode: 'cors' });
+        if (directResponse.ok) {
+          console.log(`[Transcription] Direct access successful for ${url}. Bypassing proxy.`);
+          finalUrl = url;
+        } else {
+          throw new Error('Direct access failed, using proxy.');
+        }
+      } catch (e) {
+        console.log(`[Transcription] Direct access failed or CORS restricted. Using proxy for ${url}.`);
+        finalUrl = new URL(`/api/proxy-download?url=${encodeURIComponent(url)}`, window.location.origin).href;
       }
-    } catch (e) {
-      console.log(`[Transcription] Direct access failed or CORS restricted. Using proxy for ${url}.`);
+    } else {
+      console.log(`[Transcription] Source identified as Instagram. Using proxy directly to avoid CORS errors.`);
       finalUrl = new URL(`/api/proxy-download?url=${encodeURIComponent(url)}`, window.location.origin).href;
     }
-
-    // --- Pre-flight Check (only if using proxy or to validate direct access) ---
-    const preflightResponse = await fetch(finalUrl);
-    if (!preflightResponse.ok) {
-      const errorText = await preflightResponse.text();
-      throw new Error(`Proxy pre-flight check failed: ${preflightResponse.status} ${preflightResponse.statusText}. Server response: ${errorText}`);
-    }
-    const contentType = preflightResponse.headers.get('content-type');
-    if (contentType && contentType.includes('text/html')) {
-      const errorText = await preflightResponse.text();
-      throw new Error(`Expected audio but received HTML. Server error: ${errorText}`);
-    }
-    // --- End Pre-flight Check ---
 
     return new Promise((resolve, reject) => {
       const onMessage = (e) => {

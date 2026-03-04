@@ -177,43 +177,25 @@ const InstagramExtractorPage = () => {
       let finalUrl = result.mp4_url;
 
       // --- Direct Fetch Attempt (Bypass Proxy if possible) ---
-      try {
-        const directResponse = await fetch(result.mp4_url, { method: 'HEAD', mode: 'cors' });
-        if (directResponse.ok) {
-          console.log(`[Instagram] Direct access successful for ${result.mp4_url}. Bypassing proxy.`);
-        } else {
-          throw new Error('Direct access failed');
-        }
-      } catch (e) {
-        console.log(`[Instagram] Direct access failed or CORS restricted. Using proxy for ${result.mp4_url}.`);
-        finalUrl = new URL(`/api/proxy-download?url=${encodeURIComponent(result.mp4_url)}`, window.location.origin).href;
-      }
+      // For Instagram, we SKIP direct fetch attempt because it ALWAYS fails due to CORS.
+      // This silences redundant console errors.
+      const isInstagram = result.mp4_url.includes('cdninstagram.com') || result.mp4_url.includes('fbcdn.net');
 
-      // --- Pre-flight Check ---
-      try {
-          const preflightResponse = await fetch(finalUrl);
-          if (!preflightResponse.ok) {
-              const errorText = await preflightResponse.text();
-              let detailedError = `Falha no proxy: ${preflightResponse.status}`;
-              try {
-                  const errJson = JSON.parse(errorText);
-                  if (errJson.error) detailedError += ` - ${errJson.error}`;
-                  if (errJson.detectedHost) detailedError += ` (Host: ${errJson.detectedHost})`;
-              } catch (e) {
-                  if (errorText.length < 100) detailedError += ` - ${errorText}`;
-              }
-              throw new Error(detailedError);
+      if (!isInstagram) {
+        try {
+          const directResponse = await fetch(result.mp4_url, { method: 'HEAD', mode: 'cors' });
+          if (directResponse.ok) {
+            console.log(`[Instagram] Direct access successful for ${result.mp4_url}. Bypassing proxy.`);
+          } else {
+            throw new Error('Direct access failed');
           }
-          const contentType = preflightResponse.headers.get('content-type');
-          if (contentType && contentType.includes('text/html')) {
-              throw new Error('O proxy retornou HTML em vez de um arquivo de mídia. O link pode ter expirado.');
-          }
-      } catch (e) {
-          console.error('Pre-flight check failed:', e);
-          updatedResult = { ...updatedResult, isProcessing: false, processingStatus: `Erro: ${e.message}`, transcriptionStatus: 'error' };
-          updateResultInUI(updatedResult);
-          if (!silent) toast.error(`Erro: ${e.message}`);
-          return updatedResult;
+        } catch (e) {
+          console.log(`[Instagram] Direct access failed or CORS restricted. Using proxy for ${result.mp4_url}.`);
+          finalUrl = new URL(`/api/proxy-download?url=${encodeURIComponent(result.mp4_url)}`, window.location.origin).href;
+        }
+      } else {
+        console.log(`[Instagram] Source identified as Instagram CDN. Using proxy directly to avoid CORS errors.`);
+        finalUrl = new URL(`/api/proxy-download?url=${encodeURIComponent(result.mp4_url)}`, window.location.origin).href;
       }
 
       // Transcription promise
