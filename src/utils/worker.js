@@ -1,5 +1,8 @@
-import { pipeline } from '@xenova/transformers';
+import { pipeline, env } from '@xenova/transformers';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
+
+// Configure Transformers.js environment
+env.allowLocalModels = false; // Ensure we always use the CDN for models
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
 
 // Set environment variables for Transformers.js
