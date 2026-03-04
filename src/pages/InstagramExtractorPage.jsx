@@ -174,11 +174,24 @@ const InstagramExtractorPage = () => {
     updateResultInUI({ isProcessing: true, processingStatus: 'Iniciando transcrição...' });
 
     try {
-      const proxyUrl = new URL(`/api/proxy-download?url=${encodeURIComponent(result.mp4_url)}`, window.location.origin).href;
+      let finalUrl = result.mp4_url;
+
+      // --- Direct Fetch Attempt (Bypass Proxy if possible) ---
+      try {
+        const directResponse = await fetch(result.mp4_url, { method: 'HEAD', mode: 'cors' });
+        if (directResponse.ok) {
+          console.log(`[Instagram] Direct access successful for ${result.mp4_url}. Bypassing proxy.`);
+        } else {
+          throw new Error('Direct access failed');
+        }
+      } catch (e) {
+        console.log(`[Instagram] Direct access failed or CORS restricted. Using proxy for ${result.mp4_url}.`);
+        finalUrl = new URL(`/api/proxy-download?url=${encodeURIComponent(result.mp4_url)}`, window.location.origin).href;
+      }
 
       // --- Pre-flight Check ---
       try {
-          const preflightResponse = await fetch(proxyUrl);
+          const preflightResponse = await fetch(finalUrl);
           if (!preflightResponse.ok) {
               const errorText = await preflightResponse.text();
               let detailedError = `Falha no proxy: ${preflightResponse.status}`;
@@ -222,7 +235,7 @@ const InstagramExtractorPage = () => {
         };
         worker.current.addEventListener('message', onMessage);
         worker.current.postMessage({
-          audio: proxyUrl,
+          audio: finalUrl,
           language: 'portuguese',
           task: 'transcribe',
         });

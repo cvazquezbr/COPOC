@@ -166,10 +166,24 @@ const TranscriptionPage = () => {
   };
 
   const transcribeUrl = async (url, nameForStatus = null) => {
-    const proxyUrl = new URL(`/api/proxy-download?url=${encodeURIComponent(url)}`, window.location.origin).href;
+    let finalUrl = url;
 
-    // --- Pre-flight Check ---
-    const preflightResponse = await fetch(proxyUrl);
+    // --- Direct Fetch Attempt (Bypass Proxy if possible) ---
+    try {
+      const directResponse = await fetch(url, { method: 'HEAD', mode: 'cors' });
+      if (directResponse.ok) {
+        console.log(`[Transcription] Direct access successful for ${url}. Bypassing proxy.`);
+        finalUrl = url;
+      } else {
+        throw new Error('Direct access failed, using proxy.');
+      }
+    } catch (e) {
+      console.log(`[Transcription] Direct access failed or CORS restricted. Using proxy for ${url}.`);
+      finalUrl = new URL(`/api/proxy-download?url=${encodeURIComponent(url)}`, window.location.origin).href;
+    }
+
+    // --- Pre-flight Check (only if using proxy or to validate direct access) ---
+    const preflightResponse = await fetch(finalUrl);
     if (!preflightResponse.ok) {
       const errorText = await preflightResponse.text();
       throw new Error(`Proxy pre-flight check failed: ${preflightResponse.status} ${preflightResponse.statusText}. Server response: ${errorText}`);
@@ -202,7 +216,7 @@ const TranscriptionPage = () => {
       worker.current.addEventListener('message', onMessage);
 
       worker.current.postMessage({
-        audio: proxyUrl,
+        audio: finalUrl,
         language: 'portuguese',
         task: 'transcribe',
       });
