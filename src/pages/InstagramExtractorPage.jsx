@@ -186,11 +186,9 @@ const InstagramExtractorPage = () => {
       const isRestrictedSource =
           result.mp4_url.includes('cdninstagram.com') ||
           result.mp4_url.includes('fbcdn.net') ||
-          result.mp4_url.includes('instagram.com') ||
-          result.mp4_url.includes('cocreators.app') ||
-          result.mp4_url.includes('cocreatorscollab.com.br');
+          result.mp4_url.includes('instagram.com');
 
-      const shouldTryDirect = isSameOrigin || (isVercelBlob && !isRestrictedSource);
+      const shouldTryDirect = isSameOrigin || isVercelBlob || !isRestrictedSource;
 
       if (shouldTryDirect) {
         try {
