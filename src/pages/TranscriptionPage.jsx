@@ -180,11 +180,9 @@ const TranscriptionPage = () => {
     const isRestrictedSource =
         url.includes('cdninstagram.com') ||
         url.includes('fbcdn.net') ||
-        url.includes('instagram.com') ||
-        url.includes('cocreators.app') ||
-        url.includes('cocreatorscollab.com.br');
+        url.includes('instagram.com');
 
-    const shouldTryDirect = isSameOrigin || (isVercelBlob && !isRestrictedSource);
+    const shouldTryDirect = isSameOrigin || isVercelBlob || !isRestrictedSource;
 
     if (shouldTryDirect) {
       try {

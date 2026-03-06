@@ -58,7 +58,7 @@ A transcrição hoje é **Client-side** (usa Web Worker com Transformers.js), o 
 | Recurso | Ação Recomendada | Ganho Estimado |
 | :--- | :--- | :--- |
 | **Data Transfer** | Mover assets de `public/` usados por APIs para Vercel Blob ou R2. | Redução direta no item 'CDN to Compute'. |
-| **Functions** | Implementar fetch direto no cliente (Bypass Proxy) seletivo por domínio. | Economia em 'Edge Function Executions' e Bandwidth. |
+| **Functions** | Implementar fetch direto no cliente (Bypass Proxy) com CORS liberado. | Economia em 'Edge Function Executions' e Bandwidth. |
 | **Performance** | Migrar extratores simples para Edge Runtime. | Menor latência e custo por execução. |
 | **Escalabilidade** | Implementar processamento em lotes com delay (já iniciado) para evitar timeouts. | Estabilidade do sistema. |
 | **Redundância** | Remoção de 'Pre-flight Checks' no frontend. | Redução de 50% nas requisições de download de mídia. |
