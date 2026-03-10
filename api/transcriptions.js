@@ -35,7 +35,25 @@ export default async function handler(req, res) {
       return res.status(201).json(rows[0]);
     }
 
-    res.setHeader('Allow', ['GET', 'POST']);
+    if (req.method === 'DELETE') {
+      const { ids } = req.body;
+
+      if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ message: 'No IDs provided for deletion.' });
+      }
+
+      const { rows } = await query(
+        'DELETE FROM transcriptions WHERE id = ANY($1) AND user_id = $2 RETURNING id',
+        [ids, userUuid]
+      );
+
+      return res.status(200).json({
+        message: `${rows.length} transcriptions deleted successfully.`,
+        deletedIds: rows.map(r => r.id)
+      });
+    }
+
+    res.setHeader('Allow', ['GET', 'POST', 'DELETE']);
     return res.status(405).json({ message: `Method ${req.method} Not Allowed` });
 
   } catch (error) {

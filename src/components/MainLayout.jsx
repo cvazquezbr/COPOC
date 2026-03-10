@@ -30,12 +30,16 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import ArticleIcon from '@mui/icons-material/Article';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
+import DeleteIcon from '@mui/icons-material/Delete';
+import Checkbox from '@mui/material/Checkbox';
 
 import { useUserAuth } from '../context/UserAuthContext';
 import { useLayout } from '../context/LayoutContext';
 import { useTheme as useAppTheme } from '../context/ThemeContext';
 import SetupModal from './SetupModal';
 import { getBriefings } from '../utils/briefingState';
+import { deleteTranscriptionsBatch } from '../utils/transcriptionState';
+import { toast } from 'sonner';
 
 const drawerWidth = 280;
 
@@ -119,12 +123,21 @@ const MainLayout = () => {
     fetchTranscriptions,
     setSelectedTranscriptionId,
     selectedTranscriptionId,
+    checkedTranscriptionIds,
+    setCheckedTranscriptionIds,
     isDrawerOpen,
     setDrawerOpen,
   } = useLayout();
 
   const isBriefingPage = location.pathname.startsWith('/briefings') || location.pathname.startsWith('/briefing-template');
   const isTranscriptionPage = location.pathname.startsWith('/transcricoes');
+
+  // Reset checkboxes when leaving transcription page
+  useEffect(() => {
+    if (!isTranscriptionPage) {
+      setCheckedTranscriptionIds([]);
+    }
+  }, [isTranscriptionPage, setCheckedTranscriptionIds]);
 
   const [setupModalOpen, setSetupModalOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
@@ -165,6 +178,7 @@ const MainLayout = () => {
       navigate('/briefings');
     } else if (isTranscriptionPage) {
       setSelectedTranscriptionId(null);
+      setCheckedTranscriptionIds([]);
       navigate('/transcricoes');
     }
     if (isMobile) setMobileOpen(false);
@@ -180,6 +194,34 @@ const MainLayout = () => {
     setSelectedTranscriptionId(id);
     navigate('/transcricoes');
     if (isMobile) setMobileOpen(false);
+  };
+
+  const handleToggleTranscriptionCheck = (id, event) => {
+    event.stopPropagation();
+    setCheckedTranscriptionIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleDeleteSelectedTranscriptions = async () => {
+    if (checkedTranscriptionIds.length === 0) return;
+
+    if (window.confirm(`Tem certeza que deseja excluir ${checkedTranscriptionIds.length} transcrição(ões)?`)) {
+      try {
+        await deleteTranscriptionsBatch(checkedTranscriptionIds);
+        toast.success(`${checkedTranscriptionIds.length} transcrição(ões) excluída(s) com sucesso.`);
+
+        // If the currently viewed transcription was deleted, clear it
+        if (checkedTranscriptionIds.includes(selectedTranscriptionId)) {
+          setSelectedTranscriptionId(null);
+        }
+
+        setCheckedTranscriptionIds([]);
+        await fetchTranscriptions();
+      } catch (error) {
+        console.error('Error deleting transcriptions:', error);
+      }
+    }
   };
 
   const drawerContent = (
@@ -205,6 +247,27 @@ const MainLayout = () => {
         </IconButton>
       </DrawerHeader>
       <Divider />
+      {isTranscriptionPage && checkedTranscriptionIds.length > 0 && (
+        <>
+          <Box sx={{ p: 1, display: 'flex', justifyContent: 'center' }}>
+            <Button
+              variant="contained"
+              color="error"
+              startIcon={<DeleteIcon />}
+              fullWidth
+              size="small"
+              onClick={handleDeleteSelectedTranscriptions}
+              sx={{
+                opacity: isMobile || isDrawerOpen ? 1 : 0,
+                transition: 'opacity 0.2s',
+              }}
+            >
+              Excluir ({checkedTranscriptionIds.length})
+            </Button>
+          </Box>
+          <Divider />
+        </>
+      )}
       <List>
         {isBriefingPage && briefings.map((briefing) => (
           <ListItem key={briefing.id} disablePadding sx={{ display: 'block' }}>
@@ -231,7 +294,21 @@ const MainLayout = () => {
           </ListItem>
         ))}
         {isTranscriptionPage && transcriptions.map((transcription) => (
-          <ListItem key={transcription.id} disablePadding sx={{ display: 'block' }}>
+          <ListItem
+            key={transcription.id}
+            disablePadding
+            sx={{ display: 'block' }}
+            secondaryAction={
+              (isDrawerOpen || isMobile) && (
+                <Checkbox
+                  edge="end"
+                  onChange={(e) => handleToggleTranscriptionCheck(transcription.id, e)}
+                  checked={checkedTranscriptionIds.includes(transcription.id)}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              )
+            }
+          >
             <ListItemButton
               selected={selectedTranscriptionId === transcription.id}
               onClick={() => handleSelectTranscription(transcription.id)}
@@ -250,7 +327,16 @@ const MainLayout = () => {
               >
                 <DescriptionIcon />
               </ListItemIcon>
-              <ListItemText primary={transcription.name} sx={{ opacity: isDrawerOpen || isMobile ? 1 : 0 }} />
+              <ListItemText
+                primary={transcription.name}
+                sx={{
+                  opacity: isDrawerOpen || isMobile ? 1 : 0,
+                  pr: (isDrawerOpen || isMobile) ? 4 : 0, // Add padding to avoid overlap with checkbox
+                }}
+                primaryTypographyProps={{
+                  noWrap: true,
+                }}
+              />
             </ListItemButton>
           </ListItem>
         ))}
