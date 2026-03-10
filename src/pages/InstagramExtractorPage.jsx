@@ -247,7 +247,44 @@ const InstagramExtractorPage = () => {
             throw new Error('Chave da API Gemini não configurada.');
           }
           geminiAPI.initialize(user.gemini_api_key);
-          translation = await geminiAPI.translateText(transcription, 'Espanhol', user.gemini_model);
+
+          const translateWithRetry = async () => {
+            let quotaRetries = 0;
+            let commRetries = 0;
+            const maxQuotaRetries = 5;
+            const maxCommRetries = 3;
+
+            while (true) {
+              try {
+                return await geminiAPI.translateText(transcription, 'Espanhol', user.gemini_model);
+              } catch (err) {
+                const waitMatch = err.message.match(/retry in ([\d.]+)s/);
+                if (waitMatch && waitMatch[1]) {
+                  const waitSeconds = parseFloat(waitMatch[1]);
+                  if (quotaRetries < maxQuotaRetries) {
+                    console.log(`[Instagram] Quota excedida na tradução. Tentativa ${quotaRetries + 1}. Aguardando ${waitSeconds}s...`);
+                    for (let s = Math.ceil(waitSeconds); s > 0; s--) {
+                      updateResultInUI({ processingStatus: `Quota excedida. Retentando em ${s}s...` });
+                      await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
+                    quotaRetries++;
+                    continue;
+                  }
+                } else {
+                  if (commRetries < maxCommRetries) {
+                    commRetries++;
+                    console.warn(`[Instagram] Erro de comunicação na tradução (${commRetries}/${maxCommRetries}). Retentando...`, err.message);
+                    updateResultInUI({ processingStatus: `Erro de comunicação. Retentando (${commRetries}/${maxCommRetries})...` });
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    continue;
+                  }
+                }
+                throw err;
+              }
+            }
+          };
+
+          translation = await translateWithRetry();
         } else {
           // Local translation via worker
           translation = await new Promise((resolve, reject) => {

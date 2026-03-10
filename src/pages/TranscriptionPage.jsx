@@ -279,9 +279,160 @@ const TranscriptionPage = () => {
 
     setIsBulkProcessing(true);
     const results = [];
-    const pendingEvaluations = [];
+    let pendingEvaluations = [];
     geminiAPI.initialize(user.gemini_api_key);
     const startTime = Date.now();
+    const CHUNK_SIZE = 5;
+
+    const evaluateWithRetry = async (transcriptionText, caption, name) => {
+      let quotaRetries = 0;
+      let commRetries = 0;
+      const maxQuotaRetries = 5;
+      const maxCommRetries = 3;
+
+      while (true) {
+        try {
+          return await geminiAPI.evaluateContent(
+            transcriptionText,
+            caption || '',
+            campaignBriefing,
+            user.gemini_model
+          );
+        } catch (err) {
+          const waitMatch = err.message.match(/retry in ([\d.]+)s/);
+          if (waitMatch && waitMatch[1]) {
+            const waitSeconds = parseFloat(waitMatch[1]);
+            if (quotaRetries < maxQuotaRetries) {
+              console.log(`[Bulk] Quota excedida. Tentativa ${quotaRetries + 1}. Aguardando ${waitSeconds}s...`);
+              for (let s = Math.ceil(waitSeconds); s > 0; s--) {
+                setBulkStatus(`Quota excedida. Retentando em ${s}s... (${name})`);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+              }
+              quotaRetries++;
+              continue;
+            }
+          } else {
+            // General communication or JSON error
+            if (commRetries < maxCommRetries) {
+              commRetries++;
+              console.warn(`[Bulk] Erro de comunicação (${commRetries}/${maxCommRetries}). Retentando em 2s...`, err.message);
+              setBulkStatus(`Erro de comunicação. Retentando (${commRetries}/${maxCommRetries})...`);
+              await new Promise(resolve => setTimeout(resolve, 2000));
+              continue;
+            }
+          }
+          throw err;
+        }
+      }
+    };
+
+    const evaluateMultipleWithRetry = async (chunk) => {
+      let quotaRetries = 0;
+      let commRetries = 0;
+      const maxQuotaRetries = 5;
+      const maxCommRetries = 3;
+
+      while (true) {
+        try {
+          return await geminiAPI.evaluateMultipleContent(
+            chunk,
+            campaignBriefing,
+            user.gemini_model
+          );
+        } catch (err) {
+          const waitMatch = err.message.match(/retry in ([\d.]+)s/);
+          if (waitMatch && waitMatch[1]) {
+            const waitSeconds = parseFloat(waitMatch[1]);
+            if (quotaRetries < maxQuotaRetries) {
+              console.log(`[Bulk Grouped] Quota excedida. Tentativa ${quotaRetries + 1}. Aguardando ${waitSeconds}s...`);
+              for (let s = Math.ceil(waitSeconds); s > 0; s--) {
+                setBulkStatus(`Quota excedida (Agrupada). Retentando em ${s}s...`);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+              }
+              quotaRetries++;
+              continue;
+            }
+          } else {
+            // General communication or JSON error
+            if (commRetries < maxCommRetries) {
+              commRetries++;
+              console.warn(`[Bulk Grouped] Erro de comunicação (${commRetries}/${maxCommRetries}). Retentando em 2s...`, err.message);
+              setBulkStatus(`Erro de comunicação (Agrupada). Retentando (${commRetries}/${maxCommRetries})...`);
+              await new Promise(resolve => setTimeout(resolve, 2000));
+              continue;
+            }
+          }
+          throw err;
+        }
+      }
+    };
+
+    const processChunk = async (chunkToProcess) => {
+      if (chunkToProcess.length === 0) return;
+
+      console.log(`[Bulk Grouped] Processando lote de ${chunkToProcess.length} itens.`);
+      setBulkStatus(`IA: Avaliando lote de ${chunkToProcess.length} itens...`);
+
+      try {
+        const groupedResult = await evaluateMultipleWithRetry(chunkToProcess);
+        console.log(`[Bulk Grouped] Resultado recebido:`, groupedResult);
+
+        // Map results back to records
+        for (const item of chunkToProcess) {
+          const evalResult = groupedResult.resultados?.find(r => r.id === item.id);
+
+          if (evalResult) {
+            console.log(`[Bulk Grouped] Salvando: ${item.id}`);
+            setBulkStatus(`Salvando Avaliação: ${item.id}`);
+
+            const transcriptionData = {
+              captionText: item.caption,
+              transcription: item.transcription,
+              evaluationResult: evalResult,
+              userEvaluation: evalResult,
+            };
+            await saveTranscription(item.id, (item.row['URL'] || '').trim(), selectedBriefingId, transcriptionData);
+
+            const flatEvaluation = {};
+            if (evalResult.avaliacoes) {
+              evalResult.avaliacoes.forEach(av => {
+                const prefix = av.nome.split('/')[0].trim();
+                flatEvaluation[`${prefix} - Nota`] = av.nota;
+                flatEvaluation[`${prefix} - Status`] = av.status;
+                flatEvaluation[`${prefix} - Comentário`] = av.comentario;
+                flatEvaluation[`${prefix} - Detalhes Ausentes`] = av.detalhes_ausentes;
+              });
+              flatEvaluation['Score Final'] = `${evalResult.score_final?.pontuacao_obtida} / ${evalResult.score_final?.pontuacao_maxima}`;
+              flatEvaluation['Feedback Consolidado'] = evalResult.feedback_consolidado?.texto;
+            }
+
+            results.push({
+              ...item.row,
+              transcription: item.transcription,
+              ...flatEvaluation,
+              ai_status: 'Sucesso',
+              evaluation_result_json: JSON.stringify(evalResult),
+            });
+          } else {
+            console.warn(`[Bulk Grouped] Resultado não encontrado para ID: ${item.id}`);
+            results.push({
+              ...item.row,
+              transcription: item.transcription,
+              ai_status: 'Erro: IA não retornou avaliação para este item no lote.',
+            });
+          }
+        }
+      } catch (err) {
+        console.error(`[Bulk Grouped] Erro na avaliação agrupada:`, err);
+        chunkToProcess.forEach(item => {
+          results.push({
+            ...item.row,
+            transcription: item.transcription,
+            ai_status: `Erro na avaliação agrupada: ${err.message}`,
+          });
+        });
+      }
+    };
 
     for (let i = 0; i < bulkData.length; i++) {
       const row = bulkData[i];
@@ -316,37 +467,7 @@ const TranscriptionPage = () => {
           if (processingMode === 'individual') {
             console.log(`[Bulk] Avaliando: ${name}`);
             setBulkStatus(`Avaliando: ${name}`);
-
-            const evaluateWithRetry = async () => {
-              let retries = 0;
-              const maxRetries = 5;
-              while (retries < maxRetries) {
-                try {
-                  return await geminiAPI.evaluateContent(
-                    transcriptionText,
-                    caption || '',
-                    campaignBriefing,
-                    user.gemini_model
-                  );
-                } catch (err) {
-                  const waitMatch = err.message.match(/retry in ([\d.]+)s/);
-                  if (waitMatch && waitMatch[1]) {
-                    const waitSeconds = parseFloat(waitMatch[1]);
-                    console.log(`[Bulk] Quota excedida. Tentativa ${retries + 1}. Aguardando ${waitSeconds}s...`);
-                    for (let s = Math.ceil(waitSeconds); s > 0; s--) {
-                      setBulkStatus(`Quota excedida. Retentando em ${s}s... (${name})`);
-                      await new Promise(resolve => setTimeout(resolve, 1000));
-                    }
-                    retries++;
-                  } else {
-                    throw err;
-                  }
-                }
-              }
-              throw new Error('Falha na avaliação após múltiplas tentativas devido a limite de quota.');
-            };
-
-            evaluation = await evaluateWithRetry();
+            evaluation = await evaluateWithRetry(transcriptionText, caption, name);
           } else {
             console.log(`[Bulk] Adicionando para avaliação agrupada: ${name}`);
             setBulkStatus(`Transcrevendo: ${name} (Agrupando para IA)`);
@@ -356,6 +477,16 @@ const TranscriptionPage = () => {
               caption: caption || '',
               row: row
             });
+
+            if (pendingEvaluations.length >= CHUNK_SIZE) {
+              await processChunk(pendingEvaluations);
+              pendingEvaluations = [];
+              // Delay after a chunk
+              for (let s = 2; s > 0; s--) {
+                setBulkStatus(`Aguardando ${s}s para o próximo lote de IA...`);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+              }
+            }
           }
         } else {
           console.log(`[Bulk] Reprovando automaticamente (transcrição curta: ${wordCount} palavras): ${name}`);
@@ -434,116 +565,10 @@ const TranscriptionPage = () => {
       }
     }
 
-    // --- Grouped Evaluation Processing (Chunked) ---
+    // --- Final Grouped Evaluation Processing (Remaining items) ---
     if (processingMode === 'grouped' && pendingEvaluations.length > 0) {
-      const CHUNK_SIZE = 5;
-      const totalChunks = Math.ceil(pendingEvaluations.length / CHUNK_SIZE);
-      console.log(`[Bulk] Iniciando avaliação agrupada para ${pendingEvaluations.length} itens em ${totalChunks} lotes.`);
-
-      for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-        const start = chunkIndex * CHUNK_SIZE;
-        const end = Math.min(start + CHUNK_SIZE, pendingEvaluations.length);
-        const chunk = pendingEvaluations.slice(start, end);
-
-        setBulkStatus(`IA: Avaliando lote ${chunkIndex + 1} de ${totalChunks} (${chunk.length} itens)...`);
-        console.log(`[Bulk Grouped] Processando lote ${chunkIndex + 1}/${totalChunks} (itens ${start + 1} a ${end})`);
-
-        try {
-          const evaluateMultipleWithRetry = async () => {
-            let retries = 0;
-            const maxRetries = 5;
-            while (retries < maxRetries) {
-              try {
-                return await geminiAPI.evaluateMultipleContent(
-                  chunk,
-                  campaignBriefing,
-                  user.gemini_model
-                );
-              } catch (err) {
-                const waitMatch = err.message.match(/retry in ([\d.]+)s/);
-                if (waitMatch && waitMatch[1]) {
-                  const waitSeconds = parseFloat(waitMatch[1]);
-                  console.log(`[Bulk Grouped] Quota excedida. Tentativa ${retries + 1}. Aguardando ${waitSeconds}s...`);
-                  for (let s = Math.ceil(waitSeconds); s > 0; s--) {
-                    setBulkStatus(`Quota excedida (Agrupada). Retentando em ${s}s...`);
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                  }
-                  retries++;
-                } else {
-                  throw err;
-                }
-              }
-            }
-            throw new Error('Falha na avaliação agrupada após múltiplas tentativas.');
-          };
-
-          const groupedResult = await evaluateMultipleWithRetry();
-          console.log(`[Bulk Grouped] Resultado recebido para lote ${chunkIndex + 1}:`, groupedResult);
-
-          // Map results back to records
-          for (const item of chunk) {
-            const evalResult = groupedResult.resultados?.find(r => r.id === item.id);
-
-            if (evalResult) {
-              console.log(`[Bulk Grouped] Salvando: ${item.id}`);
-              setBulkStatus(`Salvando Avaliação: ${item.id}`);
-
-              const transcriptionData = {
-                captionText: item.caption,
-                transcription: item.transcription,
-                evaluationResult: evalResult,
-                userEvaluation: evalResult,
-              };
-              await saveTranscription(item.id, (item.row['URL'] || '').trim(), selectedBriefingId, transcriptionData);
-
-              const flatEvaluation = {};
-              if (evalResult.avaliacoes) {
-                evalResult.avaliacoes.forEach(av => {
-                  const prefix = av.nome.split('/')[0].trim();
-                  flatEvaluation[`${prefix} - Nota`] = av.nota;
-                  flatEvaluation[`${prefix} - Status`] = av.status;
-                  flatEvaluation[`${prefix} - Comentário`] = av.comentario;
-                  flatEvaluation[`${prefix} - Detalhes Ausentes`] = av.detalhes_ausentes;
-                });
-                flatEvaluation['Score Final'] = `${evalResult.score_final?.pontuacao_obtida} / ${evalResult.score_final?.pontuacao_maxima}`;
-                flatEvaluation['Feedback Consolidado'] = evalResult.feedback_consolidado?.texto;
-              }
-
-              results.push({
-                ...item.row,
-                transcription: item.transcription,
-                ...flatEvaluation,
-                ai_status: 'Sucesso',
-                evaluation_result_json: JSON.stringify(evalResult),
-              });
-            } else {
-              console.warn(`[Bulk Grouped] Resultado não encontrado para ID: ${item.id}`);
-              results.push({
-                ...item.row,
-                transcription: item.transcription,
-                ai_status: 'Erro: IA não retornou avaliação para este item no lote.',
-              });
-            }
-          }
-        } catch (err) {
-          console.error(`[Bulk Grouped] Erro na avaliação agrupada (Lote ${chunkIndex + 1}):`, err);
-          chunk.forEach(item => {
-            results.push({
-              ...item.row,
-              transcription: item.transcription,
-              ai_status: `Erro na avaliação agrupada: ${err.message}`,
-            });
-          });
-        }
-
-        // Delay between chunks if not the last one
-        if (chunkIndex < totalChunks - 1) {
-          for (let s = 2; s > 0; s--) {
-            setBulkStatus(`Aguardando ${s}s para o próximo lote de IA...`);
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          }
-        }
-      }
+      await processChunk(pendingEvaluations);
+      pendingEvaluations = [];
     }
 
     setIsBulkProcessing(false);
@@ -608,9 +633,12 @@ const TranscriptionPage = () => {
         geminiAPI.initialize(user.gemini_api_key);
 
         const evaluateWithRetry = async () => {
-          let retries = 0;
-          const maxRetries = 5;
-          while (retries < maxRetries) {
+          let quotaRetries = 0;
+          let commRetries = 0;
+          const maxQuotaRetries = 5;
+          const maxCommRetries = 3;
+
+          while (true) {
             try {
               return await geminiAPI.evaluateContent(
                 transcription,
@@ -622,18 +650,28 @@ const TranscriptionPage = () => {
               const waitMatch = err.message.match(/retry in ([\d.]+)s/);
               if (waitMatch && waitMatch[1]) {
                 const waitSeconds = parseFloat(waitMatch[1]);
-                console.log(`[Evaluate] Quota excedida. Tentativa ${retries + 1}. Aguardando ${waitSeconds}s...`);
-                for (let s = Math.ceil(waitSeconds); s > 0; s--) {
-                  setStatus(`Quota excedida. Retentando em ${s}s...`);
-                  await new Promise(resolve => setTimeout(resolve, 1000));
+                if (quotaRetries < maxQuotaRetries) {
+                  console.log(`[Evaluate] Quota excedida. Tentativa ${quotaRetries + 1}. Aguardando ${waitSeconds}s...`);
+                  for (let s = Math.ceil(waitSeconds); s > 0; s--) {
+                    setStatus(`Quota excedida. Retentando em ${s}s...`);
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                  }
+                  quotaRetries++;
+                  continue;
                 }
-                retries++;
               } else {
-                throw err;
+                // General communication or JSON error
+                if (commRetries < maxCommRetries) {
+                  commRetries++;
+                  console.warn(`[Evaluate] Erro de comunicação (${commRetries}/${maxCommRetries}). Retentando em 2s...`, err.message);
+                  setStatus(`Erro de comunicação. Retentando (${commRetries}/${maxCommRetries})...`);
+                  await new Promise(resolve => setTimeout(resolve, 2000));
+                  continue;
+                }
               }
+              throw err;
             }
           }
-          throw new Error('Falha na avaliação após múltiplas tentativas devido a limite de quota.');
         };
 
         result = await evaluateWithRetry();
