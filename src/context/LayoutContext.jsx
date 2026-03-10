@@ -20,6 +20,7 @@ export const LayoutProvider = ({ children }) => {
   const [selectedBriefingId, setSelectedBriefingId] = useState(null);
   const [transcriptions, setTranscriptions] = useState([]);
   const [selectedTranscriptionId, setSelectedTranscriptionId] = useState(null);
+  const [checkedTranscriptionIds, setCheckedTranscriptionIds] = useState([]);
 
   const fetchBriefings = useCallback(async () => {
     try {
@@ -50,6 +51,8 @@ export const LayoutProvider = ({ children }) => {
     fetchTranscriptions,
     selectedTranscriptionId,
     setSelectedTranscriptionId,
+    checkedTranscriptionIds,
+    setCheckedTranscriptionIds,
   };
 
   return (

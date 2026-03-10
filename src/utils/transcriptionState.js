@@ -67,17 +67,35 @@ export const updateTranscription = async (id, name, videoUrl, briefingId, transc
 };
 
 export const deleteTranscription = async (id) => {
-    try {
-        const res = await fetchWithAuth(`/api/transcriptions/${id}`, {
-            method: 'DELETE',
-        });
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.error || 'Failed to delete transcription.');
-        }
-        return res.json();
-    } catch (error) {
-        toast.error(`Delete failed: ${error.message}`);
-        throw error;
+  try {
+    const res = await fetchWithAuth(`/api/transcriptions/${id}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to delete transcription.');
     }
+    return res.json();
+  } catch (error) {
+    toast.error(`Delete failed: ${error.message}`);
+    throw error;
+  }
+};
+
+export const deleteTranscriptionsBatch = async (ids) => {
+  try {
+    const res = await fetchWithAuth('/api/transcriptions', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to delete transcriptions in batch.');
+    }
+    return res.json();
+  } catch (error) {
+    toast.error(`Batch delete failed: ${error.message}`);
+    throw error;
+  }
 };
