@@ -55,7 +55,7 @@ export default async function handler(req, res) {
     };
 
     if (email === 'dri@cocreators.com.br') {
-      mailOptions.cc = 'rayan@cocreators.com.br';
+      mailOptions.cc = ['rayan@cocreators.com.br', 'giovanna@cocreators.com.br', 'tania@cocreators.com.br'];
     }
 
     await transporter.sendMail(mailOptions);
