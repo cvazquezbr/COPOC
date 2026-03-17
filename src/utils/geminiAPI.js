@@ -342,20 +342,29 @@ Instrução de Saída: Sua resposta deve ser exclusivamente um objeto JSON estru
   async evaluateContent(transcription, caption, briefing, model) {
     const purpose = 'Avaliação de Conteúdo';
     const prompt = `
-Contexto: Você é um curador de conteúdo especializado em marketing de influência. Sua tarefa é avaliar o material de um creator (transcrição do vídeo + legenda) com base em um briefing específico. A análise é estritamente textual (ignore elementos visuais).
+Contexto: Você é um curador de conteúdo especializado em marketing de influência. 
+Sua tarefa é avaliar se um creator conseguiu transmitir a essência de um briefing em seu conteúdo (transcrição + legenda).
+
+DIRETRIZ DE INTERPRETAÇÃO:
+- Não busque por repetição literal de frases. 
+- Avalie a **Aderência Semântica**: O creator pode e deve usar suas próprias palavras, gírias e estilo pessoal, desde que o conceito central e os benefícios do produto/serviço descritos no briefing sejam preservados e compreensíveis para a audiência.
+- Priorize a naturalidade. Se a mensagem principal foi adaptada para o vocabulário do creator sem perder o sentido original, a nota deve ser máxima.
 
 Critérios de Avaliação (Notas 1 a 3):
-Key Message / Mensagem Principal: O núcleo da campanha foi transmitido?
-Branding (Do’s & Don’ts): Respeitou a identidade e diretrizes da marca?
-Criatividade: O conteúdo é original e envolvente no texto?
-Call to Action (CTA): O comando final está claro e correto?
+1. Key Message / Mensagem Principal: O núcleo da campanha foi transmitido? (Nota 3: Conceito transmitido com naturalidade. Nota 2: Conceito presente, mas mecânico/forçado. Nota 1: Faltou o ponto central).
+2. Branding (Do’s & Don’ts): Respeitou a identidade e diretrizes? (Cuidado com termos proibidos, mas permita variações criativas nos termos permitidos).
+3. Criatividade: O conteúdo é original e envolvente?
+4. Call to Action (CTA): O objetivo final foi alcançado? (Avalie se o comando convida à ação, mesmo que não use o "verbo" exato do briefing).
 
 Regras de Negócio:
-Compare o conteúdo com o briefing fornecido.
-Aponte o que falta de forma objetiva.
-O tom do feedback_geral deve ser de "creator para creator": leve, descolado, encorajador, mas direto sobre ajustes técnicos/comerciais.
-O campo detalhes_ausentes deve detalhar itens ausentes (ex: preço, aviso legal, etc).
+- Compare a **intenção** do conteúdo com o briefing.
+- O campo 'detalhes_ausentes' só deve ser preenchido se uma informação fatual (ex: preço, cupom, data, link biografia) foi esquecida. Não use este campo para apontar variações de vocabulário.
+- O tom do feedback deve ser de "creator para creator": leve, descolado e encorajador.
 
+DIRETRIZ DE EXCLUSÃO (CRÍTICO):
+- Ignore COMPLETAMENTE qualquer menção a hashtags (#) presente no briefing.
+- O uso ou a ausência de hashtags na transcrição ou legenda NÃO deve afetar as notas de nenhum critério. 
+- Não aponte hashtags ausentes no campo 'detalhes_ausentes'.
 ---
 **DADOS PARA AVALIAÇÃO:**
 
