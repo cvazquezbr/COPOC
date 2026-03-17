@@ -14,6 +14,7 @@ import { useUserAuth } from '../context/UserAuthContext';
 import { useLayout } from '../context/LayoutContext';
 import geminiAPI from '../utils/geminiAPI';
 import { saveTranscription, updateTranscription, deleteTranscription } from '../utils/transcriptionState';
+import { extractAudioTranscription } from '../utils/transcriptionParser';
 
 const TranscriptionPage = () => {
   const navigate = useNavigate();
@@ -31,6 +32,7 @@ const TranscriptionPage = () => {
   const [selectedBriefingId, setSelectedBriefingId] = useState('');
   const [captionText, setCaptionText] = useState('');
   const [transcription, setTranscription] = useState('');
+  const [existingTranscriptionRaw, setExistingTranscriptionRaw] = useState('');
   const [status, setStatus] = useState('Aguardando...');
   const [workerReady, setWorkerReady] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -62,6 +64,7 @@ const TranscriptionPage = () => {
         const data = selected.transcription_data || {};
         setCaptionText(data.captionText || '');
         setTranscription(data.transcription || '');
+        setExistingTranscriptionRaw('');
         setEvaluationResult(data.evaluationResult || null);
         setUserEvaluation(data.userEvaluation || null);
       }
@@ -71,6 +74,7 @@ const TranscriptionPage = () => {
       setSelectedBriefingId('');
       setCaptionText('');
       setTranscription('');
+      setExistingTranscriptionRaw('');
       setEvaluationResult(null);
       setUserEvaluation(null);
       setIsTranscribing(false);
@@ -154,6 +158,18 @@ const TranscriptionPage = () => {
     setStatus('Iniciando...');
 
     try {
+      if (existingTranscriptionRaw) {
+        const extracted = extractAudioTranscription(existingTranscriptionRaw);
+        if (extracted) {
+          setTranscription(extracted);
+          setStatus('Transcrição extraída do texto fornecido.');
+          setIsTranscribing(false);
+          return;
+        } else {
+          toast.info('Nenhuma "[TRANSCRIÇÃO DE ÁUDIO]:" encontrada. Realizando transcrição local...');
+        }
+      }
+
       const output = await transcribeUrl(videoUrl);
       setTranscription(output);
       setStatus('Transcrição concluída.');
@@ -444,6 +460,16 @@ const TranscriptionPage = () => {
       const row = bulkData[i];
       setBulkProgress({ current: i + 1, total: bulkData.length });
 
+      const videoUrl = (row['URL'] || '').trim();
+      if (!videoUrl) {
+        console.warn(`[Bulk] Pulando linha ${i + 2}: URL ausente.`);
+        results.push({
+          ...row,
+          ai_status: 'Pulado: URL ausente',
+        });
+        continue;
+      }
+
       const challengeId = row['Challenge ID'] || '';
       const rowNum = String(row.__rowNum__ || (i + 1)).padStart(3, '0');
       const nameCol = row['Name'] || '';
@@ -455,28 +481,38 @@ const TranscriptionPage = () => {
       setBulkStatus(`Processando: ${name} (Iniciando)`);
 
       try {
-        const videoUrl = (row['URL'] || '').trim();
-        const caption = row['Caption'];
-
-        if (!videoUrl) throw new Error('URL não encontrada nesta linha.');
-
-        console.log(`[Bulk] Processando linha ${i + 1}:`, { name, videoUrl, caption });
-        setBulkStatus(`Processando: ${name} (Mídia: ${videoUrl})`);
-
-        // 1. Transcribe
+        const caption = row['Legenda'] || row['Caption'];
+        const existingTranscriptionRaw = row['Transcrição'];
         let transcriptionText = '';
         let isVideoTooLong = false;
-        try {
-          transcriptionText = await transcribeUrl(videoUrl, name);
-        } catch (err) {
-          if (err.message === 'VIDEO_TOO_LONG') {
-            isVideoTooLong = true;
-            transcriptionText = '[VÍDEO REJEITADO POR DURAÇÃO]';
-          } else {
-            throw err;
+        let isTranscriptionProvided = false;
+
+        if (existingTranscriptionRaw) {
+          transcriptionText = extractAudioTranscription(existingTranscriptionRaw);
+          if (transcriptionText) {
+            isTranscriptionProvided = true;
+            console.log(`[Bulk] Usando transcrição fornecida para ${name}`);
           }
         }
-        const wordCount = isVideoTooLong ? 0 : getWordCount(transcriptionText);
+
+        if (!isTranscriptionProvided) {
+          console.log(`[Bulk] Processando linha ${i + 1}:`, { name, videoUrl, caption });
+          setBulkStatus(`Processando: ${name} (Mídia: ${videoUrl})`);
+
+          // 1. Transcribe
+          try {
+            transcriptionText = await transcribeUrl(videoUrl, name);
+          } catch (err) {
+            if (err.message === 'VIDEO_TOO_LONG') {
+              isVideoTooLong = true;
+              transcriptionText = '[VÍDEO REJEITADO POR DURAÇÃO]';
+            } else {
+              throw err;
+            }
+          }
+        }
+
+        const wordCount = (isVideoTooLong || !transcriptionText) ? 0 : getWordCount(transcriptionText);
 
         // 2. Evaluate
         let evaluation = null;
@@ -1002,6 +1038,20 @@ const TranscriptionPage = () => {
           sx={{ mb: 2 }}
           disabled={isTranscribing || isBulkProcessing}
         />
+
+        <TextField
+          label="Transcrição Existente (Opcional)"
+          placeholder="Cole aqui o texto contendo [TRANSCRIÇÃO DE ÁUDIO]: para evitar a transcrição local"
+          variant="outlined"
+          fullWidth
+          multiline
+          rows={3}
+          value={existingTranscriptionRaw}
+          onChange={(e) => setExistingTranscriptionRaw(e.target.value)}
+          sx={{ mb: 2 }}
+          disabled={isTranscribing || isBulkProcessing}
+        />
+
         <Button
           variant="contained"
           color="primary"
