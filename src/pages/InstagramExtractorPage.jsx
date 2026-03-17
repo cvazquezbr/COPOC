@@ -321,6 +321,19 @@ const InstagramExtractorPage = () => {
         return updatedResult;
       }
     } catch (err) {
+      if (err.message === 'VIDEO_TOO_LONG') {
+        console.log('[Instagram] Vídeo muito longo (>1:00). Rejeitando.');
+        updatedResult = {
+          ...updatedResult,
+          isProcessing: false,
+          processingStatus: 'Vídeo muito longo (>1:00)',
+          transcription: '[VÍDEO REJEITADO POR DURAÇÃO]',
+          transcriptionStatus: 'error'
+        };
+        updateResultInUI(updatedResult);
+        if (!silent) toast.warning('O vídeo tem mais de 1:00 de duração e foi rejeitado.');
+        return updatedResult;
+      }
       console.error('Error in transcription:', err);
       updatedResult = { ...updatedResult, isProcessing: false, processingStatus: `Erro na transcrição: ${err.message}`, transcriptionStatus: 'error' };
       updateResultInUI(updatedResult);

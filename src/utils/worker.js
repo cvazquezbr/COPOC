@@ -163,6 +163,14 @@ class MediaAIService {
         const wavData = await this.ffmpeg.readFile(outputFileName);
 
         const pcmData = new Int16Array(wavData.buffer.slice(44));
+        const durationSeconds = pcmData.length / 16000;
+
+        if (durationSeconds > 60) {
+            await this.ffmpeg.deleteFile(inputFileName);
+            await this.ffmpeg.deleteFile(outputFileName);
+            throw new Error('VIDEO_TOO_LONG');
+        }
+
         const floatData = new Float32Array(pcmData.length);
         for (let i = 0; i < pcmData.length; i++) {
             floatData[i] = pcmData[i] / 32768.0;
