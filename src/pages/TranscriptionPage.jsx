@@ -158,8 +158,14 @@ const TranscriptionPage = () => {
       setTranscription(output);
       setStatus('Transcrição concluída.');
     } catch (e) {
-      setError(e.message);
-      setStatus('Ocorreu um erro.');
+      if (e.message === 'VIDEO_TOO_LONG') {
+        setTranscription('[VÍDEO REJEITADO POR DURAÇÃO]');
+        setStatus('Vídeo rejeitado por duração.');
+        toast.warning('O vídeo tem mais de 1:00 de duração e foi rejeitado.');
+      } else {
+        setError(e.message);
+        setStatus('Ocorreu um erro.');
+      }
     } finally {
       setIsTranscribing(false);
     }
@@ -458,12 +464,36 @@ const TranscriptionPage = () => {
         setBulkStatus(`Processando: ${name} (Mídia: ${videoUrl})`);
 
         // 1. Transcribe
-        const transcriptionText = await transcribeUrl(videoUrl, name);
-        const wordCount = getWordCount(transcriptionText);
+        let transcriptionText = '';
+        let isVideoTooLong = false;
+        try {
+          transcriptionText = await transcribeUrl(videoUrl, name);
+        } catch (err) {
+          if (err.message === 'VIDEO_TOO_LONG') {
+            isVideoTooLong = true;
+            transcriptionText = '[VÍDEO REJEITADO POR DURAÇÃO]';
+          } else {
+            throw err;
+          }
+        }
+        const wordCount = isVideoTooLong ? 0 : getWordCount(transcriptionText);
 
         // 2. Evaluate
         let evaluation = null;
-        if (wordCount >= 20) {
+        if (isVideoTooLong) {
+          console.log(`[Bulk] Reprovando automaticamente (vídeo muito longo > 1:00): ${name}`);
+          setBulkStatus(`Reprovando: ${name} (Vídeo longo)`);
+          evaluation = {
+            avaliacoes: [
+              { id_criterio: 1, nome: "Key Message / Mensagem Principal", nota: 1, status: "RUIM", comentario: "O vídeo tem mais de 1:00 de duração.", detalhes_ausentes: "Duração excedida" },
+              { id_criterio: 3, nome: "Branding (Do’s & Don’ts)", nota: 1, status: "RUIM", comentario: "O vídeo tem mais de 1:00 de duração.", detalhes_ausentes: "Duração excedida" },
+              { id_criterio: 4, nome: "Criatividade", nota: 1, status: "RUIM", comentario: "O vídeo tem mais de 1:00 de duração.", detalhes_ausentes: "Duração excedida" },
+              { id_criterio: 7, nome: "Call to Action (CTA)", nota: 1, status: "RUIM", comentario: "O vídeo tem mais de 1:00 de duração.", detalhes_ausentes: "Duração excedida" }
+            ],
+            score_final: { pontuacao_obtida: 4, pontuacao_maxima: 12 },
+            feedback_consolidado: { texto: `Reprovado. O vídeo tem mais de 1:00 de duração.` }
+          };
+        } else if (wordCount >= 20) {
           if (processingMode === 'individual') {
             console.log(`[Bulk] Avaliando: ${name}`);
             setBulkStatus(`Avaliando: ${name}`);
@@ -629,7 +659,21 @@ const TranscriptionPage = () => {
     try {
       let result;
       const wordCount = getWordCount(transcription);
-      if (wordCount >= 20) {
+      const isVideoTooLong = transcription === '[VÍDEO REJEITADO POR DURAÇÃO]';
+
+      if (isVideoTooLong) {
+        result = {
+          avaliacoes: [
+            { id_criterio: 1, nome: "Key Message / Mensagem Principal", nota: 1, status: "RUIM", comentario: "O vídeo tem mais de 1:00 de duração.", detalhes_ausentes: "Duração excedida" },
+            { id_criterio: 3, nome: "Branding (Do’s & Don’ts)", nota: 1, status: "RUIM", comentario: "O vídeo tem mais de 1:00 de duração.", detalhes_ausentes: "Duração excedida" },
+            { id_criterio: 4, nome: "Criatividade", nota: 1, status: "RUIM", comentario: "O vídeo tem mais de 1:00 de duração.", detalhes_ausentes: "Duração excedida" },
+            { id_criterio: 7, nome: "Call to Action (CTA)", nota: 1, status: "RUIM", comentario: "O vídeo tem mais de 1:00 de duração.", detalhes_ausentes: "Duração excedida" }
+          ],
+          score_final: { pontuacao_obtida: 4, pontuacao_maxima: 12 },
+          feedback_consolidado: { texto: `Reprovado. O vídeo tem mais de 1:00 de duração.` }
+        };
+        toast.warning(`Vídeo muito longo (>1:00). Reprovando automaticamente.`);
+      } else if (wordCount >= 20) {
         geminiAPI.initialize(user.gemini_api_key);
 
         const evaluateWithRetry = async () => {
