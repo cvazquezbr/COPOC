@@ -10,9 +10,9 @@
 export const extractAudioTranscription = (text) => {
   if (!text || typeof text !== 'string') return '';
 
-  // Match the start tag: [TRANSCRIÇÃO DE ÁUDIO]:
+  // Match the start tag: [TRANSCRIÇÃO DE ÁUDIO] (colon optional)
   // We don't include the optional number in the match to make it easier to find the index
-  const startPattern = /\[TRANSCRIÇÃO DE ÁUDIO\]:/i;
+  const startPattern = /\[TRANSCRIÇÃO DE ÁUDIO\]:?/i;
   const startMatch = text.match(startPattern);
 
   if (!startMatch) return '';
@@ -22,7 +22,7 @@ export const extractAudioTranscription = (text) => {
   const contentFromStart = text.substring(startIndex);
 
   // Match the end tag: either [TEXTO IDENTIFICADO...] or [DESCRIÇÃO VISUAL...]
-  const endPattern = /\[(?:TEXTO IDENTIFICADO NAS IMAGENS|DESCRIÇÃO VISUAL)\]:/i;
+  const endPattern = /\[(?:TEXTO IDENTIFICADO NAS IMAGENS|DESCRIÇÃO VISUAL)\]:?/i;
   const endMatch = contentFromStart.match(endPattern);
 
   let extracted = '';

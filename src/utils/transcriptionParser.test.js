@@ -44,4 +44,23 @@ describe('extractAudioTranscription', () => {
     const result = extractAudioTranscription(text);
     expect(result).toBe('Some text.');
   });
+
+  it('should handle missing colon and newlines after tag', () => {
+    const text = `
+      [TRANSCRIÇÃO DE ÁUDIO]
+      Eu entrei no Ifood só para pedir uma coisinha, eu juro.
+    `;
+    const result = extractAudioTranscription(text);
+    expect(result).toBe('Eu entrei no Ifood só para pedir uma coisinha, eu juro.');
+  });
+
+  it('should handle missing colon in end tags', () => {
+    const text = `
+      [TRANSCRIÇÃO DE ÁUDIO]: Text.
+      [DESCRIÇÃO VISUAL]
+      Image description.
+    `;
+    const result = extractAudioTranscription(text);
+    expect(result).toBe('Text.');
+  });
 });
