@@ -272,6 +272,9 @@ const TranscriptionPage = () => {
 
       // Filter out "Duplicado" status
       const filteredData = dataWithIndex.filter(row => row['Status'] !== 'Duplicado');
+      console.log("[Bulk Upload] Dados brutos (exemplo da primeira linha):", filteredData[0]);
+      console.log("[Bulk Upload] Colunas detectadas na planilha:", Object.keys(filteredData[0] || {}));
+
       setOriginalData(jsonData);
       setBulkData(filteredData);
       setBulkProgress({ current: 0, total: filteredData.length });
@@ -481,18 +484,32 @@ const TranscriptionPage = () => {
       setBulkStatus(`Processando: ${name} (Iniciando)`);
 
       try {
-        const caption = row['Legenda'] || row['Caption'];
-        const existingTranscriptionRaw = row['Transcrição'];
+        // Find columns case-insensitively and with trimming
+        const findColumn = (obj, target) => {
+          const keys = Object.keys(obj);
+          const targetClean = target.trim().toLowerCase();
+          const foundKey = keys.find(k => k.trim().toLowerCase() === targetClean);
+          return foundKey ? obj[foundKey] : undefined;
+        };
+
+        const caption = findColumn(row, 'Legenda') || findColumn(row, 'Caption');
+        const existingTranscriptionRaw = findColumn(row, 'Transcrição') || findColumn(row, 'Transcrição '); // Handle potential trailing space in header
+
         let transcriptionText = '';
         let isVideoTooLong = false;
         let isTranscriptionProvided = false;
 
         if (existingTranscriptionRaw) {
+          console.log(`[Bulk] Transcrição bruta encontrada na planilha para ${name}:`, existingTranscriptionRaw.substring(0, 100) + '...');
           transcriptionText = extractAudioTranscription(existingTranscriptionRaw);
           if (transcriptionText) {
             isTranscriptionProvided = true;
-            console.log(`[Bulk] Usando transcrição fornecida para ${name}`);
+            console.log(`[Bulk] Transcrição extraída com sucesso para ${name}:`, transcriptionText.substring(0, 100) + '...');
+          } else {
+            console.warn(`[Bulk] Tag [TRANSCRIÇÃO DE ÁUDIO]: não encontrada no texto da planilha para ${name}.`);
           }
+        } else {
+          console.log(`[Bulk] Nenhuma coluna 'Transcrição' encontrada ou preenchida para ${name}.`);
         }
 
         if (!isTranscriptionProvided) {
