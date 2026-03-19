@@ -44,14 +44,14 @@ const SelectionPage = () => {
           </Card>
         </Grid>
         <Grid item xs={12} sm={6}>
-          <Card onClick={() => handleSelection('/transcricoes')}>
+          <Card onClick={() => handleSelection('/avaliacoes')}>
             <CardActionArea style={{ padding: '2rem' }}>
               <CardContent>
                 <Typography gutterBottom variant="h5" component="h2" align="center">
-                  Gestão de Transcrições
+                  Gestão de Avaliações
                 </Typography>
                 <Typography variant="body2" color="textSecondary" component="p" align="center">
-                  Transcreva áudio de vídeos.
+                  Avalie o conteúdo de vídeos e transcrições.
                 </Typography>
               </CardContent>
             </CardActionArea>

@@ -130,7 +130,7 @@ const MainLayout = () => {
   } = useLayout();
 
   const isBriefingPage = location.pathname.startsWith('/briefings') || location.pathname.startsWith('/briefing-template');
-  const isTranscriptionPage = location.pathname.startsWith('/transcricoes');
+  const isTranscriptionPage = location.pathname.startsWith('/avaliacoes');
 
   // Reset checkboxes when leaving transcription page
   useEffect(() => {
@@ -179,7 +179,7 @@ const MainLayout = () => {
     } else if (isTranscriptionPage) {
       setSelectedTranscriptionId(null);
       setCheckedTranscriptionIds([]);
-      navigate('/transcricoes');
+      navigate('/avaliacoes');
     }
     if (isMobile) setMobileOpen(false);
   };
@@ -192,7 +192,7 @@ const MainLayout = () => {
 
   const handleSelectTranscription = (id) => {
     setSelectedTranscriptionId(id);
-    navigate('/transcricoes');
+    navigate('/avaliacoes');
     if (isMobile) setMobileOpen(false);
   };
 
@@ -206,10 +206,10 @@ const MainLayout = () => {
   const handleDeleteSelectedTranscriptions = async () => {
     if (checkedTranscriptionIds.length === 0) return;
 
-    if (window.confirm(`Tem certeza que deseja excluir ${checkedTranscriptionIds.length} transcrição(ões)?`)) {
+    if (window.confirm(`Tem certeza que deseja excluir ${checkedTranscriptionIds.length} avaliação(ões)?`)) {
       try {
         await deleteTranscriptionsBatch(checkedTranscriptionIds);
-        toast.success(`${checkedTranscriptionIds.length} transcrição(ões) excluída(s) com sucesso.`);
+        toast.success(`${checkedTranscriptionIds.length} avaliação(ões) excluída(s) com sucesso.`);
 
         // If the currently viewed transcription was deleted, clear it
         if (checkedTranscriptionIds.includes(selectedTranscriptionId)) {
@@ -240,7 +240,7 @@ const MainLayout = () => {
             transition: 'opacity 0.2s',
           }}
         >
-          {isBriefingPage ? 'Novo Briefing' : 'Nova Transcrição'}
+          {isBriefingPage ? 'Novo Briefing' : 'Nova Avaliação'}
         </Button>
         <IconButton onClick={() => (isMobile ? setMobileOpen(false) : setDrawerOpen(false))}>
           <ChevronLeftIcon />

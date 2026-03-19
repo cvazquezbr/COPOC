@@ -16,7 +16,7 @@ import geminiAPI from '../utils/geminiAPI';
 import { saveTranscription, updateTranscription, deleteTranscription } from '../utils/transcriptionState';
 import { extractAudioTranscription } from '../utils/transcriptionParser';
 
-const TranscriptionPage = () => {
+const EvaluationsPage = () => {
   const navigate = useNavigate();
   const { user } = useUserAuth();
   const {
@@ -392,6 +392,19 @@ const TranscriptionPage = () => {
       }
     };
 
+    const sanitizeEvaluation = (evalResult) => {
+      if (!evalResult || !evalResult.avaliacoes) return evalResult;
+
+      const sanitized = { ...evalResult };
+      sanitized.avaliacoes = sanitized.avaliacoes.map(av => {
+        if (av.nota === 3 || av.status === 'ÓTIMO') {
+          return { ...av, detalhes_ausentes: '' };
+        }
+        return av;
+      });
+      return sanitized;
+    };
+
     const processChunk = async (chunkToProcess) => {
       if (chunkToProcess.length === 0) return;
 
@@ -399,7 +412,15 @@ const TranscriptionPage = () => {
       setBulkStatus(`IA: Avaliando lote de ${chunkToProcess.length} itens...`);
 
       try {
-        const groupedResult = await evaluateMultipleWithRetry(chunkToProcess);
+        let groupedResult = await evaluateMultipleWithRetry(chunkToProcess);
+
+        // Sanitize results
+        if (groupedResult.resultados) {
+          groupedResult.resultados = groupedResult.resultados.map(res => ({
+            ...res,
+            ...sanitizeEvaluation(res)
+          }));
+        }
         console.log(`[Bulk Grouped] Resultado recebido:`, groupedResult);
 
         // Map results back to records
@@ -433,6 +454,10 @@ const TranscriptionPage = () => {
 
             results.push({
               ...item.row,
+              'ID Conteúdo': item.row['ID Conteúdo'] || '',
+              'oportunidadeTrends - Nota': '',
+              'visibilidadeProduto - Nota': '',
+              'combinaComunidade - Nota': '',
               transcription: item.transcription,
               ...flatEvaluation,
               ai_status: 'Sucesso',
@@ -442,6 +467,10 @@ const TranscriptionPage = () => {
             console.warn(`[Bulk Grouped] Resultado não encontrado para ID: ${item.id}`);
             results.push({
               ...item.row,
+              'ID Conteúdo': item.row['ID Conteúdo'] || '',
+              'oportunidadeTrends - Nota': '',
+              'visibilidadeProduto - Nota': '',
+              'combinaComunidade - Nota': '',
               transcription: item.transcription,
               ai_status: 'Erro: IA não retornou avaliação para este item no lote.',
             });
@@ -452,6 +481,10 @@ const TranscriptionPage = () => {
         chunkToProcess.forEach(item => {
           results.push({
             ...item.row,
+            'ID Conteúdo': item.row['ID Conteúdo'] || '',
+            'oportunidadeTrends - Nota': '',
+            'visibilidadeProduto - Nota': '',
+            'combinaComunidade - Nota': '',
             transcription: item.transcription,
             ai_status: `Erro na avaliação agrupada: ${err.message}`,
           });
@@ -468,6 +501,10 @@ const TranscriptionPage = () => {
         console.warn(`[Bulk] Pulando linha ${i + 2}: URL ausente.`);
         results.push({
           ...row,
+          'ID Conteúdo': row['ID Conteúdo'] || '',
+          'oportunidadeTrends - Nota': '',
+          'visibilidadeProduto - Nota': '',
+          'combinaComunidade - Nota': '',
           ai_status: 'Pulado: URL ausente',
         });
         continue;
@@ -551,6 +588,7 @@ const TranscriptionPage = () => {
             console.log(`[Bulk] Avaliando: ${name}`);
             setBulkStatus(`Avaliando: ${name}`);
             evaluation = await evaluateWithRetry(transcriptionText, caption, name);
+            evaluation = sanitizeEvaluation(evaluation);
           } else {
             console.log(`[Bulk] Adicionando para avaliação agrupada: ${name}`);
             setBulkStatus(`Transcrevendo: ${name} (Agrupando para IA)`);
@@ -613,6 +651,10 @@ const TranscriptionPage = () => {
 
           results.push({
             ...row,
+            'ID Conteúdo': row['ID Conteúdo'] || '',
+            'oportunidadeTrends - Nota': '',
+            'visibilidadeProduto - Nota': '',
+            'combinaComunidade - Nota': '',
             transcription: transcriptionText,
             ...flatEvaluation,
             ai_status: 'Sucesso',
@@ -624,6 +666,10 @@ const TranscriptionPage = () => {
         console.error(`Erro ao processar linha ${i + 1}:`, err);
         results.push({
           ...row,
+          'ID Conteúdo': row['ID Conteúdo'] || '',
+          'oportunidadeTrends - Nota': '',
+          'visibilidadeProduto - Nota': '',
+          'combinaComunidade - Nota': '',
           transcription: '',
           ai_status: `Erro: ${err.message}`,
           evaluation_result_json: '',
@@ -681,7 +727,7 @@ const TranscriptionPage = () => {
       for (let i = 0; i !== s.length; ++i) view[i] = s.charCodeAt(i) & 0xFF;
       return buf;
     }
-    saveAs(new Blob([s2ab(wbout)], { type: "application/octet-stream" }), `resultados_transcricao_${new Date().toISOString().split('T')[0]}.xlsx`);
+    saveAs(new Blob([s2ab(wbout)], { type: "application/octet-stream" }), `resultados_avaliacoes_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const handleEvaluate = async () => {
@@ -772,6 +818,16 @@ const TranscriptionPage = () => {
         };
 
         result = await evaluateWithRetry();
+
+        // Sanitize: If score is 3/ÓTIMO, detalles_ausentes must be empty
+        if (result && result.avaliacoes) {
+          result.avaliacoes = result.avaliacoes.map(av => {
+            if (av.nota === 3 || av.status === 'ÓTIMO') {
+              return { ...av, detalhes_ausentes: '' };
+            }
+            return av;
+          });
+        }
       } else {
         result = {
           avaliacoes: [
@@ -832,7 +888,7 @@ const TranscriptionPage = () => {
 
   const handleSave = async () => {
     if (!transcriptionName) {
-      toast.error('O nome da transcrição é obrigatório para salvar.');
+      toast.error('O nome da avaliação é obrigatório para salvar.');
       return;
     }
 
@@ -846,10 +902,10 @@ const TranscriptionPage = () => {
     try {
       if (selectedTranscriptionId) {
         await updateTranscription(selectedTranscriptionId, transcriptionName, videoUrl, selectedBriefingId, transcriptionData);
-        toast.success('Transcrição atualizada com sucesso!');
+        toast.success('Avaliação atualizada com sucesso!');
       } else {
         const result = await saveTranscription(transcriptionName, videoUrl, selectedBriefingId, transcriptionData);
-        toast.success('Transcrição salva com sucesso!');
+        toast.success('Avaliação salva com sucesso!');
         setSelectedTranscriptionId(result.id);
       }
       await fetchTranscriptions();
@@ -860,10 +916,10 @@ const TranscriptionPage = () => {
 
   const handleDelete = async () => {
     if (!selectedTranscriptionId) return;
-    if (window.confirm('Tem certeza que deseja excluir esta transcrição?')) {
+    if (window.confirm('Tem certeza que deseja excluir esta avaliação?')) {
       try {
         await deleteTranscription(selectedTranscriptionId);
-        toast.success('Transcrição excluída com sucesso!');
+        toast.success('Avaliação excluída com sucesso!');
         setSelectedTranscriptionId(null);
         await fetchTranscriptions();
       } catch (e) {
@@ -880,7 +936,7 @@ const TranscriptionPage = () => {
         </Button>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h4" component="h1">
-            Gestão de Transcrições
+            Gestão de Avaliações
           </Typography>
           <Box>
             {selectedTranscriptionId && (
@@ -895,7 +951,7 @@ const TranscriptionPage = () => {
         </Box>
 
         <TextField
-          label="Nome da Transcrição"
+          label="Nome da Avaliação"
           variant="outlined"
           fullWidth
           value={transcriptionName}
@@ -1270,4 +1326,4 @@ const TranscriptionPage = () => {
   );
 };
 
-export default TranscriptionPage;
+export default EvaluationsPage;
