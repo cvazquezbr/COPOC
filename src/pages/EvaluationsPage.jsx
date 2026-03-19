@@ -455,24 +455,24 @@ const EvaluationsPage = () => {
             results.push({
               ...item.row,
               'ID Conteúdo': item.row['ID Conteúdo'] || '',
-              'oportunidadeTrends - Nota': '',
-              'visibilidadeProduto - Nota': '',
-              'combinaComunidade - Nota': '',
               transcription: item.transcription,
               ...flatEvaluation,
               ai_status: 'Sucesso',
               evaluation_result_json: JSON.stringify(evalResult),
+              'oportunidadeTrends - Nota': '',
+              'visibilidadeProduto - Nota': '',
+              'combinaComunidade - Nota': '',
             });
           } else {
             console.warn(`[Bulk Grouped] Resultado não encontrado para ID: ${item.id}`);
             results.push({
               ...item.row,
               'ID Conteúdo': item.row['ID Conteúdo'] || '',
+              transcription: item.transcription,
+              ai_status: 'Erro: IA não retornou avaliação para este item no lote.',
               'oportunidadeTrends - Nota': '',
               'visibilidadeProduto - Nota': '',
               'combinaComunidade - Nota': '',
-              transcription: item.transcription,
-              ai_status: 'Erro: IA não retornou avaliação para este item no lote.',
             });
           }
         }
@@ -482,11 +482,11 @@ const EvaluationsPage = () => {
           results.push({
             ...item.row,
             'ID Conteúdo': item.row['ID Conteúdo'] || '',
+            transcription: item.transcription,
+            ai_status: `Erro na avaliação agrupada: ${err.message}`,
             'oportunidadeTrends - Nota': '',
             'visibilidadeProduto - Nota': '',
             'combinaComunidade - Nota': '',
-            transcription: item.transcription,
-            ai_status: `Erro na avaliação agrupada: ${err.message}`,
           });
         });
       }
@@ -502,10 +502,10 @@ const EvaluationsPage = () => {
         results.push({
           ...row,
           'ID Conteúdo': row['ID Conteúdo'] || '',
+          ai_status: 'Pulado: URL ausente',
           'oportunidadeTrends - Nota': '',
           'visibilidadeProduto - Nota': '',
           'combinaComunidade - Nota': '',
-          ai_status: 'Pulado: URL ausente',
         });
         continue;
       }
@@ -652,13 +652,13 @@ const EvaluationsPage = () => {
           results.push({
             ...row,
             'ID Conteúdo': row['ID Conteúdo'] || '',
-            'oportunidadeTrends - Nota': '',
-            'visibilidadeProduto - Nota': '',
-            'combinaComunidade - Nota': '',
             transcription: transcriptionText,
             ...flatEvaluation,
             ai_status: 'Sucesso',
             evaluation_result_json: JSON.stringify(evaluation),
+            'oportunidadeTrends - Nota': '',
+            'visibilidadeProduto - Nota': '',
+            'combinaComunidade - Nota': '',
           });
         }
 
@@ -667,12 +667,12 @@ const EvaluationsPage = () => {
         results.push({
           ...row,
           'ID Conteúdo': row['ID Conteúdo'] || '',
-          'oportunidadeTrends - Nota': '',
-          'visibilidadeProduto - Nota': '',
-          'combinaComunidade - Nota': '',
           transcription: '',
           ai_status: `Erro: ${err.message}`,
           evaluation_result_json: '',
+          'oportunidadeTrends - Nota': '',
+          'visibilidadeProduto - Nota': '',
+          'combinaComunidade - Nota': '',
         });
       }
 
