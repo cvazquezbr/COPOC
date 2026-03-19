@@ -274,17 +274,27 @@ class GeminiAPI {
     const prompt = `
 Contexto: Você é um curador de conteúdo especializado em marketing de influência. Sua tarefa é avaliar VÁRIOS materiais de creators (transcrição do vídeo + legenda) com base em um briefing específico. A análise é estritamente textual (ignore elementos visuais).
 
+DIRETRIZ DE INTERPRETAÇÃO:
+- **NÃO busque por repetição literal de frases**. A análise deve ser inteligente e contextual.
+- Avalie a **Aderência Semântica**: O creator pode e deve usar suas próprias palavras, gírias e estilo pessoal, desde que o conceito central, a "vibe" da marca e os benefícios do produto/serviço descritos no briefing sejam preservados e compreensíveis para a audiência.
+- Priorize a naturalidade. Se a mensagem principal foi adaptada para o vocabulário do creator sem perder o sentido original, a nota deve ser máxima. Não penalize o creator por não seguir o roteiro palavra por palavra.
+
 Critérios de Avaliação (Notas 1 a 3):
-- Key Message / Mensagem Principal
-- Branding (Do’s & Don’ts)
+- Key Message / Mensagem Principal (Nota 3: Conceito e essência transmitidos com naturalidade, mesmo que com palavras diferentes. Nota 1: Faltou o ponto central ou desvio total do objetivo).
+- Branding (Do’s & Don’ts) (Avalie se a marca é bem representada. Permita variações criativas nos termos permitidos e foque em evitar os proibidos).
 - Criatividade
-- Call to Action (CTA)
+- Call to Action (CTA) (Avalie se o comando convida à ação de forma eficaz para o público, mesmo que não use o "verbo" ou a frase exata sugerida no briefing).
 
 Regras de Negócio:
-- Compare cada item com o briefing fornecido.
-- Aponte o que falta de forma objetiva.
-- O tom do feedback_geral deve ser de "creator para creator": leve, descolado, encorajador, mas direto.
-- O campo detalhes_ausentes deve detalhar itens ausentes (ex: preço, aviso legal, etc).
+- Compare cada item com a intenção e os objetivos do briefing fornecido.
+- O campo 'detalhes_ausentes' só deve ser preenchido se uma informação fatual INDISPENSÁVEL (ex: preço, cupom de desconto específico, data de evento, link obrigatório na biografia) foi esquecida. **NUNCA use este campo para apontar variações de vocabulário ou frases que não foram ditas literalmente.**
+- CRÍTICO: Se a nota de um critério for 3 (ÓTIMO), o campo 'detalhes_ausentes' desse critério DEVE estar ABSOLUTAMENTE VAZIO (""). É uma falha lógica grave dar nota máxima e apontar faltas.
+- O tom do feedback_geral deve ser de "creator para creator": leve, descolado e encorajador.
+
+DIRETRIZ DE EXCLUSÃO (CRÍTICO):
+- Ignore COMPLETAMENTE qualquer menção a hashtags (#) presente no briefing.
+- O uso ou a ausência de hashtags na transcrição ou legenda NÃO deve afetar as notas.
+- Não aponte hashtags ausentes no campo 'detalhes_ausentes'.
 
 ---
 **BRIEFING:**
@@ -346,19 +356,20 @@ Contexto: Você é um curador de conteúdo especializado em marketing de influê
 Sua tarefa é avaliar se um creator conseguiu transmitir a essência de um briefing em seu conteúdo (transcrição + legenda).
 
 DIRETRIZ DE INTERPRETAÇÃO:
-- Não busque por repetição literal de frases. 
-- Avalie a **Aderência Semântica**: O creator pode e deve usar suas próprias palavras, gírias e estilo pessoal, desde que o conceito central e os benefícios do produto/serviço descritos no briefing sejam preservados e compreensíveis para a audiência.
-- Priorize a naturalidade. Se a mensagem principal foi adaptada para o vocabulário do creator sem perder o sentido original, a nota deve ser máxima.
+- **NÃO busque por repetição literal de frases**. A análise deve ser inteligente e contextual.
+- Avalie a **Aderência Semântica**: O creator pode e deve usar suas próprias palavras, gírias e estilo pessoal, desde que o conceito central, a "vibe" da marca e os benefícios do produto/serviço descritos no briefing sejam preservados e compreensíveis para a audiência.
+- Priorize a naturalidade. Se a mensagem principal foi adaptada para o vocabulário do creator sem perder o sentido original, a nota deve ser máxima. Não penalize o creator por não seguir o roteiro palavra por palavra.
 
 Critérios de Avaliação (Notas 1 a 3):
-1. Key Message / Mensagem Principal: O núcleo da campanha foi transmitido? (Nota 3: Conceito transmitido com naturalidade. Nota 2: Conceito presente, mas mecânico/forçado. Nota 1: Faltou o ponto central).
-2. Branding (Do’s & Don’ts): Respeitou a identidade e diretrizes? (Cuidado com termos proibidos, mas permita variações criativas nos termos permitidos).
+1. Key Message / Mensagem Principal: O núcleo da campanha foi transmitido? (Nota 3: Conceito e essência transmitidos com naturalidade, mesmo que com palavras diferentes. Nota 2: Conceito presente, mas mecânico/forçado. Nota 1: Faltou o ponto central ou desvio total do objetivo).
+2. Branding (Do’s & Don’ts): Respeitou a identidade e diretrizes? (Avalie se a marca é bem representada. Cuidado com termos proibidos, mas permita variações criativas nos termos permitidos).
 3. Criatividade: O conteúdo é original e envolvente?
-4. Call to Action (CTA): O objetivo final foi alcançado? (Avalie se o comando convida à ação, mesmo que não use o "verbo" exato do briefing).
+4. Call to Action (CTA): O objetivo final foi alcançado? (Avalie se o comando convida à ação de forma eficaz para o público, mesmo que não use o "verbo" ou a frase exata sugerida no briefing).
 
 Regras de Negócio:
-- Compare a **intenção** do conteúdo com o briefing.
-- O campo 'detalhes_ausentes' só deve ser preenchido se uma informação fatual (ex: preço, cupom, data, link biografia) foi esquecida. Não use este campo para apontar variações de vocabulário.
+- Compare a **intenção** do conteúdo com os objetivos do briefing.
+- O campo 'detalhes_ausentes' só deve ser preenchido se uma informação fatual INDISPENSÁVEL (ex: preço, cupom de desconto específico, data de evento, link obrigatório na biografia) foi esquecida. **NUNCA use este campo para apontar variações de vocabulário ou frases que não foram ditas literalmente.**
+- CRÍTICO: Se a nota de um critério for 3 (ÓTIMO), o campo 'detalhes_ausentes' desse critério DEVE estar ABSOLUTAMENTE VAZIO (""). É uma falha lógica grave dar nota máxima e apontar faltas.
 - O tom do feedback deve ser de "creator para creator": leve, descolado e encorajador.
 
 DIRETRIZ DE EXCLUSÃO (CRÍTICO):

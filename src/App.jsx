@@ -8,7 +8,7 @@ import MainLayout from './components/MainLayout';
 import BriefingPage from './pages/BriefingPage';
 import TemplatePage from './pages/TemplatePage';
 import SelectionPage from './pages/SelectionPage';
-import TranscriptionPage from './pages/TranscriptionPage';
+import EvaluationsPage from './pages/EvaluationsPage';
 import InstagramExtractorPage from './pages/InstagramExtractorPage';
 
 // Context
@@ -50,12 +50,13 @@ function App() {
       >
         <Route index element={<SelectionPage />} />
         <Route path="briefings" element={<BriefingPage />} />
-        <Route path="transcricoes" element={<TranscriptionPage />} />
+        <Route path="avaliacoes" element={<EvaluationsPage />} />
         <Route path="instagram-extractor" element={<InstagramExtractorPage />} />
         <Route path="briefing-template" element={<TemplatePage />} />
       </Route>
 
       {/* Fallback for non-matching routes */}
+      <Route path="/transcricoes" element={<Navigate to="/avaliacoes" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
     </>
