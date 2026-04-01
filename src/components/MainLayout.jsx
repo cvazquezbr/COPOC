@@ -31,6 +31,7 @@ import ArticleIcon from '@mui/icons-material/Article';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 import DeleteIcon from '@mui/icons-material/Delete';
+import DownloadIcon from '@mui/icons-material/Download';
 import Checkbox from '@mui/material/Checkbox';
 
 import { useUserAuth } from '../context/UserAuthContext';
@@ -39,6 +40,7 @@ import { useTheme as useAppTheme } from '../context/ThemeContext';
 import SetupModal from './SetupModal';
 import { getBriefings } from '../utils/briefingState';
 import { deleteTranscriptionsBatch } from '../utils/transcriptionState';
+import { exportEvaluationsToExcel } from '../utils/exportUtils';
 import { toast } from 'sonner';
 
 const drawerWidth = 280;
@@ -224,6 +226,19 @@ const MainLayout = () => {
     }
   };
 
+  const handleExportSelectedTranscriptions = () => {
+    if (checkedTranscriptionIds.length === 0) return;
+
+    const selectedToExport = transcriptions.filter(t => checkedTranscriptionIds.includes(t.id));
+    try {
+      exportEvaluationsToExcel(selectedToExport);
+      toast.success(`${checkedTranscriptionIds.length} avaliação(ões) exportada(s) com sucesso.`);
+    } catch (error) {
+      console.error('Error exporting transcriptions:', error);
+      toast.error('Erro ao exportar avaliações.');
+    }
+  };
+
   const drawerContent = (
     <div>
       <DrawerHeader>
@@ -249,21 +264,42 @@ const MainLayout = () => {
       <Divider />
       {isTranscriptionPage && checkedTranscriptionIds.length > 0 && (
         <>
-          <Box sx={{ p: 1, display: 'flex', justifyContent: 'center' }}>
-            <Button
-              variant="contained"
-              color="error"
-              startIcon={<DeleteIcon />}
-              fullWidth
-              size="small"
-              onClick={handleDeleteSelectedTranscriptions}
-              sx={{
-                opacity: isMobile || isDrawerOpen ? 1 : 0,
-                transition: 'opacity 0.2s',
-              }}
-            >
-              Excluir ({checkedTranscriptionIds.length})
-            </Button>
+          <Box sx={{ p: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button
+                variant="contained"
+                color="error"
+                startIcon={<DeleteIcon />}
+                fullWidth
+                size="small"
+                onClick={handleDeleteSelectedTranscriptions}
+                sx={{
+                  opacity: isMobile || isDrawerOpen ? 1 : 0,
+                  transition: 'opacity 0.2s',
+                }}
+              >
+                Excluir
+              </Button>
+              <Button
+                variant="contained"
+                color="primary"
+                startIcon={<DownloadIcon />}
+                fullWidth
+                size="small"
+                onClick={handleExportSelectedTranscriptions}
+                sx={{
+                  opacity: isMobile || isDrawerOpen ? 1 : 0,
+                  transition: 'opacity 0.2s',
+                }}
+              >
+                Exportar
+              </Button>
+            </Box>
+            {(isMobile || isDrawerOpen) && (
+              <Typography variant="caption" align="center" sx={{ color: 'text.secondary' }}>
+                {checkedTranscriptionIds.length} selecionada(s)
+              </Typography>
+            )}
           </Box>
           <Divider />
         </>

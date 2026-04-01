@@ -1,4 +1,6 @@
 import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 
 /**
  * Converte um array de objetos em uma string CSV e inicia o download.
@@ -28,6 +30,92 @@ export const exportCsv = (data, headers) => {
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
+};
+
+/**
+ * Achata o objeto de avaliação para um formato compatível com planilha.
+ * @param {Object} evaluation - O objeto de avaliação (evaluationResult ou userEvaluation).
+ * @returns {Object} O objeto achatado.
+ */
+export const flattenEvaluation = (evaluation) => {
+  const flat = {};
+  if (evaluation && evaluation.avaliacoes) {
+    evaluation.avaliacoes.forEach(av => {
+      const prefix = av.nome.split('/')[0].trim();
+      flat[`${prefix} - Nota`] = av.nota;
+      flat[`${prefix} - Status`] = av.status;
+      flat[`${prefix} - Comentário`] = av.comentario;
+      flat[`${prefix} - Detalhes Ausentes`] = av.detalhes_ausentes;
+    });
+    flat['Score Final'] = `${evaluation.score_final?.pontuacao_obtida} / ${evaluation.score_final?.pontuacao_maxima}`;
+    flat['Feedback Consolidado'] = evaluation.feedback_consolidado?.texto;
+  }
+  return flat;
+};
+
+/**
+ * Exporta avaliações para um arquivo Excel (.xlsx) com duas abas.
+ * @param {Array<Object>} evaluations - Lista de avaliações do banco de dados ou processadas.
+ * @param {Array<Object>} [originalData=[]] - Dados originais da planilha (opcional).
+ */
+export const exportEvaluationsToExcel = (evaluations, originalData = []) => {
+  const wb = XLSX.utils.book_new();
+
+  // Mapear os dados para o formato da aba "Resultados IA"
+  const results = evaluations.map(item => {
+    // Se item.transcription_data existe, é um registro do banco de dados
+    const data = item.transcription_data || {};
+    const evalToUse = data.userEvaluation || data.evaluationResult || item.evaluation;
+
+    // Se item.row existe, estamos vindo do processamento em massa
+    const baseRow = item.row || {
+      'URL': item.video_url || '',
+      'Name': item.name || '',
+      'Legenda': data.captionText || '',
+      'Transcrição': data.transcription || item.transcription || '',
+    };
+
+    return {
+      ...baseRow,
+      'ID Conteúdo': baseRow['ID Conteúdo'] || '',
+      'transcription': data.transcription || item.transcription || '',
+      ...flattenEvaluation(evalToUse),
+      'ai_status': item.ai_status || 'Sucesso',
+      'oportunidadeTrends - Nota': '',
+      'visibilidadeProduto - Nota': '',
+      'combinaComunidade - Nota': '',
+    };
+  });
+
+  // Aba 1: Dados Originais
+  // Se não houver originalData, criamos uma aba com cabeçalhos padrão baseados nos resultados
+  let ws1;
+  if (originalData.length > 0) {
+    ws1 = XLSX.utils.json_to_sheet(originalData);
+  } else {
+    // Cabeçalhos mínimos se não houver dados originais
+    const defaultHeaders = ['Challenge ID', 'Name', 'URL', 'Legenda', 'Transcrição', 'ID Conteúdo'];
+    ws1 = XLSX.utils.json_to_sheet([], { header: defaultHeaders });
+  }
+  XLSX.utils.book_append_sheet(wb, ws1, "Dados Originais");
+
+  // Aba 2: Resultados IA
+  const ws2 = XLSX.utils.json_to_sheet(results);
+  XLSX.utils.book_append_sheet(wb, ws2, "Resultados IA");
+
+  // Gerar e baixar arquivo
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'binary' });
+  const s2ab = (s) => {
+    const buf = new ArrayBuffer(s.length);
+    const view = new Uint8Array(buf);
+    for (let i = 0; i !== s.length; ++i) view[i] = s.charCodeAt(i) & 0xFF;
+    return buf;
+  };
+
+  saveAs(
+    new Blob([s2ab(wbout)], { type: "application/octet-stream" }),
+    `resultados_avaliacoes_${new Date().toISOString().split('T')[0]}.xlsx`
+  );
 };
 
 /**
