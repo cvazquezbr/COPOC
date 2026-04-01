@@ -10,13 +10,12 @@ import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import getFriendlyErrorMessage from '../utils/friendlyErrors';
-import { exportEvaluationsToExcel, flattenEvaluation } from '../utils/exportUtils';
+import { exportEvaluationsToExcel } from '../utils/exportUtils';
 import { useUserAuth } from '../context/UserAuthContext';
 import { useLayout } from '../context/LayoutContext';
 import geminiAPI from '../utils/geminiAPI';
 import { saveTranscription, updateTranscription, deleteTranscription } from '../utils/transcriptionState';
 import { extractAudioTranscription } from '../utils/transcriptionParser';
-import { flattenEvaluation } from '../utils/exportUtils';
 
 const EvaluationsPage = () => {
   const navigate = useNavigate();
