@@ -10,11 +10,13 @@ import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import getFriendlyErrorMessage from '../utils/friendlyErrors';
+import { exportEvaluationsToExcel, flattenEvaluation } from '../utils/exportUtils';
 import { useUserAuth } from '../context/UserAuthContext';
 import { useLayout } from '../context/LayoutContext';
 import geminiAPI from '../utils/geminiAPI';
 import { saveTranscription, updateTranscription, deleteTranscription } from '../utils/transcriptionState';
 import { extractAudioTranscription } from '../utils/transcriptionParser';
+import { flattenEvaluation } from '../utils/exportUtils';
 
 const EvaluationsPage = () => {
   const navigate = useNavigate();
@@ -439,40 +441,18 @@ const EvaluationsPage = () => {
             };
             await saveTranscription(item.id, (item.row['URL'] || '').trim(), selectedBriefingId, transcriptionData);
 
-            const flatEvaluation = {};
-            if (evalResult.avaliacoes) {
-              evalResult.avaliacoes.forEach(av => {
-                const prefix = av.nome.split('/')[0].trim();
-                flatEvaluation[`${prefix} - Nota`] = av.nota;
-                flatEvaluation[`${prefix} - Status`] = av.status;
-                flatEvaluation[`${prefix} - Comentário`] = av.comentario;
-                flatEvaluation[`${prefix} - Detalhes Ausentes`] = av.detalhes_ausentes;
-              });
-              flatEvaluation['Score Final'] = `${evalResult.score_final?.pontuacao_obtida} / ${evalResult.score_final?.pontuacao_maxima}`;
-              flatEvaluation['Feedback Consolidado'] = evalResult.feedback_consolidado?.texto;
-            }
-
             results.push({
-              ...item.row,
-              'ID Conteúdo': item.row['ID Conteúdo'] || '',
+              row: item.row,
               transcription: item.transcription,
-              ...flatEvaluation,
-              ai_status: 'Sucesso',
-              evaluation_result_json: JSON.stringify(evalResult),
-              'oportunidadeTrends - Nota': '',
-              'visibilidadeProduto - Nota': '',
-              'combinaComunidade - Nota': '',
+              evaluation: evalResult,
+              ai_status: 'Sucesso'
             });
           } else {
             console.warn(`[Bulk Grouped] Resultado não encontrado para ID: ${item.id}`);
             results.push({
-              ...item.row,
-              'ID Conteúdo': item.row['ID Conteúdo'] || '',
+              row: item.row,
               transcription: item.transcription,
-              ai_status: 'Erro: IA não retornou avaliação para este item no lote.',
-              'oportunidadeTrends - Nota': '',
-              'visibilidadeProduto - Nota': '',
-              'combinaComunidade - Nota': '',
+              ai_status: 'Erro: IA não retornou avaliação para este item no lote.'
             });
           }
         }
@@ -480,13 +460,9 @@ const EvaluationsPage = () => {
         console.error(`[Bulk Grouped] Erro na avaliação agrupada:`, err);
         chunkToProcess.forEach(item => {
           results.push({
-            ...item.row,
-            'ID Conteúdo': item.row['ID Conteúdo'] || '',
+            row: item.row,
             transcription: item.transcription,
-            ai_status: `Erro na avaliação agrupada: ${err.message}`,
-            'oportunidadeTrends - Nota': '',
-            'visibilidadeProduto - Nota': '',
-            'combinaComunidade - Nota': '',
+            ai_status: `Erro na avaliação agrupada: ${err.message}`
           });
         });
       }
@@ -500,12 +476,8 @@ const EvaluationsPage = () => {
       if (!videoUrl) {
         console.warn(`[Bulk] Pulando linha ${i + 2}: URL ausente.`);
         results.push({
-          ...row,
-          'ID Conteúdo': row['ID Conteúdo'] || '',
-          ai_status: 'Pulado: URL ausente',
-          'oportunidadeTrends - Nota': '',
-          'visibilidadeProduto - Nota': '',
-          'combinaComunidade - Nota': '',
+          row: row,
+          ai_status: 'Pulado: URL ausente'
         });
         continue;
       }
@@ -636,43 +608,20 @@ const EvaluationsPage = () => {
           };
           await saveTranscription(name, videoUrl, selectedBriefingId, transcriptionData);
 
-          const flatEvaluation = {};
-          if (evaluation && evaluation.avaliacoes) {
-            evaluation.avaliacoes.forEach(av => {
-              const prefix = av.nome.split('/')[0].trim();
-              flatEvaluation[`${prefix} - Nota`] = av.nota;
-              flatEvaluation[`${prefix} - Status`] = av.status;
-              flatEvaluation[`${prefix} - Comentário`] = av.comentario;
-              flatEvaluation[`${prefix} - Detalhes Ausentes`] = av.detalhes_ausentes;
-            });
-            flatEvaluation['Score Final'] = `${evaluation.score_final?.pontuacao_obtida} / ${evaluation.score_final?.pontuacao_maxima}`;
-            flatEvaluation['Feedback Consolidado'] = evaluation.feedback_consolidado?.texto;
-          }
-
           results.push({
-            ...row,
-            'ID Conteúdo': row['ID Conteúdo'] || '',
+            row: row,
             transcription: transcriptionText,
-            ...flatEvaluation,
-            ai_status: 'Sucesso',
-            evaluation_result_json: JSON.stringify(evaluation),
-            'oportunidadeTrends - Nota': '',
-            'visibilidadeProduto - Nota': '',
-            'combinaComunidade - Nota': '',
+            evaluation: evaluation,
+            ai_status: 'Sucesso'
           });
         }
 
       } catch (err) {
         console.error(`Erro ao processar linha ${i + 1}:`, err);
         results.push({
-          ...row,
-          'ID Conteúdo': row['ID Conteúdo'] || '',
+          row: row,
           transcription: '',
-          ai_status: `Erro: ${err.message}`,
-          evaluation_result_json: '',
-          'oportunidadeTrends - Nota': '',
-          'visibilidadeProduto - Nota': '',
-          'combinaComunidade - Nota': '',
+          ai_status: `Erro: ${err.message}`
         });
       }
 
@@ -706,28 +655,7 @@ const EvaluationsPage = () => {
     toast.success('Processamento em massa concluído!');
     fetchTranscriptions();
 
-    exportBulkResults(results);
-  };
-
-  const exportBulkResults = (results) => {
-    const wb = XLSX.utils.book_new();
-
-    // Sheet 1: Original data
-    const ws1 = XLSX.utils.json_to_sheet(originalData);
-    XLSX.utils.book_append_sheet(wb, ws1, "Dados Originais");
-
-    // Sheet 2: Results
-    const ws2 = XLSX.utils.json_to_sheet(results);
-    XLSX.utils.book_append_sheet(wb, ws2, "Resultados IA");
-
-    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'binary' });
-    function s2ab(s) {
-      const buf = new ArrayBuffer(s.length);
-      const view = new Uint8Array(buf);
-      for (let i = 0; i !== s.length; ++i) view[i] = s.charCodeAt(i) & 0xFF;
-      return buf;
-    }
-    saveAs(new Blob([s2ab(wbout)], { type: "application/octet-stream" }), `resultados_avaliacoes_${new Date().toISOString().split('T')[0]}.xlsx`);
+    exportEvaluationsToExcel(results, originalData);
   };
 
   const handleEvaluate = async () => {
