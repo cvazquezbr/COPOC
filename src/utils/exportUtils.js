@@ -69,8 +69,9 @@ export const exportEvaluationsToExcel = (evaluations, originalData = []) => {
 
     // Se item.row existe, estamos vindo do processamento em massa
     const baseRow = item.row || {
-      'URL': item.video_url || '',
+      'Challenge ID': '',
       'Name': item.name || '',
+      'URL': item.video_url || '',
       'Legenda': data.captionText || '',
       'Transcrição': data.transcription || item.transcription || '',
     };
