@@ -36,7 +36,6 @@ const EvaluationsPage = () => {
   const [videoDuration, setVideoDuration] = useState(0);
   const [existingTranscriptionRaw, setExistingTranscriptionRaw] = useState('');
   const [status, setStatus] = useState('Aguardando...');
-  const [workerReady, setWorkerReady] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluationResult, setEvaluationResult] = useState(null);
@@ -48,8 +47,6 @@ const EvaluationsPage = () => {
   const [bulkData, setBulkData] = useState([]);
   const [originalData, setOriginalData] = useState([]);
   const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState(null);
-  const [processingMode, setProcessingMode] = useState('individual'); // 'individual' or 'grouped'
-  const worker = useRef(null);
 
   useEffect(() => {
     fetchBriefings();
@@ -91,165 +88,35 @@ const EvaluationsPage = () => {
   const selectedBriefing = briefings.find(b => b.id === selectedBriefingId);
   const campaignBriefing = selectedBriefing?.briefing_data?.revisedText || '';
 
-  useEffect(() => {
-    if (!worker.current) {
-      worker.current = new Worker(new URL('../utils/worker.js', import.meta.url), {
-        type: 'module'
-      });
-    }
-
-    const onMessage = (e) => {
-      switch (e.data.status) {
-        case 'ffmpeg_loading':
-          setStatus('Carregando FFmpeg...');
-          break;
-        case 'ffmpeg_ready':
-          setStatus('FFmpeg carregado.');
-          break;
-        case 'transcriber_loading':
-          setStatus('Carregando modelo de transcrição...');
-          break;
-        case 'transcriber_ready':
-          setStatus('Modelo de transcrição carregado.');
-          setWorkerReady(true);
-          break;
-        case 'audio_downloading':
-          setStatus('Baixando áudio...');
-          break;
-        case 'audio_converting':
-          setStatus('Convertendo áudio...');
-          break;
-        case 'transcribing':
-          setStatus('Transcrevendo áudio...');
-          break;
-        case 'complete':
-          setTranscription(e.data.output);
-          setVideoDuration(e.data.duration);
-          setStatus('Transcrição concluída.');
-          setIsTranscribing(false);
-          break;
-        case 'error':
-          setError(e.data.error);
-          setStatus('Ocorreu um erro.');
-          setIsTranscribing(false);
-          break;
-        default:
-          break;
-      }
-    };
-
-    worker.current.addEventListener('message', onMessage);
-
-    worker.current.postMessage({ type: 'INIT' });
-
-    return () => {
-      worker.current.removeEventListener('message', onMessage);
-      worker.current.terminate();
-    };
-  }, []);
-
   const handleBack = () => {
     navigate('/');
   };
 
   const handleTranscribe = async () => {
-    if (!videoUrl) {
-      alert('Por favor, insira a URL de um vídeo.');
-      return;
-    }
     setIsTranscribing(true);
     setTranscription('');
     setError(null);
     setStatus('Iniciando...');
 
     try {
-      if (existingTranscriptionRaw) {
-        const extracted = extractAudioTranscription(existingTranscriptionRaw);
-        if (extracted) {
-          setTranscription(extracted);
-          setStatus('Transcrição extraída do texto fornecido.');
-          setIsTranscribing(false);
-          return;
-        } else {
-          toast.info('Nenhuma "[TRANSCRIÇÃO DE ÁUDIO]:" encontrada. Realizando transcrição local...');
-        }
+      if (!existingTranscriptionRaw) {
+        throw new Error('Por favor, forneça o texto contendo a "[TRANSCRIÇÃO DE ÁUDIO]:"');
       }
 
-      const result = await transcribeUrl(videoUrl);
-      setTranscription(result.output);
-      setVideoDuration(result.duration);
-      setStatus('Transcrição concluída.');
+      const extracted = extractAudioTranscription(existingTranscriptionRaw);
+      if (extracted) {
+        setTranscription(extracted);
+        setStatus('Transcrição extraída do texto fornecido.');
+      } else {
+        throw new Error('Nenhuma "[TRANSCRIÇÃO DE ÁUDIO]:" encontrada no texto fornecido.');
+      }
     } catch (e) {
       setError(e.message);
       setStatus('Ocorreu um erro.');
+      toast.error(e.message);
     } finally {
       setIsTranscribing(false);
     }
-  };
-
-  const transcribeUrl = async (url, nameForStatus = null) => {
-    let finalUrl = url;
-
-    // --- Direct Fetch Attempt (Bypass Proxy if possible) ---
-    // We only try direct fetch for SAME-ORIGIN or specific storage domains known to allow CORS.
-    // Most external domains (Instagram, CoCreators App) have restrictive CORS policies.
-    // We skip the direct attempt for these to avoid redundant console errors.
-    const urlObj = new URL(url);
-    const isSameOrigin = urlObj.origin === window.location.origin;
-    const isVercelBlob = url.includes('blob.vercel-storage.com');
-
-    // Domains known to NOT allow CORS from copoc.vercel.app
-    const isRestrictedSource =
-        url.includes('cdninstagram.com') ||
-        url.includes('fbcdn.net') ||
-        url.includes('instagram.com');
-
-    const shouldTryDirect = isSameOrigin || isVercelBlob || !isRestrictedSource;
-
-    if (shouldTryDirect) {
-      try {
-        const directResponse = await fetch(url, { method: 'HEAD', mode: 'cors' });
-        if (directResponse.ok) {
-          console.log(`[Transcription] Direct access successful for ${url}. Bypassing proxy.`);
-          finalUrl = url;
-        } else {
-          throw new Error('Direct access failed, using proxy.');
-        }
-      } catch (e) {
-        console.log(`[Transcription] Direct access failed for ${url}. Falling back to proxy.`);
-        finalUrl = new URL(`/api/proxy-download?url=${encodeURIComponent(url)}`, window.location.origin).href;
-      }
-    } else {
-      console.log(`[Transcription] Source ${urlObj.hostname} is likely CORS-restricted. Using proxy directly.`);
-      finalUrl = new URL(`/api/proxy-download?url=${encodeURIComponent(url)}`, window.location.origin).href;
-    }
-
-    return new Promise((resolve, reject) => {
-      const onMessage = (e) => {
-        switch (e.data.status) {
-          case 'complete':
-            worker.current.removeEventListener('message', onMessage);
-            resolve({ output: e.data.output, duration: e.data.duration });
-            break;
-          case 'error':
-            worker.current.removeEventListener('message', onMessage);
-            reject(new Error(e.data.error));
-            break;
-          default:
-            if (nameForStatus) {
-              setBulkStatus(`Processando: ${nameForStatus} (${e.data.status})`);
-            }
-            break;
-        }
-      };
-      worker.current.addEventListener('message', onMessage);
-
-      worker.current.postMessage({
-        audio: finalUrl,
-        language: 'portuguese',
-        task: 'transcribe',
-      });
-    });
   };
 
   const handleFileUpload = (e) => {
@@ -507,7 +374,7 @@ const EvaluationsPage = () => {
       const nameParts = nameCol.trim().split(/\s+/).filter(p => p.length > 0);
       const firstWord = nameParts[0] || '';
       const lastWord = nameParts.length > 0 ? nameParts[nameParts.length - 1] : '';
-      const name = `${challengeId}${rowNum}${firstWord}${lastWord}`;
+      const name = `${transcriptionName}${challengeId}${rowNum}${firstWord}${lastWord}`;
 
       setBulkStatus(`Processando: ${name} (Iniciando)`);
 
@@ -541,17 +408,7 @@ const EvaluationsPage = () => {
         }
 
         if (!isTranscriptionProvided) {
-          console.log(`[Bulk] Processando linha ${i + 1}:`, { name, videoUrl, caption });
-          setBulkStatus(`Processando: ${name} (Mídia: ${videoUrl})`);
-
-          // 1. Transcribe
-          try {
-            const result = await transcribeUrl(videoUrl, name);
-            transcriptionText = result.output;
-            duration = result.duration;
-          } catch (err) {
-            throw err;
-          }
+          throw new Error('Transcrição não encontrada na planilha.');
         }
 
         const wordCount = !transcriptionText ? 0 : getWordCount(transcriptionText);
@@ -560,47 +417,23 @@ const EvaluationsPage = () => {
         // 2. Evaluate
         let evaluation = null;
         if (wordCount >= 20) {
-          if (processingMode === 'individual') {
-            console.log(`[Bulk] Avaliando: ${name}`);
-            setBulkStatus(`Avaliando: ${name}`);
-            evaluation = await evaluateWithRetry(transcriptionText, caption, name);
-            evaluation = sanitizeEvaluation(evaluation);
+          console.log(`[Bulk] Adicionando para avaliação agrupada: ${name}`);
+          setBulkStatus(`Processando: ${name} (Agrupando para IA)`);
+          pendingEvaluations.push({
+            id: name,
+            transcription: transcriptionText,
+            duration: duration,
+            caption: caption || '',
+            row: row
+          });
 
-            if (isVideoTooLong && evaluation) {
-              if (evaluation.avaliacoes) {
-                evaluation.avaliacoes = evaluation.avaliacoes.map(av => ({
-                  ...av,
-                  nota: 1,
-                  status: "RUIM"
-                }));
-              }
-              const prefix = "[VÍDEO REJEITADO: Duração superior a 1 minuto] ";
-              if (evaluation.feedback_consolidado && evaluation.feedback_consolidado.texto && !evaluation.feedback_consolidado.texto.startsWith(prefix)) {
-                 evaluation.feedback_consolidado.texto = prefix + evaluation.feedback_consolidado.texto;
-              }
-              if (evaluation.score_final && evaluation.avaliacoes) {
-                evaluation.score_final.pontuacao_obtida = evaluation.avaliacoes.reduce((acc, curr) => acc + (Number(curr.nota) || 0), 0);
-              }
-            }
-          } else {
-            console.log(`[Bulk] Adicionando para avaliação agrupada: ${name}`);
-            setBulkStatus(`Transcrevendo: ${name} (Agrupando para IA)`);
-            pendingEvaluations.push({
-              id: name,
-              transcription: transcriptionText,
-              duration: duration,
-              caption: caption || '',
-              row: row
-            });
-
-            if (pendingEvaluations.length >= CHUNK_SIZE) {
-              await processChunk(pendingEvaluations);
-              pendingEvaluations = [];
-              // Delay after a chunk
-              for (let s = 2; s > 0; s--) {
-                setBulkStatus(`Aguardando ${s}s para o próximo lote de IA...`);
-                await new Promise(resolve => setTimeout(resolve, 1000));
-              }
+          if (pendingEvaluations.length >= CHUNK_SIZE) {
+            await processChunk(pendingEvaluations);
+            pendingEvaluations = [];
+            // Delay after a chunk
+            for (let s = 2; s > 0; s--) {
+              setBulkStatus(`Aguardando ${s}s para o próximo lote de IA...`);
+              await new Promise(resolve => setTimeout(resolve, 1000));
             }
           }
         } else {
@@ -675,7 +508,7 @@ const EvaluationsPage = () => {
     }
 
     // --- Final Grouped Evaluation Processing (Remaining items) ---
-    if (processingMode === 'grouped' && pendingEvaluations.length > 0) {
+    if (pendingEvaluations.length > 0) {
       await processChunk(pendingEvaluations);
       pendingEvaluations = [];
     }
@@ -939,27 +772,6 @@ const EvaluationsPage = () => {
             Processamento em Massa (Carga de Planilha)
           </Typography>
 
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="subtitle2" gutterBottom>Modo de Avaliação pela IA:</Typography>
-            <RadioGroup
-              row
-              value={processingMode}
-              onChange={(e) => setProcessingMode(e.target.value)}
-              disabled={isBulkProcessing}
-            >
-              <FormControlLabel
-                value="individual"
-                control={<Radio size="small" />}
-                label={<Typography variant="body2">Individual (Avaliar após cada transcrição)</Typography>}
-              />
-              <FormControlLabel
-                value="grouped"
-                control={<Radio size="small" />}
-                label={<Typography variant="body2">Agrupado (Transcrever tudo e avaliar em um único prompt)</Typography>}
-              />
-            </RadioGroup>
-          </Box>
-
           <Box sx={{ mb: 2 }}>
             <input
               accept=".xlsx, .xls, .csv"
@@ -985,7 +797,7 @@ const EvaluationsPage = () => {
             variant="contained"
             color="secondary"
             onClick={handleBulkProcess}
-            disabled={isBulkProcessing || bulkData.length === 0 || !selectedBriefingId || !workerReady}
+            disabled={isBulkProcessing || bulkData.length === 0 || !selectedBriefingId}
             fullWidth
           >
             {isBulkProcessing ? 'Processando...' : 'Iniciar Processamento em Massa'}
@@ -1005,32 +817,8 @@ const EvaluationsPage = () => {
           )}
         </Paper>
 
-        <Paper elevation={2} sx={{ p: 2, mb: 3 }}>
-            <Typography variant="h6" gutterBottom>Status do Sistema</Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                <Typography variant="body1" sx={{ minWidth: '200px' }}><strong>Cross-Origin Isolation:</strong></Typography>
-                {crossOriginIsolated ? (
-                    <Typography color="green" sx={{ fontWeight: 'bold' }}>✅ Habilitado</Typography>
-                ) : (
-                    <Typography color="error" sx={{ fontWeight: 'bold' }}>❌ Desabilitado (Headers ausentes)</Typography>
-                )}
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                <Typography variant="body1" sx={{ minWidth: '200px' }}><strong>Worker de Transcrição:</strong></Typography>
-                {workerReady ? (
-                    <Typography color="green" sx={{ fontWeight: 'bold' }}>✅ Pronto</Typography>
-                ) : (
-                    <Typography color="orange" sx={{ fontWeight: 'bold' }}>⏳ Carregando...</Typography>
-                )}
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Typography variant="body1" sx={{ minWidth: '200px' }}><strong>Progresso:</strong></Typography>
-                <Typography>{status}</Typography>
-            </Box>
-        </Paper>
-
         <Typography variant="body1" gutterBottom>
-          Insira a URL do vídeo que você deseja transcrever. O áudio será extraído e transcrito para texto.
+          Insira a URL do vídeo e cole a transcrição recebida.
         </Typography>
         <TextField
           label="URL do Vídeo"
@@ -1039,7 +827,7 @@ const EvaluationsPage = () => {
           value={videoUrl}
           onChange={(e) => setVideoUrl(e.target.value)}
           sx={{ my: 2 }}
-          disabled={isTranscribing || !workerReady || isBulkProcessing}
+          disabled={isTranscribing || isBulkProcessing}
         />
 
         <FormControl fullWidth sx={{ mb: 2 }} disabled={isTranscribing || isBulkProcessing}>
@@ -1051,7 +839,7 @@ const EvaluationsPage = () => {
             onChange={(e) => setSelectedBriefingId(e.target.value)}
           >
             <MenuItem value=""><em>Nenhum</em></MenuItem>
-            {briefings.map((b) => (
+            {[...briefings].sort((a, b) => a.name.localeCompare(b.name)).map((b) => (
               <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>
             ))}
           </Select>
@@ -1087,8 +875,8 @@ const EvaluationsPage = () => {
         />
 
         <TextField
-          label="Transcrição Existente (Opcional)"
-          placeholder="Cole aqui o texto contendo [TRANSCRIÇÃO DE ÁUDIO]: para evitar a transcrição local"
+          label="Transcrição da Planilha"
+          placeholder="Cole aqui o texto contendo [TRANSCRIÇÃO DE ÁUDIO]:"
           variant="outlined"
           fullWidth
           multiline
@@ -1103,12 +891,12 @@ const EvaluationsPage = () => {
           variant="contained"
           color="primary"
           onClick={handleTranscribe}
-          disabled={isTranscribing || !workerReady || !videoUrl || isBulkProcessing}
+          disabled={isTranscribing || !videoUrl || isBulkProcessing}
           fullWidth
           size="large"
           sx={{ mb: 2 }}
         >
-          {isTranscribing ? <CircularProgress size={24} color="inherit" /> : 'Transcrever'}
+          {isTranscribing ? <CircularProgress size={24} color="inherit" /> : 'Extrair Transcrição'}
         </Button>
 
         {error && (
