@@ -33,6 +33,7 @@ const EvaluationsPage = () => {
   const [selectedBriefingId, setSelectedBriefingId] = useState('');
   const [captionText, setCaptionText] = useState('');
   const [transcription, setTranscription] = useState('');
+  const [videoDuration, setVideoDuration] = useState(0);
   const [existingTranscriptionRaw, setExistingTranscriptionRaw] = useState('');
   const [status, setStatus] = useState('Aguardando...');
   const [workerReady, setWorkerReady] = useState(false);
@@ -65,6 +66,7 @@ const EvaluationsPage = () => {
         const data = selected.transcription_data || {};
         setCaptionText(data.captionText || '');
         setTranscription(data.transcription || '');
+        setVideoDuration(data.videoDuration || 0);
         setExistingTranscriptionRaw('');
         setEvaluationResult(data.evaluationResult || null);
         setUserEvaluation(data.userEvaluation || null);
@@ -75,6 +77,7 @@ const EvaluationsPage = () => {
       setSelectedBriefingId('');
       setCaptionText('');
       setTranscription('');
+      setVideoDuration(0);
       setExistingTranscriptionRaw('');
       setEvaluationResult(null);
       setUserEvaluation(null);
@@ -121,6 +124,7 @@ const EvaluationsPage = () => {
           break;
         case 'complete':
           setTranscription(e.data.output);
+          setVideoDuration(e.data.duration);
           setStatus('Transcrição concluída.');
           setIsTranscribing(false);
           break;
@@ -171,18 +175,13 @@ const EvaluationsPage = () => {
         }
       }
 
-      const output = await transcribeUrl(videoUrl);
-      setTranscription(output);
+      const result = await transcribeUrl(videoUrl);
+      setTranscription(result.output);
+      setVideoDuration(result.duration);
       setStatus('Transcrição concluída.');
     } catch (e) {
-      if (e.message === 'VIDEO_TOO_LONG') {
-        setTranscription('[VÍDEO REJEITADO POR DURAÇÃO]');
-        setStatus('Vídeo rejeitado por duração.');
-        toast.warning('O vídeo tem mais de 1:00 de duração e foi rejeitado.');
-      } else {
-        setError(e.message);
-        setStatus('Ocorreu um erro.');
-      }
+      setError(e.message);
+      setStatus('Ocorreu um erro.');
     } finally {
       setIsTranscribing(false);
     }
@@ -230,7 +229,7 @@ const EvaluationsPage = () => {
         switch (e.data.status) {
           case 'complete':
             worker.current.removeEventListener('message', onMessage);
-            resolve(e.data.output);
+            resolve({ output: e.data.output, duration: e.data.duration });
             break;
           case 'error':
             worker.current.removeEventListener('message', onMessage);
@@ -432,11 +431,32 @@ const EvaluationsPage = () => {
             console.log(`[Bulk Grouped] Salvando: ${item.id}`);
             setBulkStatus(`Salvando Avaliação: ${item.id}`);
 
+            const isVideoTooLong = item.duration > 60;
+            let finalEval = evalResult ? { ...evalResult } : null;
+
+            if (isVideoTooLong && finalEval) {
+              if (finalEval.avaliacoes) {
+                finalEval.avaliacoes = finalEval.avaliacoes.map(av => ({
+                  ...av,
+                  nota: 1,
+                  status: "RUIM"
+                }));
+              }
+              const prefix = "[VÍDEO REJEITADO: Duração superior a 1 minuto] ";
+              if (finalEval.feedback_consolidado && finalEval.feedback_consolidado.texto && !finalEval.feedback_consolidado.texto.startsWith(prefix)) {
+                 finalEval.feedback_consolidado.texto = prefix + finalEval.feedback_consolidado.texto;
+              }
+              if (finalEval.score_final && finalEval.avaliacoes) {
+                finalEval.score_final.pontuacao_obtida = finalEval.avaliacoes.reduce((acc, curr) => acc + (Number(curr.nota) || 0), 0);
+              }
+            }
+
             const transcriptionData = {
               captionText: item.caption,
               transcription: item.transcription,
-              evaluationResult: evalResult,
-              userEvaluation: evalResult,
+              videoDuration: item.duration,
+              evaluationResult: finalEval,
+              userEvaluation: finalEval,
             };
             await saveTranscription(item.id, (item.row['URL'] || '').trim(), selectedBriefingId, transcriptionData);
 
@@ -504,7 +524,7 @@ const EvaluationsPage = () => {
         const existingTranscriptionRaw = findColumn(row, 'Transcrição') || findColumn(row, 'Transcrição '); // Handle potential trailing space in header
 
         let transcriptionText = '';
-        let isVideoTooLong = false;
+        let duration = 0;
         let isTranscriptionProvided = false;
 
         if (existingTranscriptionRaw) {
@@ -514,7 +534,7 @@ const EvaluationsPage = () => {
             isTranscriptionProvided = true;
             console.log(`[Bulk] Transcrição extraída com sucesso para ${name}:`, transcriptionText.substring(0, 100) + '...');
           } else {
-            console.warn(`[Bulk] Tag [TRANSCRIÇÃO DE ÁUDIO]: não encontrada no texto da planilha para ${name}.`);
+            console.warn(`[Bulk] Tag de transcrição não encontrada no texto da planilha para ${name}.`);
           }
         } else {
           console.log(`[Bulk] Nenhuma coluna 'Transcrição' encontrada ou preenchida para ${name}.`);
@@ -526,46 +546,49 @@ const EvaluationsPage = () => {
 
           // 1. Transcribe
           try {
-            transcriptionText = await transcribeUrl(videoUrl, name);
+            const result = await transcribeUrl(videoUrl, name);
+            transcriptionText = result.output;
+            duration = result.duration;
           } catch (err) {
-            if (err.message === 'VIDEO_TOO_LONG') {
-              isVideoTooLong = true;
-              transcriptionText = '[VÍDEO REJEITADO POR DURAÇÃO]';
-            } else {
-              throw err;
-            }
+            throw err;
           }
         }
 
-        const wordCount = (isVideoTooLong || !transcriptionText) ? 0 : getWordCount(transcriptionText);
+        const wordCount = !transcriptionText ? 0 : getWordCount(transcriptionText);
+        const isVideoTooLong = duration > 60;
 
         // 2. Evaluate
         let evaluation = null;
-        if (isVideoTooLong) {
-          console.log(`[Bulk] Reprovando automaticamente (vídeo muito longo > 1:00): ${name}`);
-          setBulkStatus(`Reprovando: ${name} (Vídeo longo)`);
-          evaluation = {
-            avaliacoes: [
-              { id_criterio: 1, nome: "Key Message / Mensagem Principal", nota: 1, status: "RUIM", comentario: "O vídeo tem mais de 1:00 de duração.", detalhes_ausentes: "Duração excedida" },
-              { id_criterio: 3, nome: "Branding (Do’s & Don’ts)", nota: 1, status: "RUIM", comentario: "O vídeo tem mais de 1:00 de duração.", detalhes_ausentes: "Duração excedida" },
-              { id_criterio: 4, nome: "Criatividade", nota: 1, status: "RUIM", comentario: "O vídeo tem mais de 1:00 de duração.", detalhes_ausentes: "Duração excedida" },
-              { id_criterio: 7, nome: "Call to Action (CTA)", nota: 1, status: "RUIM", comentario: "O vídeo tem mais de 1:00 de duração.", detalhes_ausentes: "Duração excedida" }
-            ],
-            score_final: { pontuacao_obtida: 4, pontuacao_maxima: 12 },
-            feedback_consolidado: { texto: `Reprovado. O vídeo tem mais de 1:00 de duração.` }
-          };
-        } else if (wordCount >= 20) {
+        if (wordCount >= 20) {
           if (processingMode === 'individual') {
             console.log(`[Bulk] Avaliando: ${name}`);
             setBulkStatus(`Avaliando: ${name}`);
             evaluation = await evaluateWithRetry(transcriptionText, caption, name);
             evaluation = sanitizeEvaluation(evaluation);
+
+            if (isVideoTooLong && evaluation) {
+              if (evaluation.avaliacoes) {
+                evaluation.avaliacoes = evaluation.avaliacoes.map(av => ({
+                  ...av,
+                  nota: 1,
+                  status: "RUIM"
+                }));
+              }
+              const prefix = "[VÍDEO REJEITADO: Duração superior a 1 minuto] ";
+              if (evaluation.feedback_consolidado && evaluation.feedback_consolidado.texto && !evaluation.feedback_consolidado.texto.startsWith(prefix)) {
+                 evaluation.feedback_consolidado.texto = prefix + evaluation.feedback_consolidado.texto;
+              }
+              if (evaluation.score_final && evaluation.avaliacoes) {
+                evaluation.score_final.pontuacao_obtida = evaluation.avaliacoes.reduce((acc, curr) => acc + (Number(curr.nota) || 0), 0);
+              }
+            }
           } else {
             console.log(`[Bulk] Adicionando para avaliação agrupada: ${name}`);
             setBulkStatus(`Transcrevendo: ${name} (Agrupando para IA)`);
             pendingEvaluations.push({
               id: name,
               transcription: transcriptionText,
+              duration: duration,
               caption: caption || '',
               row: row
             });
@@ -595,6 +618,14 @@ const EvaluationsPage = () => {
           };
         }
 
+        // Apply duration warning even for auto-rejected (short) items if duration is known
+        if (isVideoTooLong && evaluation) {
+          const prefix = "[VÍDEO REJEITADO: Duração superior a 1 minuto] ";
+          if (evaluation.feedback_consolidado && evaluation.feedback_consolidado.texto && !evaluation.feedback_consolidado.texto.startsWith(prefix)) {
+            evaluation.feedback_consolidado.texto = prefix + evaluation.feedback_consolidado.texto;
+          }
+        }
+
         // 3. Save (Immediate for individual mode or auto-rejected items)
         if (evaluation) {
           console.log(`[Bulk] Salvando: ${name}`);
@@ -602,6 +633,7 @@ const EvaluationsPage = () => {
           const transcriptionData = {
             captionText: caption || '',
             transcription: transcriptionText,
+            videoDuration: duration,
             evaluationResult: evaluation,
             userEvaluation: evaluation,
           };
@@ -685,21 +717,9 @@ const EvaluationsPage = () => {
     try {
       let result;
       const wordCount = getWordCount(transcription);
-      const isVideoTooLong = transcription === '[VÍDEO REJEITADO POR DURAÇÃO]';
+      const isVideoTooLong = videoDuration > 60;
 
-      if (isVideoTooLong) {
-        result = {
-          avaliacoes: [
-            { id_criterio: 1, nome: "Key Message / Mensagem Principal", nota: 1, status: "RUIM", comentario: "O vídeo tem mais de 1:00 de duração.", detalhes_ausentes: "Duração excedida" },
-            { id_criterio: 3, nome: "Branding (Do’s & Don’ts)", nota: 1, status: "RUIM", comentario: "O vídeo tem mais de 1:00 de duração.", detalhes_ausentes: "Duração excedida" },
-            { id_criterio: 4, nome: "Criatividade", nota: 1, status: "RUIM", comentario: "O vídeo tem mais de 1:00 de duração.", detalhes_ausentes: "Duração excedida" },
-            { id_criterio: 7, nome: "Call to Action (CTA)", nota: 1, status: "RUIM", comentario: "O vídeo tem mais de 1:00 de duração.", detalhes_ausentes: "Duração excedida" }
-          ],
-          score_final: { pontuacao_obtida: 4, pontuacao_maxima: 12 },
-          feedback_consolidado: { texto: `Reprovado. O vídeo tem mais de 1:00 de duração.` }
-        };
-        toast.warning(`Vídeo muito longo (>1:00). Reprovando automaticamente.`);
-      } else if (wordCount >= 20) {
+      if (wordCount >= 20) {
         geminiAPI.initialize(user.gemini_api_key);
 
         const evaluateWithRetry = async () => {
@@ -755,6 +775,24 @@ const EvaluationsPage = () => {
             return av;
           });
         }
+
+        if (isVideoTooLong && result) {
+          if (result.avaliacoes) {
+            result.avaliacoes = result.avaliacoes.map(av => ({
+              ...av,
+              nota: 1,
+              status: "RUIM"
+            }));
+          }
+          const prefix = "[VÍDEO REJEITADO: Duração superior a 1 minuto] ";
+          if (result.feedback_consolidado && result.feedback_consolidado.texto && !result.feedback_consolidado.texto.startsWith(prefix)) {
+             result.feedback_consolidado.texto = prefix + result.feedback_consolidado.texto;
+          }
+          if (result.score_final && result.avaliacoes) {
+            result.score_final.pontuacao_obtida = result.avaliacoes.reduce((acc, curr) => acc + (Number(curr.nota) || 0), 0);
+          }
+          toast.warning(`Vídeo muito longo (>1:00). Avaliado e marcado como reprovado.`);
+        }
       } else {
         result = {
           avaliacoes: [
@@ -768,6 +806,14 @@ const EvaluationsPage = () => {
         };
         toast.warning(`Transcrição muito curta (${wordCount} palavras). Reprovando automaticamente.`);
       }
+      // Apply duration warning even for auto-rejected (short) items if duration is known
+      if (isVideoTooLong && result) {
+        const prefix = "[VÍDEO REJEITADO: Duração superior a 1 minuto] ";
+        if (result.feedback_consolidado && result.feedback_consolidado.texto && !result.feedback_consolidado.texto.startsWith(prefix)) {
+          result.feedback_consolidado.texto = prefix + result.feedback_consolidado.texto;
+        }
+      }
+
       setEvaluationResult(result);
       setUserEvaluation(JSON.parse(JSON.stringify(result)));
     } catch (e) {
@@ -822,6 +868,7 @@ const EvaluationsPage = () => {
     const transcriptionData = {
       captionText,
       transcription,
+      videoDuration,
       evaluationResult,
       userEvaluation,
     };
