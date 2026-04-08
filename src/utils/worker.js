@@ -165,12 +165,6 @@ class MediaAIService {
         const pcmData = new Int16Array(wavData.buffer.slice(44));
         const durationSeconds = pcmData.length / 16000;
 
-        if (durationSeconds > 60) {
-            await this.ffmpeg.deleteFile(inputFileName);
-            await this.ffmpeg.deleteFile(outputFileName);
-            throw new Error('VIDEO_TOO_LONG');
-        }
-
         const floatData = new Float32Array(pcmData.length);
         for (let i = 0; i < pcmData.length; i++) {
             floatData[i] = pcmData[i] / 32768.0;
@@ -186,7 +180,7 @@ class MediaAIService {
 
         await this.ffmpeg.deleteFile(inputFileName);
         await this.ffmpeg.deleteFile(outputFileName);
-        return output.text;
+        return { text: output.text, duration: durationSeconds };
     }
 
     async translate(text, src_lang, tgt_lang) {
@@ -259,8 +253,8 @@ self.addEventListener('message', async (event) => {
                 throw new Error('Worker not initialized. Send INIT message first.');
             }
             const { audio: audioUrl, language, task } = event.data;
-            const transcription = await service.transcribe(audioUrl, language, task);
-            self.postMessage({ status: 'complete', output: transcription });
+            const result = await service.transcribe(audioUrl, language, task);
+            self.postMessage({ status: 'complete', output: result.text, duration: result.duration });
         } catch (error) {
             console.error('Error in worker during transcription:', error);
             self.postMessage({
