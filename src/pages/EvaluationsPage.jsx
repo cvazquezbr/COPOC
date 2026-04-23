@@ -271,9 +271,12 @@ const EvaluationsPage = () => {
 
       const sanitized = { ...evalResult };
       const config = LANGUAGE_CONFIG[selectedLanguage];
+      const missingDetailsKey = config.jsonKeys.missingDetails;
+
       sanitized.avaliacoes = sanitized.avaliacoes.map(av => {
         if (av.nota === 3 || av.status === config.statuses.OTIMO) {
-          return { ...av, detalhes_ausentes: '' };
+          // Use bracket notation to handle both 'detalhes_ausentes' and 'detalles_ausentes'
+          return { ...av, [missingDetailsKey]: '' };
         }
         return av;
       });
@@ -678,7 +681,9 @@ const EvaluationsPage = () => {
 
   const handleUpdateEvaluation = (index, field, value) => {
     const updatedAvaliacoes = [...userEvaluation.avaliacoes];
-    updatedAvaliacoes[index] = { ...updatedAvaliacoes[index], [field]: value };
+    const config = LANGUAGE_CONFIG[selectedLanguage];
+    const fieldName = field === 'detalhes_ausentes' ? config.jsonKeys.missingDetails : field;
+    updatedAvaliacoes[index] = { ...updatedAvaliacoes[index], [fieldName]: value };
 
     let updatedScore = userEvaluation.score_final.pontuacao_obtida;
     if (field === 'nota') {
@@ -978,6 +983,8 @@ const EvaluationsPage = () => {
             <Box sx={{ mb: 4 }}>
               {userEvaluation.avaliacoes.map((av, index) => {
                 const aiAv = evaluationResult?.avaliacoes?.[index];
+                const config = LANGUAGE_CONFIG[selectedLanguage];
+                const missingDetailsKey = config.jsonKeys.missingDetails;
                 return (
                   <Paper variant="outlined" key={av.id_criterio} sx={{ p: 2, mb: 2, bgcolor: 'background.paper' }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
@@ -1055,17 +1062,17 @@ const EvaluationsPage = () => {
                           multiline
                           fullWidth
                           minRows={3}
-                          value={av.detalhes_ausentes || ''}
+                          value={av[missingDetailsKey] || ''}
                           onChange={(e) => handleUpdateEvaluation(index, 'detalhes_ausentes', e.target.value)}
                           variant="outlined"
                           size="small"
                           color="error"
-                          focused={!!av.detalhes_ausentes}
+                          focused={!!av[missingDetailsKey]}
                         />
-                        {aiAv && (av.detalhes_ausentes !== aiAv.detalhes_ausentes) && (
+                        {aiAv && (av[missingDetailsKey] !== aiAv[missingDetailsKey]) && (
                            <Box sx={{ mt: 1, p: 1, bgcolor: 'action.hover', borderRadius: 1, borderLeft: '3px solid', borderColor: 'error.light' }}>
                              <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 'bold', display: 'block' }}>IA Original (Ausente):</Typography>
-                             <Typography variant="caption" color="textSecondary">{aiAv.detalhes_ausentes || '(nada identificado)'}</Typography>
+                             <Typography variant="caption" color="textSecondary">{aiAv[missingDetailsKey] || '(nada identificado)'}</Typography>
                            </Box>
                         )}
                       </Grid>

@@ -47,10 +47,11 @@ export const flattenEvaluation = (evaluation, language = 'pt-br') => {
   if (evaluation && evaluation.avaliacoes) {
     evaluation.avaliacoes.forEach(av => {
       const prefix = av.nome.split('/')[0].trim();
+      const missingDetailsKey = config.jsonKeys.missingDetails;
       flat[`${prefix} - ${labels.nota}`] = av.nota;
       flat[`${prefix} - ${labels.status}`] = av.status;
       flat[`${prefix} - ${labels.comentario}`] = av.comentario;
-      flat[`${prefix} - ${labels.detalhesAusentes}`] = av.detalhes_ausentes;
+      flat[`${prefix} - ${labels.detalhesAusentes}`] = av[missingDetailsKey];
     });
     flat[labels.scoreFinal] = `${evaluation.score_final?.pontuacao_obtida} / ${evaluation.score_final?.pontuacao_maxima}`;
     flat[labels.feedbackConsolidado] = evaluation.feedback_consolidado?.texto;
