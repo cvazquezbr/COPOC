@@ -8,8 +8,8 @@ export const LANGUAGE_CONFIG = {
   'pt-br': {
     columns: {
       url: ['URL'],
-      challengeId: ['Challenge ID'],
-      name: ['Name', 'Nome'],
+      challengeId: ['ID da missão', 'ID da mídia', 'Challenge ID'],
+      name: ['Nome', 'Nome social', 'Name'],
       status: ['Status'],
       caption: ['Legenda', 'Caption'],
       transcription: ['Transcrição', 'Transcrição ', 'Transcription'],
@@ -49,8 +49,8 @@ export const LANGUAGE_CONFIG = {
   'en-us': {
     columns: {
       url: ['URL'],
-      challengeId: ['Challenge ID'],
-      name: ['Name'],
+      challengeId: ['Mission ID', 'Media ID', 'Challenge ID'],
+      name: ['Name', 'Preferred name'],
       status: ['Status'],
       caption: ['Caption', 'Legenda'],
       transcription: ['Transcription', 'Transcrição', 'Transcrição '],
@@ -90,10 +90,10 @@ export const LANGUAGE_CONFIG = {
   'es-la': {
     columns: {
       url: ['URL'],
-      challengeId: ['ID de desafío', 'Challenge ID'],
-      name: ['Nombre', 'Name'],
+      challengeId: ['ID de la misión', 'ID del contenido', 'ID de desafío', 'Challenge ID'],
+      name: ['Nombre', 'Nombre social', 'Name'],
       status: ['Estado', 'Status'],
-      caption: ['Leyenda', 'Subtítulo', 'Legenda', 'Caption'],
+      caption: ['Descripción', 'Leyenda', 'Subtítulo', 'Legenda', 'Caption'],
       transcription: ['Transcripción', 'Transcrição', 'Transcrição ', 'Transcription'],
     },
     criteria: {

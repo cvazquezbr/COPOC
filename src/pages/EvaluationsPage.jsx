@@ -447,12 +447,13 @@ const EvaluationsPage = () => {
           console.log(`[Bulk] Reprovando automaticamente (transcrição curta: ${wordCount} palavras): ${name}`);
           setBulkStatus(`Reprovando: ${name} (Mídia curta)`);
           const config = LANGUAGE_CONFIG[selectedLanguage];
+          const missingDetailsKey = config.jsonKeys.missingDetails;
           evaluation = {
             avaliacoes: [
-              { id_criterio: 1, nome: config.criteria[1], nota: 1, status: config.statuses.RUIM, comentario: config.messages.shortTranscription, detalhes_ausentes: config.messages.insufficientContent },
-              { id_criterio: 3, nome: config.criteria[3], nota: 1, status: config.statuses.RUIM, comentario: config.messages.shortTranscription, detalhes_ausentes: config.messages.insufficientContent },
-              { id_criterio: 4, nome: config.criteria[4], nota: 1, status: config.statuses.RUIM, comentario: config.messages.shortTranscription, detalhes_ausentes: config.messages.insufficientContent },
-              { id_criterio: 7, nome: config.criteria[7], nota: 1, status: config.statuses.RUIM, comentario: config.messages.shortTranscription, detalhes_ausentes: config.messages.insufficientContent }
+              { id_criterio: 1, nome: config.criteria[1], nota: 1, status: config.statuses.RUIM, comentario: config.messages.shortTranscription, [missingDetailsKey]: config.messages.insufficientContent },
+              { id_criterio: 3, nome: config.criteria[3], nota: 1, status: config.statuses.RUIM, comentario: config.messages.shortTranscription, [missingDetailsKey]: config.messages.insufficientContent },
+              { id_criterio: 4, nome: config.criteria[4], nota: 1, status: config.statuses.RUIM, comentario: config.messages.shortTranscription, [missingDetailsKey]: config.messages.insufficientContent },
+              { id_criterio: 7, nome: config.criteria[7], nota: 1, status: config.statuses.RUIM, comentario: config.messages.shortTranscription, [missingDetailsKey]: config.messages.insufficientContent }
             ],
             score_final: { pontuacao_obtida: 4, pontuacao_maxima: 12 },
             feedback_consolidado: { texto: config.messages.rejectedShort(wordCount) }
@@ -640,12 +641,13 @@ const EvaluationsPage = () => {
         }
       } else {
         const config = LANGUAGE_CONFIG[selectedLanguage];
+        const missingDetailsKey = config.jsonKeys.missingDetails;
         result = {
           avaliacoes: [
-            { id_criterio: 1, nome: config.criteria[1], nota: 1, status: config.statuses.RUIM, comentario: config.messages.shortTranscription, detalhes_ausentes: config.messages.insufficientContent },
-            { id_criterio: 3, nome: config.criteria[3], nota: 1, status: config.statuses.RUIM, comentario: config.messages.shortTranscription, detalhes_ausentes: config.messages.insufficientContent },
-            { id_criterio: 4, nome: config.criteria[4], nota: 1, status: config.statuses.RUIM, comentario: config.messages.shortTranscription, detalhes_ausentes: config.messages.insufficientContent },
-            { id_criterio: 7, nome: config.criteria[7], nota: 1, status: config.statuses.RUIM, comentario: config.messages.shortTranscription, detalhes_ausentes: config.messages.insufficientContent }
+            { id_criterio: 1, nome: config.criteria[1], nota: 1, status: config.statuses.RUIM, comentario: config.messages.shortTranscription, [missingDetailsKey]: config.messages.insufficientContent },
+            { id_criterio: 3, nome: config.criteria[3], nota: 1, status: config.statuses.RUIM, comentario: config.messages.shortTranscription, [missingDetailsKey]: config.messages.insufficientContent },
+            { id_criterio: 4, nome: config.criteria[4], nota: 1, status: config.statuses.RUIM, comentario: config.messages.shortTranscription, [missingDetailsKey]: config.messages.insufficientContent },
+            { id_criterio: 7, nome: config.criteria[7], nota: 1, status: config.statuses.RUIM, comentario: config.messages.shortTranscription, [missingDetailsKey]: config.messages.insufficientContent }
           ],
           score_final: { pontuacao_obtida: 4, pontuacao_maxima: 12 },
           feedback_consolidado: { texto: config.messages.rejectedShort(wordCount) }
