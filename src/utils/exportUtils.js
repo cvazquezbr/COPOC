@@ -78,11 +78,11 @@ export const exportEvaluationsToExcel = (evaluations, originalData = [], languag
 
     // Se item.row existe, estamos vindo do processamento em massa
     const baseRow = item.row || {
-      [getColumnName({}, 'challengeId', language) || 'Challenge ID']: '',
-      [getColumnName({}, 'name', language) || 'Name']: item.name || '',
-      [getColumnName({}, 'url', language) || 'URL']: item.video_url || '',
-      [getColumnName({}, 'caption', language) || 'Legenda']: data.captionText || '',
-      [getColumnName({}, 'transcription', language) || 'Transcrição']: data.transcription || item.transcription || '',
+      [getColumnName({}, 'challengeId') || 'Challenge ID']: '',
+      [getColumnName({}, 'name') || 'Name']: item.name || '',
+      [getColumnName({}, 'url') || 'URL']: item.video_url || '',
+      [getColumnName({}, 'caption') || 'Legenda']: data.captionText || '',
+      [getColumnName({}, 'transcription') || 'Transcrição']: data.transcription || item.transcription || '',
     };
 
     return {
