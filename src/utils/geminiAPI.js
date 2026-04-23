@@ -263,7 +263,7 @@ class GeminiAPI {
     }
   }
 
-  async evaluateMultipleContent(items, briefing, model) {
+  async evaluateMultipleContent(items, briefing, model, language = 'pt-br') {
     const purpose = 'Avaliação de Conteúdo Agrupada';
     const itemsJson = items.map(item => ({
       id: item.id,
@@ -271,7 +271,127 @@ class GeminiAPI {
       legenda: item.caption
     }));
 
-    const prompt = `
+    let prompt = '';
+
+    if (language === 'en-us') {
+      prompt = `
+Context: You are a content curator specialized in influencer marketing.
+Your task is to evaluate MULTIPLE materials from creators (video transcription + caption) based on a specific briefing.
+The analysis is strictly textual (ignore visual elements).
+
+INTERPRETATION GUIDELINE:
+- **DO NOT search for literal repetition of phrases**. The analysis must be intelligent and contextual.
+- Evaluate **Semantic Adherence**: The creator can and should use their own words, slang, and personal style, as long as the core concept, brand vibe, and product/service benefits described in the briefing are preserved and understandable to the audience.
+- Prioritize naturalness. If the main message was adapted to the creator's vocabulary without losing the original meaning, the score should be maximum. Do not penalize the creator for not following the script word for word.
+
+Evaluation Criteria (Scores 1 to 3):
+1. Key Message / Main Message: Was the core of the campaign conveyed? (Score 3: Concept and essence conveyed naturally, even with different words. Score 2: Concept present but mechanical/forced. Score 1: Missing the central point or total deviation from the objective).
+3. Branding (Do’s & Don’ts): Respected identity and guidelines? (Evaluate if the brand is well represented. Watch out for prohibited terms, but allow creative variations on permitted terms).
+4. Creativity: Is the content original and engaging?
+7. Call to Action (CTA): Was the final goal achieved? (Evaluate if the command invites action effectively for the audience, even if it doesn't use the exact "verb" or phrase suggested in the briefing).
+
+Business Rules:
+- Compare each item with the intent and objectives of the provided briefing.
+- The 'detalhes_ausentes' (missing details) field should only be filled if an INDISPENSABLE factual information (e.g., price, specific discount coupon, event date, mandatory link in bio) was forgotten. **NEVER use this field to point out vocabulary variations or phrases that were not said literally.**
+- CRITICAL: If a criterion's score is 3 (EXCELLENT), the 'detalhes_ausentes' field for that criterion MUST be ABSOLUTELY EMPTY (""). It is a serious logical failure to give a maximum score and point out deficiencies.
+- The tone of the consolidated feedback should be "creator to creator": light, cool, and encouraging.
+- The entire output (criteria names, statuses, comments, and consolidated feedback) MUST be in English.
+
+EXCLUSION GUIDELINE (CRITICAL):
+- COMPLETELY ignore any mention of hashtags (#) present in the briefing.
+- The use or absence of hashtags in the transcription or caption should NOT affect the scores of any criteria.
+- Do not point out missing hashtags in the 'detalhes_ausentes' field.
+
+---
+**BRIEFING:**
+${briefing}
+
+---
+**MATERIALS TO EVALUATE (JSON):**
+\`\`\`json
+${JSON.stringify(itemsJson, null, 2)}
+\`\`\`
+---
+
+Output Instruction: Your response must be exclusively a JSON object structured as follows (array of evaluations):
+
+{
+  "resultados": [
+    {
+      "id": "ID_OF_MATERIAL_HERE",
+      "avaliacoes": [
+        { "id_criterio": 1, "nome": "Key Message / Main Message", "nota": 0, "status": "BAD | GOOD | EXCELLENT", "comentario": "", "detalhes_ausentes": "" },
+        { "id_criterio": 3, "nome": "Branding (Do’s & Don’ts)", "nota": 0, "status": "BAD | GOOD | EXCELLENT", "comentario": "", "detalhes_ausentes": "" },
+        { "id_criterio": 4, "nome": "Creativity", "nota": 0, "status": "BAD | GOOD | EXCELLENT", "comentario": "", "detalhes_ausentes": "" },
+        { "id_criterio": 7, "nome": "Call to Action (CTA)", "nota": 0, "status": "BAD | GOOD | EXCELLENT", "comentario": "", "detalhes_ausentes": "" }
+      ],
+      "score_final": { "pontuacao_obtida": 0, "pontuacao_maxima": 12 },
+      "feedback_consolidado": { "texto": "" }
+    }
+  ]
+}
+`;
+    } else if (language === 'es-la') {
+      prompt = `
+Contexto: Eres un curador de contenido especializado en marketing de influencia.
+Tu tarea es evaluar VARIOS materiales de creadores (transcripción de video + subtítulo/leyenda) basados en un briefing específico.
+El análisis es estrictamente textual (ignora elementos visuales).
+
+DIRECTRIZ DE INTERPRETACIÓN:
+- **NO busques repeticiones literales de frases**. El análisis debe ser inteligente y contextual.
+- Evalúa la **Adherencia Semántica**: El creador puede y debe usar sus propias palabras, jerga y estilo personal, siempre que el concepto central, la "vibra" de la marca y los beneficios del producto/servicio descritos en el briefing se preserven y sean comprensibles para la audiencia.
+- Prioriza la naturalidad. Si el mensaje principal se adaptó al vocabulario del creador sin perder el sentido original, la puntuación debe ser máxima. No penalices al creador por no seguir el guion palabra por palabra.
+
+Criterios de Evaluación (Notas 1 a 3):
+1. Key Message / Mensaje Principal: ¿Se transmitió el núcleo de la campaña? (Nota 3: Concepto y esencia transmitidos con naturalidad, incluso con palabras diferentes. Nota 2: Concepto presente pero mecánico/forzado. Nota 1: Faltó el punto central o desviación total del objetivo).
+3. Branding (Do’s & Don’ts): ¿Respetó la identidad y las directrices? (Evalúa si la marca está bien representada. Ten cuidado con los términos prohibidos, pero permite variaciones creativas en los términos permitidos).
+4. Creatividad: ¿El contenido es original y atractivo?
+7. Call to Action (CTA): ¿Se logró el objetivo final? (Evalúa si el comando invita a la acción de manera efectiva para la audiencia, incluso si no usa el "verbo" o la frase exacta sugerida en el briefing).
+
+Reglas de Negocio:
+- Compara cada ítem con la intención y los objetivos del briefing proporcionado.
+- El campo 'detalhes_ausentes' (detalles ausentes) solo debe completarse si se olvidó una información fáctica INDISPENSABLE (ej: precio, cupón de descuento específico, fecha de evento, enlace obligatorio en la biografía). **NUNCA uses este campo para señalar variaciones de vocabulario o frases que no se dijeron literalmente.**
+- CRÍTICO: Si la nota de un criterio es 3 (EXCELENTE), el campo 'detalhes_ausentes' de ese criterio DEBE estar ABSOLUTAMENTE VACÍO (""). Es un fallo lógico grave dar la nota máxima y señalar deficiencias.
+- El tono del feedback consolidado debe ser de "creador a creador": ligero, fresco y alentador.
+- Toda la salida (nombres de criterios, estados, comentarios y feedback consolidado) DEBE estar en español.
+
+DIRECTRIZ DE EXCLUSIÓN (CRÍTICO):
+- Ignora COMPLETAMENTE cualquier mención de hashtags (#) presente en el briefing.
+- El uso o la ausencia de hashtags en la transcripción o el subtítulo NO debe afectar las notas de ningún criterio.
+- No señales hashtags ausentes en el campo 'detalhes_ausentes'.
+
+---
+**BRIEFING:**
+${briefing}
+
+---
+**MATERIALES A EVALUAR (JSON):**
+\`\`\`json
+${JSON.stringify(itemsJson, null, 2)}
+\`\`\`
+---
+
+Instrucción de Salida: Tu respuesta debe ser exclusivamente un objeto JSON estructurado de la siguiente manera (array de evaluaciones):
+
+{
+  "resultados": [
+    {
+      "id": "ID_DEL_MATERIAL_AQUI",
+      "avaliacoes": [
+        { "id_criterio": 1, "nome": "Key Message / Mensaje Principal", "nota": 0, "status": "MALO | BUENO | EXCELENTE", "comentario": "", "detalhes_ausentes": "" },
+        { "id_criterio": 3, "nome": "Branding (Do’s & Don’ts)", "nota": 0, "status": "MALO | BUENO | EXCELENTE", "comentario": "", "detalhes_ausentes": "" },
+        { "id_criterio": 4, "nome": "Creatividad", "nota": 0, "status": "MALO | BUENO | EXCELENTE", "comentario": "", "detalhes_ausentes": "" },
+        { "id_criterio": 7, "nome": "Call to Action (CTA)", "nota": 0, "status": "MALO | BUENO | EXCELENTE", "comentario": "", "detalhes_ausentes": "" }
+      ],
+      "score_final": { "pontuacao_obtida": 0, "pontuacao_maxima": 12 },
+      "feedback_consolidado": { "texto": "" }
+    }
+  ]
+}
+`;
+    } else {
+      // Default pt-br
+      prompt = `
 Contexto: Você é um curador de conteúdo especializado em marketing de influência.
 Sua tarefa é avaliar VÁRIOS materiais de creators (transcrição do vídeo + legenda) com base em um briefing específico.
 A análise é estritamente textual (ignore elementos visuais).
@@ -292,6 +412,7 @@ Regras de Negócio:
 - O campo 'detalhes_ausentes' só deve ser preenchido se uma informação fatual INDISPENSÁVEL (ex: preço, cupom de desconto específico, data de evento, link obrigatório na biografia) foi esquecida. **NUNCA use este campo para apontar variações de vocabulário ou frases que não foram ditas literalmente.**
 - CRÍTICO: Se a nota de um critério for 3 (ÓTIMO), o campo 'detalhes_ausentes' desse critério DEVE estar ABSOLUTAMENTE VAZIO (""). É uma falha lógica grave dar nota máxima e apontar faltas.
 - O tom do feedback consolidado deve ser de "creator para creator": leve, descolado e encorajador.
+- Toda a saída (nomes de critérios, status, comentários e feedback consolidado) DEVE estar em português.
 
 DIRETRIZ DE EXCLUSÃO (CRÍTICO):
 - Ignore COMPLETAMENTE qualquer menção a hashtags (#) presente no briefing.
@@ -327,6 +448,7 @@ Instrução de Saída: Sua resposta deve ser exclusivamente um objeto JSON estru
   ]
 }
 `;
+    }
 
     try {
       const responseText = await this.generateContent(prompt, model, purpose);
@@ -351,9 +473,163 @@ Instrução de Saída: Sua resposta deve ser exclusivamente um objeto JSON estru
     }
   }
 
-  async evaluateContent(transcription, caption, briefing, model) {
+  async evaluateContent(transcription, caption, briefing, model, language = 'pt-br') {
     const purpose = 'Avaliação de Conteúdo';
-    const prompt = `
+    let prompt = '';
+
+    if (language === 'en-us') {
+      prompt = `
+Context: You are a content curator specialized in influencer marketing.
+Your task is to evaluate whether a creator managed to convey the essence of a briefing in their content (transcription + caption).
+
+INTERPRETATION GUIDELINE:
+- **DO NOT search for literal repetition of phrases**. The analysis must be intelligent and contextual.
+- Evaluate **Semantic Adherence**: The creator can and should use their own words, slang, and personal style, as long as the core concept, brand vibe, and product/service benefits described in the briefing are preserved and understandable to the audience.
+- Prioritize naturalness. If the main message was adapted to the creator's vocabulary without losing the original meaning, the score should be maximum. Do not penalize the creator for not following the script word for word.
+
+Evaluation Criteria (Scores 1 to 3):
+1. Key Message / Main Message: Was the core of the campaign conveyed? (Score 3: Concept and essence conveyed naturally, even with different words. Score 2: Concept present but mechanical/forced. Score 1: Missing the central point or total deviation from the objective).
+2. Branding (Do’s & Don’ts): Respected identity and guidelines? (Evaluate if the brand is well represented. Watch out for prohibited terms, but allow creative variations on permitted terms).
+3. Creativity: Is the content original and engaging?
+4. Call to Action (CTA): Was the final goal achieved? (Evaluate if the command invites action effectively for the audience, even if it doesn't use the exact "verb" or phrase suggested in the briefing).
+
+Business Rules:
+- Compare the **intent** of the content with the objectives of the briefing.
+- The 'detalhes_ausentes' (missing details) field should only be filled if an INDISPENSABLE factual information (e.g., price, specific discount coupon, event date, mandatory link in bio) was forgotten. **NEVER use this field to point out vocabulary variations or phrases that were not said literally.**
+- CRITICAL: If a criterion's score is 3 (EXCELLENT), the 'detalhes_ausentes' field for that criterion MUST be ABSOLUTELY EMPTY (""). It is a serious logical failure to give a maximum score and point out deficiencies.
+- The tone of the consolidated feedback should be "creator to creator": light, cool, and encouraging.
+- The entire output (criteria names, statuses, comments, and consolidated feedback) MUST be in English.
+
+EXCLUSION GUIDELINE (CRITICAL):
+- COMPLETELY ignore any mention of hashtags (#) present in the briefing.
+- The use or absence of hashtags in the transcription or caption should NOT affect the scores of any criteria.
+- Do not point out missing hashtags in the 'detalhes_ausentes' field.
+---
+**DATA FOR EVALUATION:**
+
+**BRIEFING:**
+${briefing}
+
+**VIDEO TRANSCRIPTION:**
+${transcription}
+
+**CAPTION:**
+${caption}
+---
+
+Output Instruction: Your response must be exclusively a JSON object structured as follows:
+
+{
+  "avaliacoes": [
+    {
+      "id_criterio": 1,
+      "nome": "Key Message / Main Message",
+      "nota": 0,
+      "status": "BAD | GOOD | EXCELLENT",
+      "comentario": "",
+      "detalhes_ausentes": ""
+    },
+    {
+      "id_criterio": 3,
+      "nome": "Branding (Do’s & Don’ts)",
+      "nota": 0,
+      "status": "BAD | GOOD | EXCELLENT",
+      "comentario": "",
+      "detalhes_ausentes": ""
+    },
+    {
+      "id_criterio": 4,
+      "nome": "Creativity",
+      "nota": 0,
+      "status": "BAD | GOOD | EXCELLENT",
+      "comentario": "",
+      "detalhes_ausentes": ""
+    },
+    {
+      "id_criterio": 7, "nome": "Call to Action (CTA)", "nota": 0, "status": "BAD | GOOD | EXCELLENT", "comentario": "", "detalhes_ausentes": "" }
+  ],
+  "score_final": { "pontuacao_obtida": 0, "pontuacao_maxima": 12 },
+  "feedback_consolidado": { "texto": "" }
+}
+`;
+    } else if (language === 'es-la') {
+      prompt = `
+Contexto: Eres un curador de contenido especializado en marketing de influencia.
+Tu tarea es evaluar si un creador logró transmitir la esencia de un briefing en su contenido (transcripción + subtítulo/leyenda).
+
+DIRECTRIZ DE INTERPRETAÇÃO:
+- **NO busques repeticiones literales de frases**. El análisis debe ser inteligente y contextual.
+- Evalúa la **Adherencia Semántica**: El creador puede y debe usar sus propias palabras, jerga y estilo personal, siempre que el concepto central, la "vibra" de la marca y los beneficios del producto/servicio descritos en el briefing se preserven y sean comprensibles para la audiencia.
+- Prioriza la naturalidad. Si el mensaje principal se adaptó al vocabulario del creador sin perder el sentido original, la puntuación debe ser máxima. No penalices al creador por no seguir el guion palabra por palabra.
+
+Criterios de Evaluación (Notas 1 a 3):
+1. Key Message / Mensaje Principal: ¿Se transmitió el núcleo de la campaña? (Nota 3: Concepto y esencia transmitidos con naturalidad, incluso con palabras diferentes. Nota 2: Concepto presente pero mecánico/forzado. Nota 1: Faltó el punto central o desviación total del objetivo).
+2. Branding (Do’s & Don’ts): ¿Respetó la identidad y las directrices? (Evalúa si la marca está bien representada. Ten cuidado con los términos prohibidos, pero permite variaciones creativas en los términos permitidos).
+3. Creatividad: ¿El contenido es original y atractivo?
+4. Call to Action (CTA): ¿Se logró el objetivo final? (Evalúa si el comando invita a la acción de manera efectiva para la audiencia, incluso si no usa el "verbo" o la frase exacta sugerida en el briefing).
+
+Reglas de Negocio:
+- Compara la **intención** del contenido con los objetivos del briefing.
+- El campo 'detalhes_ausentes' (detalles ausentes) solo debe completarse si se olvidó una información fáctica INDISPENSABLE (ej: precio, cupón de descuento específico, fecha de evento, enlace obligatorio en la biografía). **NUNCA uses este campo para señalar variaciones de vocabulario o frases que no se dijeron literalmente.**
+- CRÍTICO: Si la nota de un criterio es 3 (EXCELENTE), el campo 'detalhes_ausentes' de ese criterio DEVE estar ABSOLUTAMENTE VACÍO (""). Es un fallo lógico grave dar la nota máxima y señalar deficiencias.
+- El tono del feedback consolidado debe ser de "creador a creador": ligero, fresco y alentador.
+- Toda la salida (nombres de criterios, estados, comentarios y feedback consolidado) DEBE estar en español.
+
+DIRECTRIZ DE EXCLUSIÓN (CRÍTICO):
+- Ignora COMPLETAMENTE cualquier mención de hashtags (#) presente en el briefing.
+- El uso o la ausencia de hashtags en la transcripción o el subtítulo NO debe afectar las notas de ningún criterio.
+- No señales hashtags ausentes en el campo 'detalhes_ausentes'.
+---
+**DATOS PARA EVALUACIÓN:**
+
+**BRIEFING:**
+${briefing}
+
+**TRANSCRIPCIÓN DE VIDEO:**
+${transcription}
+
+**SUBTÍTULO / LEYENDA:**
+${caption}
+---
+
+Instrucción de Saída: Tu respuesta debe ser exclusivamente un objeto JSON estructurado de la siguiente manera:
+
+{
+  "avaliacoes": [
+    {
+      "id_criterio": 1,
+      "nome": "Key Message / Mensaje Principal",
+      "nota": 0,
+      "status": "MALO | BUENO | EXCELENTE",
+      "comentario": "",
+      "detalhes_ausentes": ""
+    },
+    {
+      "id_criterio": 3,
+      "nome": "Branding (Do’s & Don’ts)",
+      "nota": 0,
+      "status": "MALO | BUENO | EXCELENTE",
+      "comentario": "",
+      "detalhes_ausentes": ""
+    },
+    {
+      "id_criterio": 4,
+      "nome": "Creatividad",
+      "nota": 0,
+      "status": "MALO | BUENO | EXCELENTE",
+      "comentario": "",
+      "detalhes_ausentes": ""
+    },
+    {
+      "id_criterio": 7, "nome": "Call to Action (CTA)", "nota": 0, "status": "MALO | BUENO | EXCELENTE", "comentario": "", "detalhes_ausentes": "" }
+  ],
+  "score_final": { "pontuacao_obtida": 0, "pontuacao_maxima": 12 },
+  "feedback_consolidado": { "texto": "" }
+}
+`;
+    } else {
+      // Default pt-br
+      prompt = `
 Contexto: Você é um curador de conteúdo especializado em marketing de influência. 
 Sua tarefa é avaliar se um creator conseguiu transmitir a essência de um briefing em seu conteúdo (transcrição + legenda).
 
@@ -373,6 +649,7 @@ Regras de Negócio:
 - O campo 'detalhes_ausentes' só deve ser preenchido se uma informação fatual INDISPENSÁVEL (ex: preço, cupom de desconto específico, data de evento, link obrigatório na biografia) foi esquecida. **NUNCA use este campo para apontar variações de vocabulário ou frases que não foram ditas literalmente.**
 - CRÍTICO: Se a nota de um critério for 3 (ÓTIMO), o campo 'detalhes_ausentes' desse critério DEVE estar ABSOLUTAMENTE VAZIO (""). É uma falha lógica grave dar nota máxima e apontar faltas.
 - O tom do feedback consolidado deve ser de "creator para creator": leve, descolado e encorajador.
+- Toda a saída (nomes de critérios, status, comentários e feedback consolidado) DEVE estar em português.
 
 DIRETRIZ DE EXCLUSÃO (CRÍTICO):
 - Ignore COMPLETAMENTE qualquer menção a hashtags (#) presente no briefing.
@@ -426,6 +703,7 @@ Instrução de Saída: Sua resposta deve ser exclusivamente um objeto JSON estru
   "feedback_consolidado": { "texto": "" }
 }
 `;
+    }
 
     try {
       const responseText = await this.generateContent(prompt, model, purpose);

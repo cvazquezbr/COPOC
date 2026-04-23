@@ -1,6 +1,7 @@
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
+import { LANGUAGE_CONFIG, getColumnName } from './languageConfig';
 
 /**
  * Converte um array de objetos em uma string CSV e inicia o download.
@@ -35,20 +36,24 @@ export const exportCsv = (data, headers) => {
 /**
  * Achata o objeto de avaliação para um formato compatível com planilha.
  * @param {Object} evaluation - O objeto de avaliação (evaluationResult ou userEvaluation).
+ * @param {string} language - O idioma selecionado.
  * @returns {Object} O objeto achatado.
  */
-export const flattenEvaluation = (evaluation) => {
+export const flattenEvaluation = (evaluation, language = 'pt-br') => {
   const flat = {};
+  const config = LANGUAGE_CONFIG[language] || LANGUAGE_CONFIG['pt-br'];
+  const labels = config.export;
+
   if (evaluation && evaluation.avaliacoes) {
     evaluation.avaliacoes.forEach(av => {
       const prefix = av.nome.split('/')[0].trim();
-      flat[`${prefix} - Nota`] = av.nota;
-      flat[`${prefix} - Status`] = av.status;
-      flat[`${prefix} - Comentário`] = av.comentario;
-      flat[`${prefix} - Detalhes Ausentes`] = av.detalhes_ausentes;
+      flat[`${prefix} - ${labels.nota}`] = av.nota;
+      flat[`${prefix} - ${labels.status}`] = av.status;
+      flat[`${prefix} - ${labels.comentario}`] = av.comentario;
+      flat[`${prefix} - ${labels.detalhesAusentes}`] = av.detalhes_ausentes;
     });
-    flat['Score Final'] = `${evaluation.score_final?.pontuacao_obtida} / ${evaluation.score_final?.pontuacao_maxima}`;
-    flat['Feedback Consolidado'] = evaluation.feedback_consolidado?.texto;
+    flat[labels.scoreFinal] = `${evaluation.score_final?.pontuacao_obtida} / ${evaluation.score_final?.pontuacao_maxima}`;
+    flat[labels.feedbackConsolidado] = evaluation.feedback_consolidado?.texto;
   }
   return flat;
 };
@@ -57,9 +62,12 @@ export const flattenEvaluation = (evaluation) => {
  * Exporta avaliações para um arquivo Excel (.xlsx) com duas abas.
  * @param {Array<Object>} evaluations - Lista de avaliações do banco de dados ou processadas.
  * @param {Array<Object>} [originalData=[]] - Dados originais da planilha (opcional).
+ * @param {string} language - O idioma selecionado.
  */
-export const exportEvaluationsToExcel = (evaluations, originalData = []) => {
+export const exportEvaluationsToExcel = (evaluations, originalData = [], language = 'pt-br') => {
   const wb = XLSX.utils.book_new();
+  const config = LANGUAGE_CONFIG[language] || LANGUAGE_CONFIG['pt-br'];
+  const labels = config.export;
 
   // Mapear os dados para o formato da aba "Resultados IA"
   const results = evaluations.map(item => {
@@ -69,22 +77,22 @@ export const exportEvaluationsToExcel = (evaluations, originalData = []) => {
 
     // Se item.row existe, estamos vindo do processamento em massa
     const baseRow = item.row || {
-      'Challenge ID': '',
-      'Name': item.name || '',
-      'URL': item.video_url || '',
-      'Legenda': data.captionText || '',
-      'Transcrição': data.transcription || item.transcription || '',
+      [getColumnName({}, 'challengeId', language) || 'Challenge ID']: '',
+      [getColumnName({}, 'name', language) || 'Name']: item.name || '',
+      [getColumnName({}, 'url', language) || 'URL']: item.video_url || '',
+      [getColumnName({}, 'caption', language) || 'Legenda']: data.captionText || '',
+      [getColumnName({}, 'transcription', language) || 'Transcrição']: data.transcription || item.transcription || '',
     };
 
     return {
       ...baseRow,
-      'ID Conteúdo': baseRow['ID Conteúdo'] || '',
-      'transcription': data.transcription || item.transcription || '',
-      ...flattenEvaluation(evalToUse),
-      'ai_status': item.ai_status || 'Sucesso',
-      'oportunidadeTrends - Nota': '',
-      'visibilidadeProduto - Nota': '',
-      'combinaComunidade - Nota': '',
+      [labels.idConteudo]: baseRow[labels.idConteudo] || baseRow['ID Conteúdo'] || '',
+      [labels.transcription]: data.transcription || item.transcription || '',
+      ...flattenEvaluation(evalToUse, language),
+      [labels.aiStatus]: item.ai_status || 'Sucesso',
+      [`oportunidadeTrends - ${labels.nota}`]: '',
+      [`visibilidadeProduto - ${labels.nota}`]: '',
+      [`combinaComunidade - ${labels.nota}`]: '',
     };
   });
 

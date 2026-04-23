@@ -16,6 +16,7 @@ import { useLayout } from '../context/LayoutContext';
 import geminiAPI from '../utils/geminiAPI';
 import { saveTranscription, updateTranscription, deleteTranscription } from '../utils/transcriptionState';
 import { extractAudioTranscription } from '../utils/transcriptionParser';
+import { LANGUAGES, LANGUAGE_CONFIG, getColumnName, getCellValue } from '../utils/languageConfig';
 
 const EvaluationsPage = () => {
   const navigate = useNavigate();
@@ -47,6 +48,7 @@ const EvaluationsPage = () => {
   const [bulkData, setBulkData] = useState([]);
   const [originalData, setOriginalData] = useState([]);
   const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState(null);
+  const [selectedLanguage, setSelectedLanguage] = useState('pt-br');
 
   useEffect(() => {
     fetchBriefings();
@@ -138,7 +140,10 @@ const EvaluationsPage = () => {
       }));
 
       // Filter out "Duplicado" status
-      const filteredData = dataWithIndex.filter(row => row['Status'] !== 'Duplicado');
+      const filteredData = dataWithIndex.filter(row => {
+        const statusCol = getColumnName(row, 'status', selectedLanguage);
+        return row[statusCol] !== 'Duplicado';
+      });
       console.log("[Bulk Upload] Dados brutos (exemplo da primeira linha):", filteredData[0]);
       console.log("[Bulk Upload] Colunas detectadas na planilha:", Object.keys(filteredData[0] || {}));
 
@@ -188,7 +193,8 @@ const EvaluationsPage = () => {
             transcriptionText,
             caption || '',
             campaignBriefing,
-            user.gemini_model
+            user.gemini_model,
+            selectedLanguage
           );
         } catch (err) {
           const waitMatch = err.message.match(/retry in ([\d.]+)s/);
@@ -229,7 +235,8 @@ const EvaluationsPage = () => {
           return await geminiAPI.evaluateMultipleContent(
             chunk,
             campaignBriefing,
-            user.gemini_model
+            user.gemini_model,
+            selectedLanguage
           );
         } catch (err) {
           const waitMatch = err.message.match(/retry in ([\d.]+)s/);
@@ -263,8 +270,9 @@ const EvaluationsPage = () => {
       if (!evalResult || !evalResult.avaliacoes) return evalResult;
 
       const sanitized = { ...evalResult };
+      const config = LANGUAGE_CONFIG[selectedLanguage];
       sanitized.avaliacoes = sanitized.avaliacoes.map(av => {
-        if (av.nota === 3 || av.status === 'ÓTIMO') {
+        if (av.nota === 3 || av.status === config.statuses.OTIMO) {
           return { ...av, detalhes_ausentes: '' };
         }
         return av;
@@ -302,14 +310,15 @@ const EvaluationsPage = () => {
             let finalEval = evalResult ? { ...evalResult } : null;
 
             if (isVideoTooLong && finalEval) {
+              const config = LANGUAGE_CONFIG[selectedLanguage];
               if (finalEval.avaliacoes) {
                 finalEval.avaliacoes = finalEval.avaliacoes.map(av => ({
                   ...av,
                   nota: 1,
-                  status: "RUIM"
+                  status: config.statuses.RUIM
                 }));
               }
-              const prefix = "[VÍDEO REJEITADO: Duração superior a 1 minuto] ";
+              const prefix = config.messages.videoTooLong;
               if (finalEval.feedback_consolidado && finalEval.feedback_consolidado.texto && !finalEval.feedback_consolidado.texto.startsWith(prefix)) {
                  finalEval.feedback_consolidado.texto = prefix + finalEval.feedback_consolidado.texto;
               }
@@ -358,7 +367,8 @@ const EvaluationsPage = () => {
       const row = bulkData[i];
       setBulkProgress({ current: i + 1, total: bulkData.length });
 
-      const videoUrl = (row['URL'] || '').trim();
+      const urlCol = getColumnName(row, 'url', selectedLanguage);
+      const videoUrl = (row[urlCol] || '').trim();
       if (!videoUrl) {
         console.warn(`[Bulk] Pulando linha ${i + 2}: URL ausente.`);
         results.push({
@@ -368,9 +378,11 @@ const EvaluationsPage = () => {
         continue;
       }
 
-      const challengeId = row['Challenge ID'] || '';
+      const challengeIdCol = getColumnName(row, 'challengeId', selectedLanguage);
+      const challengeId = row[challengeIdCol] || '';
       const rowNum = String(row.__rowNum__ || (i + 1)).padStart(3, '0');
-      const nameCol = row['Name'] || '';
+      const nameColKey = getColumnName(row, 'name', selectedLanguage);
+      const nameCol = row[nameColKey] || '';
       const nameParts = nameCol.trim().split(/\s+/).filter(p => p.length > 0);
       const firstWord = nameParts[0] || '';
       const lastWord = nameParts.length > 0 ? nameParts[nameParts.length - 1] : '';
@@ -379,16 +391,8 @@ const EvaluationsPage = () => {
       setBulkStatus(`Processando: ${name} (Iniciando)`);
 
       try {
-        // Find columns case-insensitively and with trimming
-        const findColumn = (obj, target) => {
-          const keys = Object.keys(obj);
-          const targetClean = target.trim().toLowerCase();
-          const foundKey = keys.find(k => k.trim().toLowerCase() === targetClean);
-          return foundKey ? obj[foundKey] : undefined;
-        };
-
-        const caption = findColumn(row, 'Legenda') || findColumn(row, 'Caption');
-        const existingTranscriptionRaw = findColumn(row, 'Transcrição') || findColumn(row, 'Transcrição '); // Handle potential trailing space in header
+        const caption = getCellValue(row, 'caption', selectedLanguage);
+        const existingTranscriptionRaw = getCellValue(row, 'transcription', selectedLanguage);
 
         let transcriptionText = '';
         let duration = 0;
@@ -439,21 +443,23 @@ const EvaluationsPage = () => {
         } else {
           console.log(`[Bulk] Reprovando automaticamente (transcrição curta: ${wordCount} palavras): ${name}`);
           setBulkStatus(`Reprovando: ${name} (Mídia curta)`);
+          const config = LANGUAGE_CONFIG[selectedLanguage];
           evaluation = {
             avaliacoes: [
-              { id_criterio: 1, nome: "Key Message / Mensagem Principal", nota: 1, status: "RUIM", comentario: "Transcrição muito curta para avaliação.", detalhes_ausentes: "Conteúdo insuficiente" },
-              { id_criterio: 3, nome: "Branding (Do’s & Don’ts)", nota: 1, status: "RUIM", comentario: "Transcrição muito curta para avaliação.", detalhes_ausentes: "Conteúdo insuficiente" },
-              { id_criterio: 4, nome: "Criatividade", nota: 1, status: "RUIM", comentario: "Transcrição muito curta para avaliação.", detalhes_ausentes: "Conteúdo insuficiente" },
-              { id_criterio: 7, nome: "Call to Action (CTA)", nota: 1, status: "RUIM", comentario: "Transcrição muito curta para avaliação.", detalhes_ausentes: "Conteúdo insuficiente" }
+              { id_criterio: 1, nome: config.criteria[1], nota: 1, status: config.statuses.RUIM, comentario: config.messages.shortTranscription, detalhes_ausentes: config.messages.insufficientContent },
+              { id_criterio: 3, nome: config.criteria[3], nota: 1, status: config.statuses.RUIM, comentario: config.messages.shortTranscription, detalhes_ausentes: config.messages.insufficientContent },
+              { id_criterio: 4, nome: config.criteria[4], nota: 1, status: config.statuses.RUIM, comentario: config.messages.shortTranscription, detalhes_ausentes: config.messages.insufficientContent },
+              { id_criterio: 7, nome: config.criteria[7], nota: 1, status: config.statuses.RUIM, comentario: config.messages.shortTranscription, detalhes_ausentes: config.messages.insufficientContent }
             ],
             score_final: { pontuacao_obtida: 4, pontuacao_maxima: 12 },
-            feedback_consolidado: { texto: `Reprovado. O áudio transcrito possui apenas ${wordCount} palavras (mínimo 20).` }
+            feedback_consolidado: { texto: config.messages.rejectedShort(wordCount) }
           };
         }
 
         // Apply duration warning even for auto-rejected (short) items if duration is known
         if (isVideoTooLong && evaluation) {
-          const prefix = "[VÍDEO REJEITADO: Duração superior a 1 minuto] ";
+          const config = LANGUAGE_CONFIG[selectedLanguage];
+          const prefix = config.messages.videoTooLong;
           if (evaluation.feedback_consolidado && evaluation.feedback_consolidado.texto && !evaluation.feedback_consolidado.texto.startsWith(prefix)) {
             evaluation.feedback_consolidado.texto = prefix + evaluation.feedback_consolidado.texto;
           }
@@ -519,7 +525,7 @@ const EvaluationsPage = () => {
     toast.success('Processamento em massa concluído!');
     fetchTranscriptions();
 
-    exportEvaluationsToExcel(results, originalData);
+    exportEvaluationsToExcel(results, originalData, selectedLanguage);
   };
 
   const handleEvaluate = async () => {
@@ -567,7 +573,8 @@ const EvaluationsPage = () => {
                 transcription,
                 captionText,
                 campaignBriefing,
-                user.gemini_model
+                user.gemini_model,
+                selectedLanguage
               );
             } catch (err) {
               const waitMatch = err.message.match(/retry in ([\d.]+)s/);
@@ -601,8 +608,9 @@ const EvaluationsPage = () => {
 
         // Sanitize: If score is 3/ÓTIMO, detalles_ausentes must be empty
         if (result && result.avaliacoes) {
+          const config = LANGUAGE_CONFIG[selectedLanguage];
           result.avaliacoes = result.avaliacoes.map(av => {
-            if (av.nota === 3 || av.status === 'ÓTIMO') {
+            if (av.nota === 3 || av.status === config.statuses.OTIMO) {
               return { ...av, detalhes_ausentes: '' };
             }
             return av;
@@ -610,14 +618,15 @@ const EvaluationsPage = () => {
         }
 
         if (isVideoTooLong && result) {
+          const config = LANGUAGE_CONFIG[selectedLanguage];
           if (result.avaliacoes) {
             result.avaliacoes = result.avaliacoes.map(av => ({
               ...av,
               nota: 1,
-              status: "RUIM"
+              status: config.statuses.RUIM
             }));
           }
-          const prefix = "[VÍDEO REJEITADO: Duração superior a 1 minuto] ";
+          const prefix = config.messages.videoTooLong;
           if (result.feedback_consolidado && result.feedback_consolidado.texto && !result.feedback_consolidado.texto.startsWith(prefix)) {
              result.feedback_consolidado.texto = prefix + result.feedback_consolidado.texto;
           }
@@ -627,21 +636,23 @@ const EvaluationsPage = () => {
           toast.warning(`Vídeo muito longo (>1:00). Avaliado e marcado como reprovado.`);
         }
       } else {
+        const config = LANGUAGE_CONFIG[selectedLanguage];
         result = {
           avaliacoes: [
-            { id_criterio: 1, nome: "Key Message / Mensagem Principal", nota: 1, status: "RUIM", comentario: "Transcrição muito curta para avaliação.", detalhes_ausentes: "Conteúdo insuficiente" },
-            { id_criterio: 3, nome: "Branding (Do’s & Don’ts)", nota: 1, status: "RUIM", comentario: "Transcrição muito curta para avaliação.", detalhes_ausentes: "Conteúdo insuficiente" },
-            { id_criterio: 4, nome: "Criatividade", nota: 1, status: "RUIM", comentario: "Transcrição muito curta para avaliação.", detalhes_ausentes: "Conteúdo insuficiente" },
-            { id_criterio: 7, nome: "Call to Action (CTA)", nota: 1, status: "RUIM", comentario: "Transcrição muito curta para avaliação.", detalhes_ausentes: "Conteúdo insuficiente" }
+            { id_criterio: 1, nome: config.criteria[1], nota: 1, status: config.statuses.RUIM, comentario: config.messages.shortTranscription, detalhes_ausentes: config.messages.insufficientContent },
+            { id_criterio: 3, nome: config.criteria[3], nota: 1, status: config.statuses.RUIM, comentario: config.messages.shortTranscription, detalhes_ausentes: config.messages.insufficientContent },
+            { id_criterio: 4, nome: config.criteria[4], nota: 1, status: config.statuses.RUIM, comentario: config.messages.shortTranscription, detalhes_ausentes: config.messages.insufficientContent },
+            { id_criterio: 7, nome: config.criteria[7], nota: 1, status: config.statuses.RUIM, comentario: config.messages.shortTranscription, detalhes_ausentes: config.messages.insufficientContent }
           ],
           score_final: { pontuacao_obtida: 4, pontuacao_maxima: 12 },
-          feedback_consolidado: { texto: `Reprovado. O áudio transcrito possui apenas ${wordCount} palavras (mínimo 20).` }
+          feedback_consolidado: { texto: config.messages.rejectedShort(wordCount) }
         };
         toast.warning(`Transcrição muito curta (${wordCount} palavras). Reprovando automaticamente.`);
       }
       // Apply duration warning even for auto-rejected (short) items if duration is known
       if (isVideoTooLong && result) {
-        const prefix = "[VÍDEO REJEITADO: Duração superior a 1 minuto] ";
+        const config = LANGUAGE_CONFIG[selectedLanguage];
+        const prefix = config.messages.videoTooLong;
         if (result.feedback_consolidado && result.feedback_consolidado.texto && !result.feedback_consolidado.texto.startsWith(prefix)) {
           result.feedback_consolidado.texto = prefix + result.feedback_consolidado.texto;
         }
@@ -658,12 +669,11 @@ const EvaluationsPage = () => {
   };
 
   const getStatusColor = (status) => {
-    switch (status) {
-      case 'ÓTIMO': return 'success';
-      case 'BOM': return 'warning';
-      case 'RUIM': return 'error';
-      default: return 'default';
-    }
+    const config = LANGUAGE_CONFIG[selectedLanguage];
+    if (status === config.statuses.OTIMO) return 'success';
+    if (status === config.statuses.BOM) return 'warning';
+    if (status === config.statuses.RUIM) return 'error';
+    return 'default';
   };
 
   const handleUpdateEvaluation = (index, field, value) => {
@@ -745,9 +755,24 @@ const EvaluationsPage = () => {
           <Typography variant="h4" component="h1">
             Gestão de Avaliações
           </Typography>
-          <Box>
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            <FormControl size="small" sx={{ minWidth: 150 }}>
+              <InputLabel id="language-select-label">Idioma</InputLabel>
+              <Select
+                labelId="language-select-label"
+                value={selectedLanguage}
+                label="Idioma"
+                onChange={(e) => setSelectedLanguage(e.target.value)}
+              >
+                {LANGUAGES.map((lang) => (
+                  <MenuItem key={lang.code} value={lang.code}>
+                    {lang.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
             {selectedTranscriptionId && (
-              <Button variant="outlined" color="error" onClick={handleDelete} sx={{ mr: 1 }}>
+              <Button variant="outlined" color="error" onClick={handleDelete}>
                 Excluir
               </Button>
             )}
@@ -992,9 +1017,9 @@ const EvaluationsPage = () => {
                                 fontWeight: 'bold'
                             }}
                           >
-                            <MenuItem value="RUIM">RUIM</MenuItem>
-                            <MenuItem value="BOM">BOM</MenuItem>
-                            <MenuItem value="ÓTIMO">ÓTIMO</MenuItem>
+                            <MenuItem value={LANGUAGE_CONFIG[selectedLanguage].statuses.RUIM}>{LANGUAGE_CONFIG[selectedLanguage].statuses.RUIM}</MenuItem>
+                            <MenuItem value={LANGUAGE_CONFIG[selectedLanguage].statuses.BOM}>{LANGUAGE_CONFIG[selectedLanguage].statuses.BOM}</MenuItem>
+                            <MenuItem value={LANGUAGE_CONFIG[selectedLanguage].statuses.OTIMO}>{LANGUAGE_CONFIG[selectedLanguage].statuses.OTIMO}</MenuItem>
                           </Select>
                           {aiAv && av.status !== aiAv.status && (
                             <Typography variant="caption" color="textSecondary" display="block" align="center">
