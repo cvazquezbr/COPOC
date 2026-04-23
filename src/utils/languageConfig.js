@@ -41,6 +41,9 @@ export const LANGUAGE_CONFIG = {
       transcription: 'transcription',
       aiStatus: 'ai_status',
       idConteudo: 'ID Conteúdo'
+    },
+    jsonKeys: {
+      missingDetails: 'detalhes_ausentes'
     }
   },
   'en-us': {
@@ -79,6 +82,9 @@ export const LANGUAGE_CONFIG = {
       transcription: 'transcription',
       aiStatus: 'ai_status',
       idConteudo: 'Content ID'
+    },
+    jsonKeys: {
+      missingDetails: 'detalhes_ausentes'
     }
   },
   'es-la': {
@@ -117,6 +123,9 @@ export const LANGUAGE_CONFIG = {
       transcription: 'transcription',
       aiStatus: 'ai_status',
       idConteudo: 'ID de Contenido'
+    },
+    jsonKeys: {
+      missingDetails: 'detalles_ausentes'
     }
   }
 };
