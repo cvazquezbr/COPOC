@@ -141,7 +141,7 @@ const EvaluationsPage = () => {
 
       // Filter out "Duplicado" status
       const filteredData = dataWithIndex.filter(row => {
-        const statusCol = getColumnName(row, 'status', selectedLanguage);
+        const statusCol = getColumnName(row, 'status');
         return row[statusCol] !== 'Duplicado';
       });
       console.log("[Bulk Upload] Dados brutos (exemplo da primeira linha):", filteredData[0]);
@@ -370,7 +370,7 @@ const EvaluationsPage = () => {
       const row = bulkData[i];
       setBulkProgress({ current: i + 1, total: bulkData.length });
 
-      const urlCol = getColumnName(row, 'url', selectedLanguage);
+      const urlCol = getColumnName(row, 'url');
       const videoUrl = (row[urlCol] || '').trim();
       if (!videoUrl) {
         console.warn(`[Bulk] Pulando linha ${i + 2}: URL ausente.`);
@@ -381,10 +381,10 @@ const EvaluationsPage = () => {
         continue;
       }
 
-      const challengeIdCol = getColumnName(row, 'challengeId', selectedLanguage);
+      const challengeIdCol = getColumnName(row, 'challengeId');
       const challengeId = row[challengeIdCol] || '';
       const rowNum = String(row.__rowNum__ || (i + 1)).padStart(3, '0');
-      const nameColKey = getColumnName(row, 'name', selectedLanguage);
+      const nameColKey = getColumnName(row, 'name');
       const nameCol = row[nameColKey] || '';
       const nameParts = nameCol.trim().split(/\s+/).filter(p => p.length > 0);
       const firstWord = nameParts[0] || '';
@@ -394,8 +394,8 @@ const EvaluationsPage = () => {
       setBulkStatus(`Processando: ${name} (Iniciando)`);
 
       try {
-        const caption = getCellValue(row, 'caption', selectedLanguage);
-        const existingTranscriptionRaw = getCellValue(row, 'transcription', selectedLanguage);
+        const caption = getCellValue(row, 'caption');
+        const existingTranscriptionRaw = getCellValue(row, 'transcription');
 
         let transcriptionText = '';
         let duration = 0;

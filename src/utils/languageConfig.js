@@ -4,16 +4,35 @@ export const LANGUAGES = [
   { code: 'es-la', label: 'Español (América Latina)' },
 ];
 
+/**
+ * Unified mapping of input spreadsheet column names across all supported languages.
+ * Any variant present here will be correctly mapped to the internal field.
+ */
+export const INPUT_COLUMN_MAPPING = {
+  url: ['URL'],
+  challengeId: [
+    'ID da missão', 'ID da mídia', 'Challenge ID',
+    'Mission ID', 'Media ID',
+    'ID de la misión', 'ID del contenido', 'ID de desafío'
+  ],
+  name: [
+    'Nome', 'Nome social', 'Name',
+    'Preferred name',
+    'Nombre', 'Nombre social'
+  ],
+  status: ['Status', 'Estado'],
+  caption: [
+    'Legenda', 'Caption',
+    'Descripción', 'Leyenda', 'Subtítulo'
+  ],
+  transcription: [
+    'Transcrição', 'Transcrição ', 'Transcription',
+    'Transcripción'
+  ],
+};
+
 export const LANGUAGE_CONFIG = {
   'pt-br': {
-    columns: {
-      url: ['URL'],
-      challengeId: ['ID da missão', 'ID da mídia', 'Challenge ID'],
-      name: ['Nome', 'Nome social', 'Name'],
-      status: ['Status'],
-      caption: ['Legenda', 'Caption'],
-      transcription: ['Transcrição', 'Transcrição ', 'Transcription'],
-    },
     criteria: {
       1: 'Key Message / Mensagem Principal',
       3: 'Branding (Do’s & Don’ts)',
@@ -47,14 +66,6 @@ export const LANGUAGE_CONFIG = {
     }
   },
   'en-us': {
-    columns: {
-      url: ['URL'],
-      challengeId: ['Mission ID', 'Media ID', 'Challenge ID'],
-      name: ['Name', 'Preferred name'],
-      status: ['Status'],
-      caption: ['Caption', 'Legenda'],
-      transcription: ['Transcription', 'Transcrição', 'Transcrição '],
-    },
     criteria: {
       1: 'Key Message / Main Message',
       3: 'Branding (Do’s & Don’ts)',
@@ -88,14 +99,6 @@ export const LANGUAGE_CONFIG = {
     }
   },
   'es-la': {
-    columns: {
-      url: ['URL'],
-      challengeId: ['ID de la misión', 'ID del contenido', 'ID de desafío', 'Challenge ID'],
-      name: ['Nombre', 'Nombre social', 'Name'],
-      status: ['Estado', 'Status'],
-      caption: ['Descripción', 'Leyenda', 'Subtítulo', 'Legenda', 'Caption'],
-      transcription: ['Transcripción', 'Transcrição', 'Transcrição ', 'Transcription'],
-    },
     criteria: {
       1: 'Key Message / Mensaje Principal',
       3: 'Branding (Do’s & Don’ts)',
@@ -130,26 +133,21 @@ export const LANGUAGE_CONFIG = {
   }
 };
 
-export const getColumnName = (row, field, language) => {
-  const possibleNames = LANGUAGE_CONFIG[language]?.columns[field] || [];
+/**
+ * Identifies the column name in a row object based on a logical field name,
+ * using the unified INPUT_COLUMN_MAPPING.
+ */
+export const getColumnName = (row, field) => {
+  const possibleNames = INPUT_COLUMN_MAPPING[field] || [];
   const keys = Object.keys(row);
   for (const name of possibleNames) {
     const foundKey = keys.find(k => k.trim().toLowerCase() === name.toLowerCase());
     if (foundKey) return foundKey;
   }
-  // Fallback to searching in all languages if not found in selected language
-  for (const lang of Object.keys(LANGUAGE_CONFIG)) {
-    if (lang === language) continue;
-    const fallbackNames = LANGUAGE_CONFIG[lang].columns[field] || [];
-    for (const name of fallbackNames) {
-      const foundKey = keys.find(k => k.trim().toLowerCase() === name.toLowerCase());
-      if (foundKey) return foundKey;
-    }
-  }
   return null;
 };
 
-export const getCellValue = (row, field, language) => {
-  const colName = getColumnName(row, field, language);
+export const getCellValue = (row, field) => {
+  const colName = getColumnName(row, field);
   return colName ? row[colName] : undefined;
 };
