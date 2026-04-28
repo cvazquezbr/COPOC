@@ -1,7 +1,7 @@
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
-import { LANGUAGE_CONFIG, getColumnName } from './languageConfig';
+import { LANGUAGE_CONFIG, getColumnName, getCellValue } from './languageConfig';
 
 /**
  * Converte um array de objetos em uma string CSV e inicia o download.
@@ -60,6 +60,94 @@ export const flattenEvaluation = (evaluation, language = 'pt-br') => {
 };
 
 /**
+ * Processa uma linha para a aba "Dados Originais" inserindo a pontuação de conteúdo.
+ */
+export const processRowOriginal = (row, language = 'pt-br') => {
+  const config = LANGUAGE_CONFIG[language] || LANGUAGE_CONFIG['pt-br'];
+  const labels = config.export;
+  const keys = Object.keys(row);
+  const nameCol = getColumnName(row, 'name') || labels.name;
+
+  const newRow = {};
+  keys.forEach(key => {
+    newRow[key] = row[key];
+    if (key === nameCol) {
+      newRow[labels.contentScore] = '';
+    }
+  });
+
+  if (!newRow.hasOwnProperty(labels.contentScore)) {
+    newRow[labels.contentScore] = '';
+  }
+
+  return newRow;
+};
+
+/**
+ * Processa uma linha para a aba "Resultados IA" com reordenação de colunas.
+ */
+export const processRowIA = (item, language = 'pt-br') => {
+  const config = LANGUAGE_CONFIG[language] || LANGUAGE_CONFIG['pt-br'];
+  const labels = config.export;
+  const data = item.transcription_data || {};
+  const evalToUse = data.userEvaluation || data.evaluationResult || item.evaluation;
+
+  const brandVal = data.brandHashtag || getCellValue(item.row || {}, 'brandHashtag') || '';
+  const campaignVal = data.campaignHashtag || getCellValue(item.row || {}, 'campaignHashtag') || '';
+  const missionVal = data.missionHashtag || getCellValue(item.row || {}, 'missionHashtag') || '';
+
+  const baseRow = item.row ? { ...item.row } : {
+    [labels.challengeId || 'Challenge ID']: '',
+    [labels.name]: item.name || '',
+    [labels.url || 'URL']: item.video_url || '',
+    [labels.caption || 'Legenda']: data.captionText || '',
+    [labels.transcription]: data.transcription || item.transcription || '',
+    [labels.brandHashtag]: brandVal,
+    [labels.campaignHashtag]: campaignVal,
+    [labels.missionHashtag]: missionVal,
+  };
+
+  const nameCol = getColumnName(baseRow, 'name') || labels.name;
+  const brandCol = getColumnName(baseRow, 'brandHashtag') || labels.brandHashtag;
+  const campaignCol = getColumnName(baseRow, 'campaignHashtag') || labels.campaignHashtag;
+  const missionCol = getColumnName(baseRow, 'missionHashtag') || labels.missionHashtag;
+
+  if (brandCol) delete baseRow[brandCol];
+  if (campaignCol) delete baseRow[campaignCol];
+  if (missionCol) delete baseRow[missionCol];
+
+  const resultRow = {};
+  Object.keys(baseRow).forEach(key => {
+    resultRow[key] = baseRow[key];
+    if (key === nameCol) {
+      resultRow[labels.contentScore] = '';
+      resultRow[labels.brandHashtag] = brandVal;
+      resultRow[labels.campaignHashtag] = campaignVal;
+      resultRow[labels.missionHashtag] = missionVal;
+    }
+  });
+
+  if (!resultRow.hasOwnProperty(labels.contentScore)) {
+    resultRow[labels.contentScore] = '';
+    resultRow[labels.brandHashtag] = brandVal;
+    resultRow[labels.campaignHashtag] = campaignVal;
+    resultRow[labels.missionHashtag] = missionVal;
+  }
+
+  Object.assign(resultRow, {
+    [labels.idConteudo]: baseRow[labels.idConteudo] || baseRow['ID Conteúdo'] || '',
+    [labels.transcription]: data.transcription || item.transcription || '',
+    ...flattenEvaluation(evalToUse, language),
+    [labels.aiStatus]: item.ai_status || 'Sucesso',
+    [`oportunidadeTrends - ${labels.nota}`]: '',
+    [`visibilidadeProduto - ${labels.nota}`]: '',
+    [`combinaComunidade - ${labels.nota}`]: '',
+  });
+
+  return resultRow;
+};
+
+/**
  * Exporta avaliações para um arquivo Excel (.xlsx) com duas abas.
  * @param {Array<Object>} evaluations - Lista de avaliações do banco de dados ou processadas.
  * @param {Array<Object>} [originalData=[]] - Dados originais da planilha (opcional).
@@ -70,104 +158,13 @@ export const exportEvaluationsToExcel = (evaluations, originalData = [], languag
   const config = LANGUAGE_CONFIG[language] || LANGUAGE_CONFIG['pt-br'];
   const labels = config.export;
 
-  const processRowOriginal = (row) => {
-    const keys = Object.keys(row);
-    const nameCol = getColumnName(row, 'name') || labels.name;
-    const brandCol = getColumnName(row, 'brandHashtag') || labels.brandHashtag;
-
-    const newRow = {};
-    keys.forEach(key => {
-      newRow[key] = row[key];
-      if (key === nameCol) {
-        newRow[labels.contentScore] = '';
-      }
-    });
-
-    // Se Nome social não estava presente (raro devido à validação), garantir que contentScore foi inserido
-    if (!newRow.hasOwnProperty(labels.contentScore)) {
-        newRow[labels.contentScore] = '';
-    }
-
-    // Se Hashtag da marca existe, garantir que ela vem após a nova coluna se não estivesse lá
-    // O requisito diz "entre Nome social e Hashtag da marca"
-    // Se eles já estão juntos, o loop acima resolveu.
-    // Se não estão juntos, o pedido implica que a nova coluna fica após Nome social.
-
-    return newRow;
-  };
-
-  const processRowIA = (item) => {
-    const data = item.transcription_data || {};
-    const evalToUse = data.userEvaluation || data.evaluationResult || item.evaluation;
-
-    // Campos adicionais vindo do banco ou da linha
-    const brandVal = data.brandHashtag || getCellValue(item.row || {}, 'brandHashtag') || '';
-    const campaignVal = data.campaignHashtag || getCellValue(item.row || {}, 'campaignHashtag') || '';
-    const missionVal = data.missionHashtag || getCellValue(item.row || {}, 'missionHashtag') || '';
-
-    // Se item.row existe, estamos vindo do processamento em massa
-    const baseRow = item.row ? { ...item.row } : {
-      [labels.challengeId || 'Challenge ID']: '',
-      [labels.name]: item.name || '',
-      [labels.url || 'URL']: item.video_url || '',
-      [labels.caption || 'Legenda']: data.captionText || '',
-      [labels.transcription]: data.transcription || item.transcription || '',
-      [labels.brandHashtag]: brandVal,
-      [labels.campaignHashtag]: campaignVal,
-      [labels.missionHashtag]: missionVal,
-    };
-
-    // Identificar nomes das colunas na baseRow
-    const nameCol = getColumnName(baseRow, 'name') || labels.name;
-    const brandCol = getColumnName(baseRow, 'brandHashtag') || labels.brandHashtag;
-    const campaignCol = getColumnName(baseRow, 'campaignHashtag') || labels.campaignHashtag;
-    const missionCol = getColumnName(baseRow, 'missionHashtag') || labels.missionHashtag;
-
-    // Remover colunas que serão movidas
-    if (brandCol) delete baseRow[brandCol];
-    if (campaignCol) delete baseRow[campaignCol];
-    if (missionCol) delete baseRow[missionCol];
-
-    const resultRow = {};
-    Object.keys(baseRow).forEach(key => {
-      resultRow[key] = baseRow[key];
-      if (key === nameCol) {
-        resultRow[labels.contentScore] = '';
-        resultRow[labels.brandHashtag] = brandVal;
-        resultRow[labels.campaignHashtag] = campaignVal;
-        resultRow[labels.missionHashtag] = missionVal;
-      }
-    });
-
-    // Garantir que as colunas foram inseridas
-    if (!resultRow.hasOwnProperty(labels.contentScore)) {
-        resultRow[labels.contentScore] = '';
-        resultRow[labels.brandHashtag] = brandVal;
-        resultRow[labels.campaignHashtag] = campaignVal;
-        resultRow[labels.missionHashtag] = missionVal;
-    }
-
-    // Adicionar o restante dos dados
-    Object.assign(resultRow, {
-      [labels.idConteudo]: baseRow[labels.idConteudo] || baseRow['ID Conteúdo'] || '',
-      [labels.transcription]: data.transcription || item.transcription || '',
-      ...flattenEvaluation(evalToUse, language),
-      [labels.aiStatus]: item.ai_status || 'Sucesso',
-      [`oportunidadeTrends - ${labels.nota}`]: '',
-      [`visibilidadeProduto - ${labels.nota}`]: '',
-      [`combinaComunidade - ${labels.nota}`]: '',
-    });
-
-    return resultRow;
-  };
-
   // Mapear os dados para o formato da aba "Resultados IA"
-  const results = evaluations.map(processRowIA);
+  const results = evaluations.map(item => processRowIA(item, language));
 
   // Aba 1: Dados Originais
   let ws1;
   if (originalData.length > 0) {
-    const processedOriginal = originalData.map(processRowOriginal);
+    const processedOriginal = originalData.map(row => processRowOriginal(row, language));
     ws1 = XLSX.utils.json_to_sheet(processedOriginal);
   } else {
     // Cabeçalhos mínimos se não houver dados originais
