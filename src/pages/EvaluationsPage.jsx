@@ -139,6 +139,17 @@ const EvaluationsPage = () => {
         __rowNum__: index + 2
       }));
 
+      // Validate required columns
+      const requiredFields = ['name', 'brandHashtag', 'campaignHashtag', 'missionHashtag'];
+      const missingFields = requiredFields.filter(field => !getColumnName(jsonData[0] || {}, field));
+
+      if (missingFields.length > 0) {
+        const config = LANGUAGE_CONFIG[selectedLanguage] || LANGUAGE_CONFIG['pt-br'];
+        const missingNames = missingFields.map(f => config.export[f] || f).join(', ');
+        toast.error(`Erro na carga: Colunas obrigatórias ausentes: ${missingNames}`);
+        return;
+      }
+
       // Filter out "Duplicado" status
       const filteredData = dataWithIndex.filter(row => {
         const statusCol = getColumnName(row, 'status');
@@ -336,6 +347,9 @@ const EvaluationsPage = () => {
               videoDuration: item.duration,
               evaluationResult: finalEval,
               userEvaluation: finalEval,
+              brandHashtag: getCellValue(item.row, 'brandHashtag') || '',
+              campaignHashtag: getCellValue(item.row, 'campaignHashtag') || '',
+              missionHashtag: getCellValue(item.row, 'missionHashtag') || '',
             };
             await saveTranscription(item.id, (item.row['URL'] || '').trim(), selectedBriefingId, transcriptionData);
 
@@ -479,6 +493,9 @@ const EvaluationsPage = () => {
             videoDuration: duration,
             evaluationResult: evaluation,
             userEvaluation: evaluation,
+            brandHashtag: getCellValue(row, 'brandHashtag') || '',
+            campaignHashtag: getCellValue(row, 'campaignHashtag') || '',
+            missionHashtag: getCellValue(row, 'missionHashtag') || '',
           };
           await saveTranscription(name, videoUrl, selectedBriefingId, transcriptionData);
 

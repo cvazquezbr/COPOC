@@ -29,6 +29,18 @@ export const INPUT_COLUMN_MAPPING = {
     'Transcrição', 'Transcrição ', 'Transcription',
     'Transcripción'
   ],
+  brandHashtag: [
+    'Hashtag da marca', 'Brand hashtag', 'Hashtag de la marca'
+  ],
+  campaignHashtag: [
+    'Hashtag da campanha', 'Campaign hashtag', 'Hashtag de la campaña'
+  ],
+  missionHashtag: [
+    'Mission hashtag'
+  ],
+  contentScore: [
+    'Pontuação de conteúdo', 'Content Score', 'Puntuación de contenido'
+  ],
 };
 
 export const LANGUAGE_CONFIG = {
@@ -51,6 +63,11 @@ export const LANGUAGE_CONFIG = {
       rejectedShort: (wordCount) => `Reprovado. O áudio transcrito possui apenas ${wordCount} palavras (mínimo 20).`,
     },
     export: {
+      name: 'Nome social',
+      brandHashtag: 'Hashtag da marca',
+      campaignHashtag: 'Hashtag da campanha',
+      missionHashtag: 'Mission hashtag',
+      contentScore: 'Pontuação de conteúdo',
       nota: 'Nota',
       status: 'Status',
       comentario: 'Comentário',
@@ -59,7 +76,10 @@ export const LANGUAGE_CONFIG = {
       feedbackConsolidado: 'Feedback Consolidado',
       transcription: 'transcription',
       aiStatus: 'ai_status',
-      idConteudo: 'ID Conteúdo'
+      idConteudo: 'ID Conteúdo',
+      challengeId: 'Challenge ID',
+      url: 'URL',
+      caption: 'Legenda'
     },
     jsonKeys: {
       missingDetails: 'detalhes_ausentes'
@@ -84,6 +104,11 @@ export const LANGUAGE_CONFIG = {
       rejectedShort: (wordCount) => `Rejected. The transcribed audio has only ${wordCount} words (minimum 20).`,
     },
     export: {
+      name: 'Preferred name',
+      brandHashtag: 'Brand hashtag',
+      campaignHashtag: 'Campaign hashtag',
+      missionHashtag: 'Mission hashtag',
+      contentScore: 'Content Score',
       nota: 'Score',
       status: 'Status',
       comentario: 'Comment',
@@ -92,7 +117,10 @@ export const LANGUAGE_CONFIG = {
       feedbackConsolidado: 'Consolidated Feedback',
       transcription: 'transcription',
       aiStatus: 'ai_status',
-      idConteudo: 'Content ID'
+      idConteudo: 'Content ID',
+      challengeId: 'Challenge ID',
+      url: 'URL',
+      caption: 'Caption'
     },
     jsonKeys: {
       missingDetails: 'detalhes_ausentes'
@@ -117,6 +145,11 @@ export const LANGUAGE_CONFIG = {
       rejectedShort: (wordCount) => `Rechazado. El audio transcrito tiene solo ${wordCount} palabras (mínimo 20).`,
     },
     export: {
+      name: 'Nombre social',
+      brandHashtag: 'Hashtag de la marca',
+      campaignHashtag: 'Hashtag de la campaña',
+      missionHashtag: 'Mission hashtag',
+      contentScore: 'Puntuación de contenido',
       nota: 'Nota',
       status: 'Estado',
       comentario: 'Comentario',
@@ -125,7 +158,10 @@ export const LANGUAGE_CONFIG = {
       feedbackConsolidado: 'Retroalimentación Consolidada',
       transcription: 'transcription',
       aiStatus: 'ai_status',
-      idConteudo: 'ID de Contenido'
+      idConteudo: 'ID de Contenido',
+      challengeId: 'Challenge ID',
+      url: 'URL',
+      caption: 'Leyenda'
     },
     jsonKeys: {
       missingDetails: 'detalles_ausentes'
