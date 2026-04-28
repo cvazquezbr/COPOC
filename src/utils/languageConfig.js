@@ -16,9 +16,10 @@ export const INPUT_COLUMN_MAPPING = {
     'ID de la misión', 'ID del contenido', 'ID de desafío'
   ],
   name: [
-    'Nome', 'Nome social', 'Name',
-    'Preferred name',
-    'Nombre', 'Nombre social'
+    'Nome', 'Name', 'Nombre'
+  ],
+  socialName: [
+    'Nome social', 'Preferred name', 'Nombre social'
   ],
   status: ['Status', 'Estado'],
   caption: [
@@ -63,7 +64,8 @@ export const LANGUAGE_CONFIG = {
       rejectedShort: (wordCount) => `Reprovado. O áudio transcrito possui apenas ${wordCount} palavras (mínimo 20).`,
     },
     export: {
-      name: 'Nome social',
+      name: 'Nome',
+      socialName: 'Nome social',
       brandHashtag: 'Hashtag da marca',
       campaignHashtag: 'Hashtag da campanha',
       missionHashtag: 'Mission hashtag',
@@ -104,7 +106,8 @@ export const LANGUAGE_CONFIG = {
       rejectedShort: (wordCount) => `Rejected. The transcribed audio has only ${wordCount} words (minimum 20).`,
     },
     export: {
-      name: 'Preferred name',
+      name: 'Name',
+      socialName: 'Preferred name',
       brandHashtag: 'Brand hashtag',
       campaignHashtag: 'Campaign hashtag',
       missionHashtag: 'Mission hashtag',
@@ -145,7 +148,8 @@ export const LANGUAGE_CONFIG = {
       rejectedShort: (wordCount) => `Rechazado. El audio transcrito tiene solo ${wordCount} palabras (mínimo 20).`,
     },
     export: {
-      name: 'Nombre social',
+      name: 'Nombre',
+      socialName: 'Nombre social',
       brandHashtag: 'Hashtag de la marca',
       campaignHashtag: 'Hashtag de la campaña',
       missionHashtag: 'Mission hashtag',
