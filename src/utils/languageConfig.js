@@ -11,9 +11,12 @@ export const LANGUAGES = [
 export const INPUT_COLUMN_MAPPING = {
   url: ['URL'],
   challengeId: [
-    'ID da missão', 'ID da mídia', 'Challenge ID',
-    'Mission ID', 'Media ID',
-    'ID de la misión', 'ID del contenido', 'ID de desafío'
+    'Campanha', 'ID da missão', 'Challenge ID',
+    'Mission ID', 'ID de la misión', 'ID de desafío'
+  ],
+  mediaId: [
+    'Missão', 'ID da mídia', 'Media ID', 'Media ID',
+    'ID del contenido'
   ],
   name: [
     'Nome', 'Name', 'Nombre'
@@ -79,7 +82,8 @@ export const LANGUAGE_CONFIG = {
       transcription: 'transcription',
       aiStatus: 'ai_status',
       idConteudo: 'ID Conteúdo',
-      challengeId: 'Challenge ID',
+      challengeId: 'Campanha',
+      mediaId: 'Missão',
       url: 'URL',
       caption: 'Legenda'
     },
@@ -121,7 +125,8 @@ export const LANGUAGE_CONFIG = {
       transcription: 'transcription',
       aiStatus: 'ai_status',
       idConteudo: 'Content ID',
-      challengeId: 'Challenge ID',
+      challengeId: 'Campaign',
+      mediaId: 'Mission',
       url: 'URL',
       caption: 'Caption'
     },
@@ -163,7 +168,8 @@ export const LANGUAGE_CONFIG = {
       transcription: 'transcription',
       aiStatus: 'ai_status',
       idConteudo: 'ID de Contenido',
-      challengeId: 'Challenge ID',
+      challengeId: 'Campaña',
+      mediaId: 'Misión',
       url: 'URL',
       caption: 'Leyenda'
     },

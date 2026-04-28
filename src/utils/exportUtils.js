@@ -80,7 +80,8 @@ export const processRowIA = (item, language = 'pt-br') => {
   const missionVal = data.missionHashtag || getCellValue(item.row || {}, 'missionHashtag') || '';
 
   const baseRow = item.row ? { ...item.row } : {
-    [labels.challengeId || 'Challenge ID']: '',
+    [labels.challengeId]: data.campanha || item.campanha || '',
+    [labels.mediaId]: data.missao || item.missao || '',
     [labels.name]: item.name || '',
     [labels.socialName]: item.socialName || '',
     [labels.url || 'URL']: item.video_url || '',
@@ -159,9 +160,7 @@ export const exportEvaluationsToExcel = (evaluations, originalData = [], languag
     // Cabeçalhos mínimos se não houver dados originais
     const defaultHeaders = [
         labels.challengeId,
-        'ID da mídia',
-        'Campanha',
-        'Missão',
+        labels.mediaId,
         labels.url,
         labels.name,
         labels.socialName,
