@@ -96,47 +96,27 @@ export const processRowIA = (item, language = 'pt-br') => {
   const campaignCol = getColumnName(baseRow, 'campaignHashtag') || labels.campaignHashtag;
   const missionCol = getColumnName(baseRow, 'missionHashtag') || labels.missionHashtag;
 
-  // Remover colunas que serão movidas/reordenadas
-  if (brandCol) delete baseRow[brandCol];
-  if (campaignCol) delete baseRow[campaignCol];
-  if (missionCol) delete baseRow[missionCol];
+  // Remover colunas que serão movidas/reordenadas para evitar duplicatas e garantir nova posição
+  const keysToMove = [brandCol, campaignCol, missionCol, labels.contentScore].filter(Boolean);
+  keysToMove.forEach(k => delete baseRow[k]);
 
-  const resultRow = {};
-  Object.keys(baseRow).forEach(key => {
-    resultRow[key] = baseRow[key];
-    if (key === socialNameCol) {
-      resultRow[labels.contentScore] = '';
-      resultRow[labels.brandHashtag] = brandVal;
-      resultRow[labels.campaignHashtag] = campaignVal;
-      // Mission hashtag virá depois pelo loop ou manualmente
-    }
-  });
-
-  // Garantir que as colunas de hashtag foram inseridas ANTES de Mission hashtag
-  // Se Mission hashtag for inserida manualmente ou se ela não existia na baseRow
-  if (!resultRow.hasOwnProperty(labels.missionHashtag)) {
-      resultRow[labels.missionHashtag] = missionVal;
-  }
-
-  // Garantir a ordem exata após Nome social: Content Score, Brand Hashtag, Campaign Hashtag, Mission Hashtag
-  // Recriar a linha para garantir a ordem se necessário
   const finalOrderedRow = {};
-  Object.keys(resultRow).forEach(key => {
-      finalOrderedRow[key] = resultRow[key];
-      if (key === socialNameCol) {
-          finalOrderedRow[labels.contentScore] = '';
-          finalOrderedRow[labels.brandHashtag] = brandVal;
-          finalOrderedRow[labels.campaignHashtag] = campaignVal;
-          finalOrderedRow[labels.missionHashtag] = missionVal;
-      }
-  });
-
-  // Se Nome social não existia, garantir a inserção no final
-  if (!finalOrderedRow.hasOwnProperty(labels.contentScore)) {
+  Object.keys(baseRow).forEach(key => {
+    finalOrderedRow[key] = baseRow[key];
+    if (key === socialNameCol) {
       finalOrderedRow[labels.contentScore] = '';
       finalOrderedRow[labels.brandHashtag] = brandVal;
       finalOrderedRow[labels.campaignHashtag] = campaignVal;
       finalOrderedRow[labels.missionHashtag] = missionVal;
+    }
+  });
+
+  // Se Nome social não existia na baseRow, garantir a inserção no final
+  if (!finalOrderedRow.hasOwnProperty(labels.contentScore)) {
+    finalOrderedRow[labels.contentScore] = '';
+    finalOrderedRow[labels.brandHashtag] = brandVal;
+    finalOrderedRow[labels.campaignHashtag] = campaignVal;
+    finalOrderedRow[labels.missionHashtag] = missionVal;
   }
 
   Object.assign(finalOrderedRow, {
@@ -157,8 +137,9 @@ export const processRowIA = (item, language = 'pt-br') => {
  * @param {Array<Object>} evaluations - Lista de avaliações do banco de dados ou processadas.
  * @param {Array<Object>} [originalData=[]] - Dados originais da planilha (opcional).
  * @param {string} language - O idioma selecionado.
+ * @param {Array<Array<any>>} [originalGrid=[]] - A grade de dados original (AOA) da planilha de entrada.
  */
-export const exportEvaluationsToExcel = (evaluations, originalData = [], language = 'pt-br') => {
+export const exportEvaluationsToExcel = (evaluations, originalData = [], language = 'pt-br', originalGrid = []) => {
   const wb = XLSX.utils.book_new();
   const config = LANGUAGE_CONFIG[language] || LANGUAGE_CONFIG['pt-br'];
   const labels = config.export;
@@ -168,20 +149,33 @@ export const exportEvaluationsToExcel = (evaluations, originalData = [], languag
 
   // Aba 1: Dados Originais
   let ws1;
-  if (originalData.length > 0) {
+  if (originalGrid.length > 0) {
+    // Se originalGrid foi fornecido, usamos aoa_to_sheet para garantir uma cópia idêntica
+    ws1 = XLSX.utils.aoa_to_sheet(originalGrid);
+  } else if (originalData.length > 0) {
     const processedOriginal = originalData.map(row => processRowOriginal(row, language));
     ws1 = XLSX.utils.json_to_sheet(processedOriginal);
   } else {
     // Cabeçalhos mínimos se não houver dados originais
     const defaultHeaders = [
         labels.challengeId,
+        'ID da mídia',
+        'Campanha',
+        'Missão',
+        labels.url,
         labels.name,
         labels.socialName,
         labels.contentScore,
         labels.brandHashtag,
         labels.campaignHashtag,
         labels.missionHashtag,
-        labels.url,
+        labels.status,
+        'Instagram Feed',
+        'Instagram Stories',
+        'TikTok',
+        'YouTube',
+        'LinkedIn',
+        'Briefing',
         labels.caption,
         labels.transcription,
         labels.idConteudo

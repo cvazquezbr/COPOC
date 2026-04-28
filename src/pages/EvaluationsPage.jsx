@@ -47,6 +47,7 @@ const EvaluationsPage = () => {
   const [bulkStatus, setBulkStatus] = useState('');
   const [bulkData, setBulkData] = useState([]);
   const [originalData, setOriginalData] = useState([]);
+  const [originalGrid, setOriginalGrid] = useState([]);
   const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState(null);
   const [selectedLanguage, setSelectedLanguage] = useState('pt-br');
 
@@ -132,6 +133,7 @@ const EvaluationsPage = () => {
       const wsname = wb.SheetNames[0];
       const ws = wb.Sheets[wsname];
       const jsonData = XLSX.utils.sheet_to_json(ws);
+      const grid = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
 
       // Add original row number (Excel rows start at 1, headers are row 1, first data row is 2)
       const dataWithIndex = jsonData.map((row, index) => ({
@@ -159,6 +161,7 @@ const EvaluationsPage = () => {
       console.log("[Bulk Upload] Colunas detectadas na planilha:", Object.keys(filteredData[0] || {}));
 
       setOriginalData(jsonData);
+      setOriginalGrid(grid);
       setBulkData(filteredData);
       setBulkProgress({ current: 0, total: filteredData.length });
       toast.info(`${filteredData.length} registros carregados (excluindo duplicados).`);
@@ -552,7 +555,7 @@ const EvaluationsPage = () => {
     toast.success('Processamento em massa concluído!');
     fetchTranscriptions();
 
-    exportEvaluationsToExcel(results, originalData, selectedLanguage);
+    exportEvaluationsToExcel(results, originalData, selectedLanguage, originalGrid);
   };
 
   const handleEvaluate = async () => {
