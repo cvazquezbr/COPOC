@@ -140,7 +140,7 @@ const EvaluationsPage = () => {
       }));
 
       // Validate required columns
-      const requiredFields = ['name', 'brandHashtag', 'campaignHashtag', 'missionHashtag'];
+      const requiredFields = ['name', 'socialName', 'brandHashtag', 'campaignHashtag', 'missionHashtag'];
       const missingFields = requiredFields.filter(field => !getColumnName(jsonData[0] || {}, field));
 
       if (missingFields.length > 0) {
@@ -347,6 +347,8 @@ const EvaluationsPage = () => {
               videoDuration: item.duration,
               evaluationResult: finalEval,
               userEvaluation: finalEval,
+              name: getCellValue(item.row, 'name') || '',
+              socialName: getCellValue(item.row, 'socialName') || '',
               brandHashtag: getCellValue(item.row, 'brandHashtag') || '',
               campaignHashtag: getCellValue(item.row, 'campaignHashtag') || '',
               missionHashtag: getCellValue(item.row, 'missionHashtag') || '',
@@ -400,6 +402,8 @@ const EvaluationsPage = () => {
       const rowNum = String(row.__rowNum__ || (i + 1)).padStart(3, '0');
       const nameColKey = getColumnName(row, 'name');
       const nameCol = row[nameColKey] || '';
+      const socialNameColKey = getColumnName(row, 'socialName');
+      const socialNameCol = row[socialNameColKey] || '';
       const nameParts = nameCol.trim().split(/\s+/).filter(p => p.length > 0);
       const firstWord = nameParts[0] || '';
       const lastWord = nameParts.length > 0 ? nameParts[nameParts.length - 1] : '';
@@ -493,6 +497,8 @@ const EvaluationsPage = () => {
             videoDuration: duration,
             evaluationResult: evaluation,
             userEvaluation: evaluation,
+            name: getCellValue(row, 'name') || '',
+            socialName: getCellValue(row, 'socialName') || '',
             brandHashtag: getCellValue(row, 'brandHashtag') || '',
             campaignHashtag: getCellValue(row, 'campaignHashtag') || '',
             missionHashtag: getCellValue(row, 'missionHashtag') || '',

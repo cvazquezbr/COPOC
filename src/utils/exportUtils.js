@@ -60,27 +60,10 @@ export const flattenEvaluation = (evaluation, language = 'pt-br') => {
 };
 
 /**
- * Processa uma linha para a aba "Dados Originais" inserindo a pontuação de conteúdo.
+ * Processa uma linha para a aba "Dados Originais" mantendo-a idêntica à entrada.
  */
 export const processRowOriginal = (row, language = 'pt-br') => {
-  const config = LANGUAGE_CONFIG[language] || LANGUAGE_CONFIG['pt-br'];
-  const labels = config.export;
-  const keys = Object.keys(row);
-  const nameCol = getColumnName(row, 'name') || labels.name;
-
-  const newRow = {};
-  keys.forEach(key => {
-    newRow[key] = row[key];
-    if (key === nameCol) {
-      newRow[labels.contentScore] = '';
-    }
-  });
-
-  if (!newRow.hasOwnProperty(labels.contentScore)) {
-    newRow[labels.contentScore] = '';
-  }
-
-  return newRow;
+  return { ...row };
 };
 
 /**
@@ -99,6 +82,7 @@ export const processRowIA = (item, language = 'pt-br') => {
   const baseRow = item.row ? { ...item.row } : {
     [labels.challengeId || 'Challenge ID']: '',
     [labels.name]: item.name || '',
+    [labels.socialName]: item.socialName || '',
     [labels.url || 'URL']: item.video_url || '',
     [labels.caption || 'Legenda']: data.captionText || '',
     [labels.transcription]: data.transcription || item.transcription || '',
@@ -107,11 +91,12 @@ export const processRowIA = (item, language = 'pt-br') => {
     [labels.missionHashtag]: missionVal,
   };
 
-  const nameCol = getColumnName(baseRow, 'name') || labels.name;
+  const socialNameCol = getColumnName(baseRow, 'socialName') || labels.socialName;
   const brandCol = getColumnName(baseRow, 'brandHashtag') || labels.brandHashtag;
   const campaignCol = getColumnName(baseRow, 'campaignHashtag') || labels.campaignHashtag;
   const missionCol = getColumnName(baseRow, 'missionHashtag') || labels.missionHashtag;
 
+  // Remover colunas que serão movidas/reordenadas
   if (brandCol) delete baseRow[brandCol];
   if (campaignCol) delete baseRow[campaignCol];
   if (missionCol) delete baseRow[missionCol];
@@ -119,22 +104,42 @@ export const processRowIA = (item, language = 'pt-br') => {
   const resultRow = {};
   Object.keys(baseRow).forEach(key => {
     resultRow[key] = baseRow[key];
-    if (key === nameCol) {
+    if (key === socialNameCol) {
       resultRow[labels.contentScore] = '';
       resultRow[labels.brandHashtag] = brandVal;
       resultRow[labels.campaignHashtag] = campaignVal;
-      resultRow[labels.missionHashtag] = missionVal;
+      // Mission hashtag virá depois pelo loop ou manualmente
     }
   });
 
-  if (!resultRow.hasOwnProperty(labels.contentScore)) {
-    resultRow[labels.contentScore] = '';
-    resultRow[labels.brandHashtag] = brandVal;
-    resultRow[labels.campaignHashtag] = campaignVal;
-    resultRow[labels.missionHashtag] = missionVal;
+  // Garantir que as colunas de hashtag foram inseridas ANTES de Mission hashtag
+  // Se Mission hashtag for inserida manualmente ou se ela não existia na baseRow
+  if (!resultRow.hasOwnProperty(labels.missionHashtag)) {
+      resultRow[labels.missionHashtag] = missionVal;
   }
 
-  Object.assign(resultRow, {
+  // Garantir a ordem exata após Nome social: Content Score, Brand Hashtag, Campaign Hashtag, Mission Hashtag
+  // Recriar a linha para garantir a ordem se necessário
+  const finalOrderedRow = {};
+  Object.keys(resultRow).forEach(key => {
+      finalOrderedRow[key] = resultRow[key];
+      if (key === socialNameCol) {
+          finalOrderedRow[labels.contentScore] = '';
+          finalOrderedRow[labels.brandHashtag] = brandVal;
+          finalOrderedRow[labels.campaignHashtag] = campaignVal;
+          finalOrderedRow[labels.missionHashtag] = missionVal;
+      }
+  });
+
+  // Se Nome social não existia, garantir a inserção no final
+  if (!finalOrderedRow.hasOwnProperty(labels.contentScore)) {
+      finalOrderedRow[labels.contentScore] = '';
+      finalOrderedRow[labels.brandHashtag] = brandVal;
+      finalOrderedRow[labels.campaignHashtag] = campaignVal;
+      finalOrderedRow[labels.missionHashtag] = missionVal;
+  }
+
+  Object.assign(finalOrderedRow, {
     [labels.idConteudo]: baseRow[labels.idConteudo] || baseRow['ID Conteúdo'] || '',
     [labels.transcription]: data.transcription || item.transcription || '',
     ...flattenEvaluation(evalToUse, language),
@@ -144,7 +149,7 @@ export const processRowIA = (item, language = 'pt-br') => {
     [`combinaComunidade - ${labels.nota}`]: '',
   });
 
-  return resultRow;
+  return finalOrderedRow;
 };
 
 /**
@@ -171,8 +176,11 @@ export const exportEvaluationsToExcel = (evaluations, originalData = [], languag
     const defaultHeaders = [
         labels.challengeId,
         labels.name,
+        labels.socialName,
         labels.contentScore,
         labels.brandHashtag,
+        labels.campaignHashtag,
+        labels.missionHashtag,
         labels.url,
         labels.caption,
         labels.transcription,
