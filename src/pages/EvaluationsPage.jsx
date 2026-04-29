@@ -132,7 +132,7 @@ const EvaluationsPage = () => {
       const wb = XLSX.read(data, { type: 'array' });
       const wsname = wb.SheetNames[0];
       const ws = wb.Sheets[wsname];
-      const jsonData = XLSX.utils.sheet_to_json(ws);
+      const jsonData = XLSX.utils.sheet_to_json(ws, { defval: '' });
       const grid = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
 
       // Add original row number (Excel rows start at 1, headers are row 1, first data row is 2)
