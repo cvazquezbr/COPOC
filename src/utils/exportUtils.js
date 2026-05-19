@@ -96,9 +96,10 @@ export const processRowIA = (item, language = 'pt-br') => {
   const brandCol = getColumnName(baseRow, 'brandHashtag') || labels.brandHashtag;
   const campaignCol = getColumnName(baseRow, 'campaignHashtag') || labels.campaignHashtag;
   const missionCol = getColumnName(baseRow, 'missionHashtag') || labels.missionHashtag;
+  const contentScoreCol = getColumnName(baseRow, 'contentScore') || labels.contentScore;
 
   // Remover colunas que serão movidas/reordenadas para evitar duplicatas e garantir nova posição
-  const keysToMove = [brandCol, campaignCol, missionCol, labels.contentScore].filter(Boolean);
+  const keysToMove = [brandCol, campaignCol, missionCol, contentScoreCol].filter(Boolean);
   keysToMove.forEach(k => delete baseRow[k]);
 
   const finalOrderedRow = {};
