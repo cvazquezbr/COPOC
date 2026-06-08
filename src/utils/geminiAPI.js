@@ -202,7 +202,7 @@ class GeminiAPI {
     return this.generateContent(prompt, model, purpose);
   }
 
-  async translateBriefing(documentContent, dosContent, dontsContent, targetLanguage, model) {
+  async translateBriefing(documentContent, dosContent, dontsContent, baseText, revisedText, targetLanguage, model) {
     const purpose = `Tradução de Briefing para ${targetLanguage}`;
     const prompt = `
       **TAREFA:** Traduzir o seguinte conteúdo de um briefing de marketing para o idioma **${targetLanguage}**.
@@ -213,9 +213,11 @@ class GeminiAPI {
       {
         "translatedDocument": "...",
         "translatedDos": "...",
-        "translatedDonts": "..."
+        "translatedDonts": "...",
+        "translatedBaseText": "...",
+        "translatedRevisedText": "..."
       }
-      - Mantenha a formatação HTML original (tags como <p>, <h3>, <ul>, <li>) no conteúdo traduzido.
+      - Mantenha a formatação HTML original (tags como <p>, <h3>, <ul>, <li>, <table>, <tr>, <td>) no conteúdo traduzido.
       - A tradução deve ser precisa e manter o tom profissional do original.
 
       ---
@@ -235,6 +237,16 @@ class GeminiAPI {
       \`\`\`html
       ${dontsContent}
       \`\`\`
+
+      **4. Texto Base (Original):**
+      \`\`\`html
+      ${baseText}
+      \`\`\`
+
+      **5. Documento Revisado (Completo):**
+      \`\`\`html
+      ${revisedText}
+      \`\`\`
     `;
 
     try {
@@ -252,7 +264,11 @@ class GeminiAPI {
       }
 
       const parsed = JSON.parse(jsonString);
-      if (typeof parsed.translatedDocument !== 'string' || typeof parsed.translatedDos !== 'string' || typeof parsed.translatedDonts !== 'string') {
+      if (typeof parsed.translatedDocument !== 'string' ||
+          typeof parsed.translatedDos !== 'string' ||
+          typeof parsed.translatedDonts !== 'string' ||
+          typeof parsed.translatedBaseText !== 'string' ||
+          typeof parsed.translatedRevisedText !== 'string') {
         throw new Error('A resposta da IA está faltando campos traduzidos essenciais.');
       }
       return parsed;
