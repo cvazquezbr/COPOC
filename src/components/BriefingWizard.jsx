@@ -155,6 +155,8 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
     const [targetLanguage, setTargetLanguage] = useState('');
     const [originalFinalText, setOriginalFinalText] = useState(null);
     const [originalSections, setOriginalSections] = useState(null);
+    const [originalRevisedText, setOriginalRevisedText] = useState(null);
+    const [originalBaseText, setOriginalBaseText] = useState(null);
 
     const formattedBaseText = useMemo(() => {
         if (!briefingData.baseText) return '';
@@ -186,6 +188,8 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
             setTargetLanguage(''); // Reset language
             setOriginalFinalText(null); // Reset original text
             setOriginalSections(null); // Reset original sections
+            setOriginalRevisedText(null);
+            setOriginalBaseText(null);
 
             const fetchUserTemplate = async () => {
                 try {
@@ -222,7 +226,9 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
                     onBriefingDataChange(prev => ({
                         ...prev,
                         finalText: originalFinalText,
-                        sections: originalSections
+                        sections: originalSections,
+                        revisedText: originalRevisedText,
+                        baseText: originalBaseText
                     }));
                 }
                 return;
@@ -241,6 +247,8 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
             try {
                 const textToTranslate = originalFinalText;
                 const sectionsToTranslate = originalSections;
+                const baseTextToTranslate = originalBaseText;
+                const revisedTextToTranslate = originalRevisedText;
 
                 if (!textToTranslate || !sectionsToTranslate) {
                     toast.error("Conteúdo original não encontrado para tradução.");
@@ -254,18 +262,20 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
                     textToTranslate,
                     dosToTranslate,
                     dontsToTranslate,
+                    baseTextToTranslate,
+                    revisedTextToTranslate,
                     targetLanguage,
                     user.gemini_model
                 );
 
+                const newSections = htmlToSections(translatedData.translatedRevisedText);
+
                 onBriefingDataChange(prev => ({
                     ...prev,
                     finalText: translatedData.translatedDocument,
-                    sections: {
-                        ...prev.sections,
-                        'DOs': translatedData.translatedDos,
-                        "DON'Ts": translatedData.translatedDonts,
-                    }
+                    sections: newSections,
+                    revisedText: translatedData.translatedRevisedText,
+                    baseText: translatedData.translatedBaseText
                 }));
 
                 toast.success(`Briefing traduzido para ${targetLanguage}!`);
@@ -276,7 +286,9 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
                     onBriefingDataChange(prev => ({
                         ...prev,
                         finalText: originalFinalText,
-                        sections: originalSections
+                        sections: originalSections,
+                        revisedText: originalRevisedText,
+                        baseText: originalBaseText
                     }));
                 }
             } finally {
@@ -317,6 +329,8 @@ const BriefingWizard = ({ open, onClose, onSave, onDelete, briefingData, onBrief
             // Store original content for translation step
             setOriginalFinalText(finalHtml);
             setOriginalSections(updatedSections);
+            setOriginalRevisedText(briefingData.revisedText);
+            setOriginalBaseText(briefingData.baseText);
         }
         setActiveStep(nextStep);
     };
